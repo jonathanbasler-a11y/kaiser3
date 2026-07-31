@@ -28,7 +28,8 @@
       "cost": 20000,
       "landRequirement": 5000,
       "upkeepPerYear": 200,
-      "requiresMinPopulation": 5000
+      "requiresMinPopulation": 2800,
+      "_note": "Was 5000 — ABOVE the measured population ceiling of ~4,600, and above the population thresholds of every rank that requires a cathedral (Archbishop 3,000, King 3,500, Kaiser 4,200). The result was that cathedral was never once built and rank capped at Margrave. Now set just below Archbishop's own threshold, so the cathedral gates the rank rather than silently replacing it."
     }
   },
   "_mitigationNote": "`mitigates` is documentation of intent; the authoritative mitigation coefficients live per-event in data/events.json (an event owns its own risk formula). Kept in sync by validateEventCatalog(), which fails if an event names a mitigation building that doesn't exist here.",
@@ -36,23 +37,32 @@
     "hospital": {
       "cost": 3000,
       "upkeepPerYear": 250,
-      "mitigates": ["plague"],
+      "mitigates": [
+        "plague"
+      ],
       "requiresMinPopulation": 1000
     },
     "well": {
       "cost": 1500,
       "upkeepPerYear": 150,
-      "mitigates": ["fire"]
+      "mitigates": [
+        "fire"
+      ]
     },
     "granary": {
       "cost": 2000,
       "upkeepPerYear": 150,
-      "mitigates": ["famine"]
+      "mitigates": [
+        "famine"
+      ]
     },
     "garrison": {
       "cost": 4000,
       "upkeepPerYear": 300,
-      "mitigates": ["banditry", "revolt"]
+      "mitigates": [
+        "banditry",
+        "revolt"
+      ]
     }
   }
 }

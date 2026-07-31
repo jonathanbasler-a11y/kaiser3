@@ -7,7 +7,7 @@ import {
   GameState, Decision, Chronicle, PlayerChronicle, StrikeRecord,
   GrainDecision, LandTradeDecision, TaxDecision, ConstructionDecision, EspionageDecision
 } from './state.ts'
-import { calculateHarvest, resolveFeeding } from './economy.ts'
+import { calculateHarvest, resolveFeeding, applyGrainTrade, storageCapacity } from './economy.ts'
 import { applyLandTrade } from './land.ts'
 import { applyPopulationDynamics } from './population.ts'
 import { applyTaxation } from './tax.ts'
@@ -47,25 +47,26 @@ export function advanceYear(
   //     1. Land trading          [Phase 1]
   //     2. Recruitment           [Phase 7]
   //     3. Construction          [Phase 2]
-  //     4. Harvest & grain       [Phase 1]
-  //     5. Grain distribution    [Phase 1]
-  //     6. Population dynamics   [Phase 1]
-  //     7. Building income       [Phase 2]
-  //     8. Taxation              [Phase 2]
-  //     9. Upkeep                [Phase 2 + 7]
-  //    10. Events                [Phase 4]
+  //     4. Harvest & weather      [Phase 1 + 8]
+  //     5. Grain distribution     [Phase 1]
+  //     6. Grain market            [Phase 8]
+  //     7. Population dynamics    [Phase 1]
+  //     8. Building income        [Phase 2]
+  //     9. Taxation               [Phase 2]
+  //    10. Upkeep                 [Phase 2 + 7]
+  //    11. Events                 [Phase 4]
   //
   //   ACROSS RULERS:
-  //    11. Espionage strikes     [Phase 7]
+  //    12. Espionage strikes     [Phase 7]
   //
   //   PER RULER again:
-  //    12. Rank promotion check  [Phase 2]
+  //    13. Rank promotion check  [Phase 2]
   //
   // Espionage sits between the two per-ruler passes because it is the only phase
   // where rulers touch each other, and the promotion check has to come after it:
   // a treasury emptied by raiders should cost you the title that year.
   //
-  //    13. Warfare               [Phase 8]
+  //    14. Warfare               [Phase 9+]
 
   for (const playerId of newState.activePlayerIds) {
     const player = newState.players[playerId]
@@ -80,6 +81,12 @@ export function advanceYear(
       immigration: 0,
       harvestYield: 0,
       spoilage: 0,
+      grainOverflowLost: 0,
+      weatherId: '',
+      weatherName: '',
+      grainSold: 0,
+      grainBought: 0,
+      grainTradeIncome: 0,
       marketIncome: 0,
       millIncome: 0,
       tributeIncome: 0,
@@ -119,18 +126,37 @@ export function advanceYear(
     player.buildings = constructionResult.newBuildings
     player.taler = constructionResult.newTaler
 
-    // 3. Harvest (labor-gated productivity, weather variance, spoilage on carried-over stock)
-    const harvest = calculateHarvest(player.land, player.population, player.grainStock, rng)
+    // 4. Harvest (labor-gated productivity, weather band, spoilage, storage cap)
+    const harvest = calculateHarvest(
+      player.land, player.population, player.grainStock, player.buildings.granary, rng
+    )
     player.grainStock = harvest.newGrainStock
     report.harvestYield = harvest.grossYield
     report.spoilage = harvest.spoiledFromStock
+    report.grainOverflowLost = harvest.overflowLost
+    report.weatherId = harvest.weather.id
+    report.weatherName = harvest.weather.name
 
-    // 4. Grain feeding decision
+    // 5. Grain feeding decision
     const grainDecision = findDecision<GrainDecision>(playerDecisions, 'grain') ?? DEFAULT_GRAIN_DECISION
     const feeding = resolveFeeding(grainDecision, player.population, player.grainStock)
     player.grainStock = feeding.grainStockAfter
 
-    // 5. Population dynamics (births/deaths/migration driven by feeding adequacy)
+    // 6. Grain market — settled AFTER feeding, so a ruler sells genuine surplus
+    //    rather than the bread out of its peasants' mouths.
+    const capacity = storageCapacity(player.population, player.buildings.granary)
+    const trade = applyGrainTrade(
+      player.grainStock, player.taler,
+      grainDecision.sellGrain ?? 0, grainDecision.buyGrain ?? 0,
+      newState.kaizerTradePrices.corn, capacity
+    )
+    player.grainStock = trade.grainStockAfter
+    player.taler = Math.max(0, player.taler + trade.talerDelta)
+    report.grainSold = trade.soldUnits
+    report.grainBought = trade.boughtUnits
+    report.grainTradeIncome = trade.talerDelta
+
+    // 7. Population dynamics (births/deaths/migration driven by feeding adequacy)
     const popResult = applyPopulationDynamics(player.population, feeding, rng)
     player.population = popResult.newPopulation
     report.births = popResult.births
@@ -138,13 +164,13 @@ export function advanceYear(
     report.emigration = popResult.emigration
     report.immigration = popResult.immigration
 
-    // 6. Building income (markets/mills, from buildings as of this year's construction)
+    // 8. Building income (markets/mills, from buildings as of this year's construction)
     const income = calculateBuildingIncome(player.buildings)
     player.taler += income.marketIncome + income.millIncome
     report.marketIncome = income.marketIncome
     report.millIncome = income.millIncome
 
-    // 7. Taxation (revenue from the population's economic output; burden feeds unrest)
+    // 9. Taxation (revenue from the population's economic output; burden feeds unrest)
     const taxDecision = findDecision<TaxDecision>(playerDecisions, 'tax') ?? DEFAULT_TAX_DECISION
     const taxResult = applyTaxation(player.population, taxDecision, tradeVolume)
     player.taler += taxResult.totalRevenue
@@ -153,14 +179,14 @@ export function advanceYear(
     report.tariffIncome = taxResult.tariffIncome
     report.tributeIncome = taxResult.graftBonus
 
-    // 9. Upkeep (buildings, trading-house tribute, and the standing secret service —
+    // 10. Upkeep (buildings, trading-house tribute, and the standing secret service —
     //    all scale with holdings, the anti-snowball lever)
     const upkeep = calculateUpkeep(player.buildings, player.tradingHouses, player.taler)
       + espionageUpkeep(player)
     player.taler = Math.max(0, player.taler - upkeep)
     report.upkeepCost = upkeep
 
-    // 9. Events (plague/fire/banditry scale with prosperity; revolt/famine compound
+    // 11. Events (plague/fire/banditry scale with prosperity; revolt/famine compound
     //    the player's own bad state). Resolved AFTER taxation so revolt reacts to
     //    this year's unrest including the tax burden, and BEFORE the rank check so
     //    a bad year can genuinely cost a promotion.
@@ -175,7 +201,7 @@ export function advanceYear(
     chronicle.playerReports[playerId] = report
   }
 
-  // 11. Espionage strikes — the only cross-ruler phase.
+  // 12. Espionage strikes — the only cross-ruler phase.
   //
   // Resolved in activePlayerIds order, which is deterministic: if two rulers raid
   // each other in the same year, the first to act finds a fuller treasury. That is
@@ -205,7 +231,7 @@ export function advanceYear(
     }
   }
 
-  // 12. Rank promotion check — after espionage, so a treasury emptied by raiders
+  // 13. Rank promotion check — after espionage, so a treasury emptied by raiders
   //     genuinely costs the title this year.
   for (const playerId of newState.activePlayerIds) {
     const player = newState.players[playerId]

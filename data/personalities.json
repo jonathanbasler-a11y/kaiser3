@@ -64,13 +64,13 @@
       "description": "Maximises income and liquidity, favouring markets and mills over monuments.",
       "weights": {
         "wealth": 1.6,
-        "population": 5,
+        "population": 6.5,
         "land": 0.5,
         "production": 4200,
         "prestige": 2200,
         "rank": 900000,
         "unrest": 350,
-        "grainSecurity": 5000,
+        "grainSecurity": 6000,
         "risk": 1,
         "riskHorizonYears": 4
       },
@@ -109,13 +109,13 @@
       "description": "Plunders rather than produces. Takes the leader's treasury and dares them to stop it.",
       "weights": {
         "wealth": 1.3,
-        "population": 6,
+        "population": 7.5,
         "land": 0.4,
         "production": 2700,
         "prestige": 5000,
         "rank": 1000000,
         "unrest": 380,
-        "grainSecurity": 5500,
+        "grainSecurity": 6500,
         "risk": 0.9,
         "riskHorizonYears": 4
       },
@@ -127,5 +127,6 @@
       "_tuningNote": "Started at aggression 1.0 with the weakest economic weights of any archetype and won 0 of 20 five-way matches: it bled saboteurs into a guard arms race with nothing at home to fall back on. Plunder has to supplement an economy, not replace one."
     }
   ],
-  "_aggressionGuide": "aggression 0-1 = appetite for striking rivals; preferredMode raid (plunder treasury) or sabotage (burn workshops, take grain); leaderFocus = how strongly to prefer whoever is ahead. Leader-focus is an anti-snowball lever: pulling ahead should invite attack."
+  "_aggressionGuide": "aggression 0-1 = appetite for striking rivals; preferredMode raid (plunder treasury) or sabotage (burn workshops, take grain); leaderFocus = how strongly to prefer whoever is ahead. Leader-focus is an anti-snowball lever: pulling ahead should invite attack.",
+  "_rebalanceNote": "Phase 8 made population the effective gate on every senior rank (food is now a real constraint and every rank threshold is a population threshold). Archetypes that weighted population lightly stopped winning at all — the Raider took 0 of 24 five-way matches. Their population and food-security weights were raised so plunder and commerce supplement a viable realm rather than substituting for one."
 }

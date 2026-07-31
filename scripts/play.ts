@@ -8,6 +8,7 @@ import { stdin, stdout } from 'node:process'
 import { GameState, Decision, GrainDecision, TaxDecision, EspionageDecision } from '../src/engine/state.ts'
 import { runGame } from '../src/engine/gameLoop.ts'
 import { getRankName } from '../src/engine/ranks.ts'
+import { annualGrainRequirement, storageCapacity, grainBuybackPrice } from '../src/engine/economy.ts'
 import { getPersonalities } from '../src/ai/personalities.ts'
 import { planYear } from '../src/ai/planner.ts'
 
@@ -50,9 +51,14 @@ function printPlayerSummary(state: GameState, humanId: string): void {
   console.log(`\n=== Year ${state.year} — ${p.name}, ${getRankName(p.rank)} ===`)
   console.log(`Taler: ${p.taler.toFixed(0)} | Farmland: ${p.land.farmland.toFixed(0)} ha | Building land: ${p.land.buildingLand.toFixed(0)} ha`)
   console.log(`Population: ${p.population.peasants.toFixed(0)} (unrest: ${p.population.unrest.toFixed(1)}/100)`)
-  console.log(`Grain stock: ${p.grainStock.toFixed(0)}`)
+  const needed = annualGrainRequirement(p.population)
+  const capacity = storageCapacity(p.population, p.buildings.granary)
+  console.log(
+    `Grain: ${p.grainStock.toFixed(0)} of ${capacity.toFixed(0)} storable ` +
+    `(${(p.grainStock / needed).toFixed(1)} years' food; your people eat ${needed.toFixed(0)}/year)`
+  )
+  console.log(`Corn sells at ${state.kaizerTradePrices.corn}/unit, buys back at ${grainBuybackPrice(state.kaizerTradePrices.corn).toFixed(2)}`)
   console.log(`Buildings — markets: ${p.buildings.markets}, mills: ${p.buildings.mills}, palace: ${p.buildings.palace}/16, cathedral: ${p.buildings.cathedral}`)
-  console.log(`Kaiser prices — corn: ${state.kaizerTradePrices.corn}/unit, farmland: ${state.kaizerTradePrices.farmland}/ha, building land: ${state.kaizerTradePrices.buildingLand}/ha`)
 }
 
 async function getHumanDecisions(state: GameState, humanId: string): Promise<Decision[]> {
@@ -68,9 +74,10 @@ async function getHumanDecisions(state: GameState, humanId: string): Promise<Dec
   if (feedLevel !== feedInput) {
     console.log(`  (unrecognised feed level "${feedInput}" — using "required")`)
   }
-  const grainDecision: GrainDecision = feedLevel === 'custom'
-    ? { type: 'grain', feedLevel, customPercentage: await askNumber('Custom feed % (20-80)', 50) }
-    : { type: 'grain', feedLevel }
+  const customPercentage = feedLevel === 'custom' ? await askNumber('Custom feed % (20-80)', 50) : undefined
+
+  const sellGrain = await askNumber('Grain to sell to the Kaiser', 0)
+  const buyGrain = await askNumber('Grain to buy from the Kaiser', 0)
 
   const farmlanbuy = await askNumber('Farmland to buy(+)/sell(-), hectares', 0)
   const buildingLandBuy = await askNumber('Building land to buy(+)/sell(-), hectares', 0)
@@ -109,6 +116,8 @@ async function getHumanDecisions(state: GameState, humanId: string): Promise<Dec
     }
   }
 
+  const grainDecision: GrainDecision = { type: 'grain', feedLevel, customPercentage, sellGrain, buyGrain }
+
   return [
     grainDecision,
     { type: 'land_trade', farmlanbuy, buildingLandBuy, partnerPlayerId: 'kaiser' },
@@ -146,6 +155,18 @@ async function main() {
     },
     onYearComplete: (state, chronicle) => {
       const report = chronicle.playerReports['human']
+
+      // The year's weather, always — a drought must be something the player sees
+      // coming out of the fields, not a number they reverse-engineer later.
+      const traded = report.grainSold > 0
+        ? `, sold ${report.grainSold.toFixed(0)} grain for ${report.grainTradeIncome.toFixed(0)} Taler`
+        : report.grainBought > 0
+          ? `, bought ${report.grainBought.toFixed(0)} grain for ${(-report.grainTradeIncome).toFixed(0)} Taler`
+          : ''
+      console.log(`\n  ~ ${report.weatherName}: harvest ${report.harvestYield.toFixed(0)}${traded}`)
+      if (report.grainOverflowLost > 100) {
+        console.log(`    (${report.grainOverflowLost.toFixed(0)} grain rotted — the barns are full)`)
+      }
 
       // Always surface the telegraph text — a hard event must read as a
       // consequence the player can learn from, never as an unexplained loss.

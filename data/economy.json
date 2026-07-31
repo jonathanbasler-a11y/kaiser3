@@ -1,35 +1,87 @@
 {
   "_comment": "Economic parameters: harvest yields, spoilage, price curves, upkeep rates. Filled in during Phase 1.",
+  "_harvestNote": "Weather is drawn from named BANDS rather than a narrow bell curve, so years are memorable: a drought is a disaster you talk about, not a 15% dip. Weighted mean is ~1.02, so the long run is near-neutral while any single year can ruin or make a reign. withinBandJitter adds texture inside a band without blurring the bands into each other.",
   "harvest": {
     "baseYieldPerHectare": 2.5,
-    "weatherVariance": 0.15,
-    "spoilagePercentage": 0.05,
-    "laborHectaresPerPeasant": 5
+    "laborHectaresPerPeasant": 5,
+    "withinBandJitter": 0.08,
+    "weatherBands": [
+      {
+        "id": "drought",
+        "name": "Drought",
+        "multiplier": 0.3,
+        "weight": 5
+      },
+      {
+        "id": "poor",
+        "name": "Poor harvest",
+        "multiplier": 0.6,
+        "weight": 12
+      },
+      {
+        "id": "lean",
+        "name": "Lean year",
+        "multiplier": 0.85,
+        "weight": 21
+      },
+      {
+        "id": "average",
+        "name": "Ordinary year",
+        "multiplier": 1,
+        "weight": 25
+      },
+      {
+        "id": "good",
+        "name": "Good year",
+        "multiplier": 1.2,
+        "weight": 22
+      },
+      {
+        "id": "bountiful",
+        "name": "Bountiful harvest",
+        "multiplier": 1.5,
+        "weight": 10
+      },
+      {
+        "id": "glut",
+        "name": "Harvest of a lifetime",
+        "multiplier": 1.85,
+        "weight": 5
+      }
+    ]
+  },
+  "_storageNote": "Grain keeps a couple of seasons, not forever: at 18% a year roughly half survives three years, so a reserve is a real but wasting asset. Was 30%, which combined with a thin surplus put the EQUILIBRIUM reserve at only ~1.3 years — below what a drought (0.3x harvest) requires — so realms could not build a survivable buffer however well they were played, and population declined to extinction over two centuries. The capacity ceiling (in years of consumption) is what actually stops hoarding; spoilage only needs to make grain perishable, not worthless.",
+  "storage": {
+    "spoilagePercentage": 0.18,
+    "baseCapacityYears": 2.5,
+    "granaryCapacityBonusYears": 1.5
   },
   "prices": {
-    "cornBasePrice": 40,
+    "cornBasePrice": 3.2,
     "cornPriceBands": {
-      "min": 20,
-      "max": 80
+      "min": 1.6,
+      "max": 6
     },
     "farmlandBasePrice": 30,
-    "buildingLandBasePrice": 50
+    "buildingLandBasePrice": 50,
+    "cornBuybackMarkup": 1.45
   },
   "_upkeepNote": "Per-building upkeep now lives in data/buildings.json alongside each building's other specs. This section only holds cross-cutting upkeep that isn't tied to a single building type.",
   "upkeep": {
     "tradingHouseTributePercentage": 0.1
   },
   "population": {
-    "birthRateBase": 0.02,
-    "deathRateBase": 0.01,
+    "birthRateBase": 0.038,
+    "deathRateBase": 0.017,
     "unrestEmigrationThreshold": 50,
-    "populationGrainRequirement": 0.5,
+    "populationGrainRequirement": 8,
     "emigrationRate": 0.05,
     "immigrationRate": 0.02,
     "diseaseOverfeedMortality": 0.03,
     "starvationMortality": 0.04,
     "incomePerCapita": 3
   },
+  "_consumptionNote": "populationGrainRequirement was 0.5 against a per-peasant yield of 12.5 (5 ha at 2.5) — a 25x surplus, which is not an agricultural economy at all. It made grain worthless, stockpiles meaningless, sabotage loot pointless and weather irrelevant. At 9.0 a peasant produces roughly 1.4x what they eat: an ordinary year leaves a real but modest surplus, a lean year eats into the reserve, and a drought is a genuine famine.",
   "_espionageNote": "Guards and saboteurs are STANDING forces with annual upkeep, not one-off purchases. That makes a secret service a recurring burden rather than a bought-once advantage, and gives the late game another cost that scales with ambition.",
   "espionage": {
     "guardCost": 500,
@@ -51,5 +103,7 @@
     "graftRevenueBonus": 0.3,
     "graftUnrestMultiplier": 0.5
   },
-  "_sabotageNote": "Sabotage carries off grain AND a modest share of the treasury, per the original (docs/kaiser-research.md: burns buildings and transfers grain/currency to the attacker). A dedicated raid still takes far more coin; sabotage trades some of that for destroying a workshop outright."
+  "_sabotageNote": "Sabotage carries off grain AND a modest share of the treasury, per the original (docs/kaiser-research.md: burns buildings and transfers grain/currency to the attacker). A dedicated raid still takes far more coin; sabotage trades some of that for destroying a workshop outright.",
+  "_grainMarketNote": "The Kaiser buys surplus corn and sells it back dearer. The spread is what makes storing versus selling a real decision rather than an arithmetic one, and it gives the early game an income source before any market or mill exists.",
+  "_populationRatesNote": "Rates were 2%/1% for a net +1%/yr, which could not recover from the event pressure Phase 6 deliberately created: measured over 200 years, natural increase plus immigration came to +2,779 while plague and revolt took -2,947, so realms shrank to extinction no matter how well they were played. A pre-modern population facing mortality that heavy needs a correspondingly high birth rate — this is how real medieval populations rebuilt after plague years. Deaths rose too, so the gross churn is high and the NET is a modest +2.1%/yr: recovery is possible but slow enough that a bad decade still hurts for a generation."
 }

@@ -42,7 +42,7 @@
       "name": "Margrave",
       "requirements": {
         "wealthMin": 75000,
-        "populationMin": 2500,
+        "populationMin": 2400,
         "palaceStages": 14
       },
       "unlockedFeature": "tradingHouses"
@@ -52,7 +52,7 @@
       "name": "Archbishop",
       "requirements": {
         "wealthMin": 100000,
-        "populationMin": 3000,
+        "populationMin": 2600,
         "cathedral": true
       }
     },
@@ -61,7 +61,7 @@
       "name": "King",
       "requirements": {
         "wealthMin": 150000,
-        "populationMin": 3500,
+        "populationMin": 2800,
         "palaceStages": 15
       }
     },
@@ -70,12 +70,12 @@
       "name": "Kaiser",
       "requirements": {
         "wealthMin": 200000,
-        "populationMin": 4200,
+        "populationMin": 3200,
         "palaceStages": 16,
         "cathedral": true
       },
       "description": "Emperor of the Holy Roman Empire — Victory!"
     }
   ],
-  "_populationNote": "Population thresholds are calibrated against what the simulation can actually produce: net natural growth is ~1%/yr and plague claws much of it back, so an ideally-played realm with full mitigation peaks near 4,600 peasants (measured, scripts/balance.ts era). The original Phase 0 figures ran to 20,000 and made every rank above Prince unreachable."
+  "_populationNote": "Calibrated against what the simulation actually sustains. Phase 8 raised per-peasant consumption from 0.5 to 9.0, which made food a genuine constraint and LOWERED the sustainable population: realms now grow toward the land they can work (~2,400-2,600 peasants on the land an AI typically buys) and are knocked back hard by drought sequences. Earlier figures ran to 20,000 (Phase 0, before the population model existed) and then 4,200 (Phase 6, before food mattered); both made the senior ranks unreachable."
 }

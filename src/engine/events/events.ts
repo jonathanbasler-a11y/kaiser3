@@ -277,6 +277,13 @@ export function resolveEvents(
     const exposure = calculateExposure(event.exposure, player, context)
     const resolved = applyEventLoss(event, player, severity, mitigated, exposure)
 
+    // An event that took nothing is not an event. Fire exposure counts every
+    // building a realm owns, but only workshops can actually burn — so a fire can
+    // "strike" a ruler with a granary and no markets and destroy nothing, which
+    // surfaced to the player as "Fire tears through the workshops (0 buildings
+    // destroyed)". Recording a loss of zero is worse than recording nothing.
+    if (resolved.event.loss <= 0) continue
+
     events.push(resolved.event)
     totalPopulationLoss += resolved.populationLoss
     totalGoldLoss += resolved.goldLoss

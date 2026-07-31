@@ -8,13 +8,52 @@ import { SeededRng } from './rng.ts'
 import { GrainDecision, LandHolding, PopulationState } from './state.ts'
 
 const HARVEST = economyData.harvest
+const STORAGE = economyData.storage
+const PRICES = economyData.prices
 const POP_ECONOMY = economyData.population
+
+export interface WeatherBand {
+  id: string
+  name: string
+  multiplier: number
+  weight: number
+}
+
+const WEATHER_BANDS = HARVEST.weatherBands as WeatherBand[]
+const TOTAL_WEATHER_WEIGHT = WEATHER_BANDS.reduce((sum, band) => sum + band.weight, 0)
+
+// Draws a named weather band. Bands rather than a narrow bell curve: a drought
+// should be an event a player remembers and plans around, not a 15% dip lost in
+// the noise. The long-run mean is close to 1, so the variance is drama rather
+// than a hidden tax.
+export function rollWeather(rng: SeededRng): WeatherBand {
+  let roll = rng.next() * TOTAL_WEATHER_WEIGHT
+  for (const band of WEATHER_BANDS) {
+    roll -= band.weight
+    if (roll <= 0) return band
+  }
+  return WEATHER_BANDS[WEATHER_BANDS.length - 1]
+}
+
+export function annualGrainRequirement(population: PopulationState): number {
+  return population.peasants * POP_ECONOMY.populationGrainRequirement
+}
+
+// How much grain a realm can actually keep, expressed in years of consumption so
+// it scales with the realm rather than becoming irrelevant as it grows. Grain
+// above this simply rots in the barn.
+export function storageCapacity(population: PopulationState, granaries: number): number {
+  const years = STORAGE.baseCapacityYears + (granaries > 0 ? STORAGE.granaryCapacityBonusYears : 0)
+  return annualGrainRequirement(population) * years
+}
 
 export interface HarvestResult {
   productiveFarmland: number   // Farmland actually worked (labor-gated)
   grossYield: number           // New grain produced this year
   spoiledFromStock: number     // Grain lost to spoilage from last year's carry-over
-  newGrainStock: number        // grainStock after spoilage + new yield (before feeding)
+  overflowLost: number         // Grain that exceeded what the realm can store, left to rot
+  weather: WeatherBand         // The year's weather, for the chronicle
+  newGrainStock: number        // grainStock after spoilage, new yield and the storage cap
 }
 
 // Farmland beyond available peasant labor produces nothing — a hard scarcity
@@ -28,19 +67,31 @@ export function calculateHarvest(
   land: LandHolding,
   population: PopulationState,
   previousGrainStock: number,
+  granaries: number,
   rng: SeededRng
 ): HarvestResult {
   const productiveFarmland = laborGatedFarmland(land, population)
-  const weatherMultiplier = Math.max(0, rng.nextGaussian(HARVEST.weatherVariance))
-  const grossYield = productiveFarmland * HARVEST.baseYieldPerHectare * weatherMultiplier
 
-  // Spoilage applies to grain carried over from last year, before this year's harvest is added —
-  // stockpiles rot; hoarding is not a free scarcity workaround.
-  const spoiledFromStock = previousGrainStock * HARVEST.spoilagePercentage
-  const stockAfterSpoilage = previousGrainStock - spoiledFromStock
-  const newGrainStock = Math.max(0, stockAfterSpoilage) + grossYield
+  const weather = rollWeather(rng)
+  // A little variation inside the band, so two "lean years" are not identical,
+  // without letting bands blur into one another.
+  const jitter = 1 + (rng.next() - 0.5) * HARVEST.withinBandJitter
+  const grossYield = Math.max(0, productiveFarmland * HARVEST.baseYieldPerHectare * weather.multiplier * jitter)
 
-  return { productiveFarmland, grossYield, spoiledFromStock, newGrainStock }
+  // Spoilage hits grain carried over from last year, before this year's harvest is
+  // added: stores decay, so a reserve is a wasting asset rather than a free buffer.
+  const spoiledFromStock = previousGrainStock * STORAGE.spoilagePercentage
+  const stockAfterSpoilage = Math.max(0, previousGrainStock - spoiledFromStock)
+
+  // Anything beyond what the realm can physically store is lost. This is the hard
+  // stop on hoarding: without it a good run of weather compounds into an infinite
+  // granary, and the sell-or-store decision disappears.
+  const capacity = storageCapacity(population, granaries)
+  const gathered = stockAfterSpoilage + grossYield
+  const newGrainStock = Math.min(gathered, capacity)
+  const overflowLost = gathered - newGrainStock
+
+  return { productiveFarmland, grossYield, spoiledFromStock, overflowLost, weather, newGrainStock }
 }
 
 export interface FeedingResult {
@@ -97,5 +148,57 @@ export function resolveFeeding(
     feedAdequacy,
     isUnderfed: feedAdequacy < 0.9,
     isOverfed: feedAdequacy > 1.4
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Grain market
+// ---------------------------------------------------------------------------
+//
+// The original's central loop is buying and selling corn against the Kaiser
+// (docs/kaiser-research.md § Trade partner / market screen). Without it, surplus
+// grain has no purpose at all: harvests pile up, sabotage loot is worthless, and
+// weather barely matters because nothing turns on the size of the heap.
+//
+// The Kaiser buys low and sells high, and the spread is deliberate: it makes
+// "store it or sell it" a judgement rather than arithmetic. Selling a reserve at
+// a good price is only correct if the next harvest cooperates.
+
+export interface GrainTradeResult {
+  soldUnits: number
+  boughtUnits: number
+  talerDelta: number      // Positive = earned, negative = spent
+  grainStockAfter: number
+}
+
+export function grainBuybackPrice(marketPrice: number): number {
+  return marketPrice * PRICES.cornBuybackMarkup
+}
+
+export function applyGrainTrade(
+  grainStock: number,
+  taler: number,
+  sellUnits: number,
+  buyUnits: number,
+  marketPrice: number,
+  capacity: number
+): GrainTradeResult {
+  // Selling is clamped to what is actually in the barn.
+  const sold = Math.max(0, Math.min(sellUnits, grainStock))
+  const earned = sold * marketPrice
+
+  // Buying is clamped by affordability AND by remaining storage — there is no
+  // point purchasing grain the realm cannot keep.
+  const budget = taler + earned
+  const room = Math.max(0, capacity - (grainStock - sold))
+  const price = grainBuybackPrice(marketPrice)
+  const bought = Math.max(0, Math.min(buyUnits, room, price > 0 ? Math.floor(budget / price) : 0))
+  const spent = bought * price
+
+  return {
+    soldUnits: sold,
+    boughtUnits: bought,
+    talerDelta: earned - spent,
+    grainStockAfter: grainStock - sold + bought
   }
 }

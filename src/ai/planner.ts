@@ -18,6 +18,7 @@
 import { GameState, PlayerState, Decision, TaxDecision, ConstructionDecision, LandTradeDecision } from '../engine/state.ts'
 import { advanceYear } from '../engine/year.ts'
 import { evaluateState, projectedFeedAdequacy, PersonalityWeights } from './evaluator.ts'
+import { annualGrainRequirement } from '../engine/economy.ts'
 import { Personality } from './personalities.ts'
 import { planAggression } from './aggression.ts'
 import buildingsData from '../../data/buildings.json'
@@ -131,20 +132,43 @@ function constructionOptions(player: PlayerState, projectedLand: number): Array<
   return options
 }
 
-// Feeding: 'required' is almost always correct (it delivers exactly what the
-// population needs). 'min' is the austerity play when grain is desperately short
-// and stretching reserves matters more than contentment.
-const FEED_OPTIONS: Array<Decision & { type: 'grain' }> = [
-  { type: 'grain', feedLevel: 'required' },
-  { type: 'grain', feedLevel: 'min' }
-]
+// Feeding and the grain market, together — they are one decision in practice.
+// 'required' is almost always the right feed level; 'min' is the austerity play
+// when stores are desperately short.
+//
+// The interesting axis is how much surplus to SELL. Holding grain is insurance
+// against a bad harvest and it decays; selling it is cash now and a gamble on the
+// weather. Candidates are expressed as "keep N years of food, sell the rest", so
+// the personality's grainSecurity weight against its wealth weight decides the
+// posture — a Merchant will run the barns lean, an Expansionist will not.
+function grainOptions(player: PlayerState): Array<Decision & { type: 'grain' }> {
+  const yearOfFood = annualGrainRequirement(player.population)
+  const options: Array<Decision & { type: 'grain' }> = []
+
+  for (const reserveYears of [3, 2, 1.25, 0]) {
+    const sellGrain = Math.max(0, Math.floor(player.grainStock - yearOfFood * reserveYears))
+    options.push({ type: 'grain', feedLevel: 'required', sellGrain })
+  }
+  // Austerity: stretch the stores when they are thin, and sell nothing.
+  options.push({ type: 'grain', feedLevel: 'min' })
+
+  // De-duplicate: when the barn is nearly empty several reserve levels collapse
+  // onto "sell nothing", and evaluating the same sheet repeatedly is pure cost.
+  const seen = new Set<string>()
+  return options.filter((option) => {
+    const key = `${option.feedLevel}:${option.sellGrain ?? 0}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
 
 export function generateCandidates(player: PlayerState, prices: GameState['kaizerTradePrices']): Decision[][] {
   const candidates: Decision[][] = []
 
   const currentLand = player.land.farmland + player.land.buildingLand
 
-  for (const feed of FEED_OPTIONS) {
+  for (const feed of grainOptions(player)) {
     for (const land of landOptions(player, prices)) {
       // Land bought this year is available to build on this year, so construction
       // candidates are generated against the post-purchase holding.

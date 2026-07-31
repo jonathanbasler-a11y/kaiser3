@@ -28,6 +28,7 @@ import { ExposureContext } from '../engine/scarcity.ts'
 import { rankProgress, getNextRank } from '../engine/ranks.ts'
 
 const POP_ECONOMY = economyData.population
+const HARVEST = economyData.harvest
 const PALACE = buildingsData.prestige.palace
 
 // Share of a rank's value credited for holding the land the palace requires.
@@ -66,26 +67,50 @@ export interface PersonalityWeights {
   riskHorizonYears: number
 }
 
-// How secure the grain stores are, as a 0-1 fraction of one year's requirement
-// held in reserve. Capped at 1: hoarding ten years of grain is not ten times as
-// useful as one (and it would rot anyway — see economy.ts spoilage).
-function grainSecurityRatio(player: PlayerState): number {
+function yearsOfFoodHeld(player: PlayerState): number {
   const required = player.population.peasants * POP_ECONOMY.populationGrainRequirement
-  if (required <= 0) return 1
-  return Math.min(1, player.grainStock / required)
+  if (required <= 0) return Infinity
+  return player.grainStock / required
+}
+
+// The reserve that actually buys safety, expressed as a 0-1 score.
+//
+// Deliberately measured against TWO years of food, not one. A drought harvests at
+// 0.3x, so a single year in the barn does not cover it — and while the cap was one
+// year the AI treated every grain above that as worthless and sold it. It then
+// starved in the first drought and never recovered: realms shrank from ~1,600
+// peasants to ~450 over two centuries. Grain above two years is genuinely surplus:
+// it spoils at 30% a year and the barns cannot hold it anyway.
+const SECURE_RESERVE_YEARS = 2
+
+function grainSecurityRatio(player: PlayerState): number {
+  return Math.min(1, yearsOfFoodHeld(player) / SECURE_RESERVE_YEARS)
 }
 
 // The feeding adequacy this player can expect to achieve NEXT year given the grain
 // they are holding now. Famine exposure keys off exactly this (scarcity.ts), so it
 // is what a forward-looking evaluation should use: a ruler sitting on full stores
 // faces no famine risk, one running on empty faces a lot.
+//
+// Capped at one year, unlike the security score above: you cannot be better than
+// fully fed, however deep the barns.
 export function projectedFeedAdequacy(player: PlayerState): number {
-  return grainSecurityRatio(player)
+  return Math.min(1, yearsOfFoodHeld(player))
+}
+
+// How much headroom beyond the present workforce still counts as useful land.
+// Roughly a generation's worth of growth: enough that a ruler keeps buying room to
+// expand into, not so much that it hoards hectares nobody will ever work.
+const LAND_HEADROOM_FACTOR = 1.8
+
+function usableLand(player: PlayerState): number {
+  const totalLand = player.land.farmland + player.land.buildingLand
+  const workforceCapacity = player.population.peasants * HARVEST.laborHectaresPerPeasant
+  return Math.min(totalLand, workforceCapacity * LAND_HEADROOM_FACTOR)
 }
 
 // Everything the ruler is worth right now, ignoring future risk.
 export function intrinsicUtility(player: PlayerState, weights: PersonalityWeights): number {
-  const totalLand = player.land.farmland + player.land.buildingLand
   const productionBuildings = player.buildings.markets + player.buildings.mills
   // A cathedral represents a comparable investment to a completed palace, so it is
   // valued as a full palace's worth of prestige rather than as a single stage.
@@ -94,7 +119,15 @@ export function intrinsicUtility(player: PlayerState, weights: PersonalityWeight
   let utility = 0
   utility += player.taler * weights.wealth
   utility += player.population.peasants * weights.population
-  utility += totalLand * weights.land
+  // Land is valued only as far as it can be USED. Farmland is labour-gated at 5 ha
+  // per peasant, so hectares far beyond the workforce are dead weight — valuing
+  // them equally is what once had the Expansionist buying 9,574 idle hectares.
+  //
+  // But land just beyond the current workforce is not idle, it is HEADROOM: it is
+  // what the next generation of peasants will work, and population is the binding
+  // requirement for every senior rank. So usable land is measured against the
+  // workforce a realm can plausibly grow into, not the one it has today.
+  utility += usableLand(player) * weights.land
   utility += productionBuildings * weights.production
   utility += prestigeStages * weights.prestige
   // A continuous rank ladder: whole ranks earned, plus fractional progress toward

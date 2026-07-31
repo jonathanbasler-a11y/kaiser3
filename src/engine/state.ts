@@ -77,6 +77,12 @@ export interface PlayerChronicle {
   immigration: number
   harvestYield: number
   spoilage: number
+  grainOverflowLost: number        // Surplus that exceeded storage and rotted
+  weatherId: string                // Which weather band the year drew
+  weatherName: string              // Human-readable, for the chronicle
+  grainSold: number
+  grainBought: number
+  grainTradeIncome: number         // Net Taler from the grain market (may be negative)
   marketIncome: number
   millIncome: number
   tributeIncome: number
@@ -132,6 +138,11 @@ export interface GrainDecision {
   type: 'grain'
   feedLevel: 'min' | 'max' | 'required' | 'custom'
   customPercentage?: number        // 20–80 if 'custom'
+  // Trade with the Kaiser's granary, resolved AFTER the population is fed — you
+  // sell what is left over, not what your peasants still need. Selling a reserve
+  // is a bet that next year's weather holds.
+  sellGrain?: number               // Units of surplus to sell
+  buyGrain?: number                // Units to buy back (at a markup)
 }
 
 export interface LandTradeDecision {

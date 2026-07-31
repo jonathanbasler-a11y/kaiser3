@@ -8,8 +8,16 @@ Modern rebuild of *Kaiser* (Ariolasoft, 1984): a Holy Roman Empire economic/poli
 ## Source of truth hierarchy
 1. `docs/kaiser-research.md` (the full original research on mechanics/graphics from Phase 0)
 2. `PLAN.md` (phased build order + acceptance criteria per phase)
-3. `data/*.json` (game data: economy.json, buildings.json, ranks.json, events.json, personalities.json)
-4. `src/engine/` (simulation core — pure, zero DOM imports)
+3. `BACKLOG.md` (verified bugs, dead code, and missing features — kept out of PLAN.md so the plan stays a plan)
+4. `data/*.json` (game data: economy.json, buildings.json, ranks.json, events.json, personalities.json)
+5. `src/engine/` (simulation core — pure, zero DOM imports)
+
+## Product requirements (owner-directed)
+- **Solo play against multiple strong AI opponents** is the design centre. Hot-seat is optional; networked multiplayer is deferred but must stay architecturally reachable (see the reducer contract above).
+- **The game must stay hard throughout.** No exponential-growth snowball once the early game is survived. This is enforced numerically by the balance gate, not by feel — see `docs/balance-report.md`.
+- **Agricultural scarcity must feel real.** Grain keeps for a couple of seasons, not indefinitely, and harvests vary between genuinely good and genuinely bad years. A reserve carried through a bad year is a real decision, and a run of bad weather is a real threat.
+- **Playable in a mobile browser, iOS Safari included.** Touch-first, portrait-friendly, static-hosted, no backend. This constrains the UI phase from the start rather than being retrofitted — see BACKLOG.md § P1.
+- **Original art only**, AI-generated locally via ComfyUI, with procedural fallback so the game is fully playable with no art present.
 
 Code conforms to data, never vice versa. Game balance lives in `src/engine/scarcity.ts` (all anti-snowball knobs isolated, coefficients data-driven from `economy.json`/`events.json`).
 
