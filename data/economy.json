@@ -8,7 +8,10 @@
   },
   "prices": {
     "cornBasePrice": 40,
-    "cornPriceBands": { "min": 20, "max": 80 },
+    "cornPriceBands": {
+      "min": 20,
+      "max": 80
+    },
     "farmlandBasePrice": 30,
     "buildingLandBasePrice": 50
   },
@@ -27,10 +30,26 @@
     "starvationMortality": 0.04,
     "incomePerCapita": 3
   },
+  "_espionageNote": "Guards and saboteurs are STANDING forces with annual upkeep, not one-off purchases. That makes a secret service a recurring burden rather than a bought-once advantage, and gives the late game another cost that scales with ambition.",
+  "espionage": {
+    "guardCost": 500,
+    "guardUpkeepPerYear": 90,
+    "saboteurCost": 700,
+    "saboteurUpkeepPerYear": 110,
+    "maxGuards": 25,
+    "maxSaboteurs": 25,
+    "baseDefence": 1.5,
+    "successSaboteurLossRate": 0.15,
+    "failureSaboteurLossRate": 0.5,
+    "lootTreasuryFraction": 0.18,
+    "lootGrainFraction": 0.25,
+    "sabotageTreasuryFraction": 0.07
+  },
   "taxation": {
     "toleranceThreshold": 40,
     "unrestPerExcessPoint": 1.2,
     "graftRevenueBonus": 0.3,
     "graftUnrestMultiplier": 0.5
-  }
+  },
+  "_sabotageNote": "Sabotage carries off grain AND a modest share of the treasury, per the original (docs/kaiser-research.md: burns buildings and transfers grain/currency to the attacker). A dedicated raid still takes far more coin; sabotage trades some of that for destroying a workshop outright."
 }

@@ -60,6 +60,13 @@ export function resolveFeeding(
 
   // The original's dial (C64-Wiki): Maximum (80% of stock), Minimum (20% of stock),
   // Required amount (exactly what the population needs), or Custom (20-80% of stock).
+  //
+  // The default branch is load-bearing, not defensive padding. Without it an
+  // unrecognised feedLevel left grainOffered undefined and NaN propagated silently
+  // through feeding, population, events and the treasury — a realm reporting "NaN
+  // peasants lost" and collapsing in two years. Malformed input should degrade to
+  // the safe choice, never poison the simulation. (validateDecisions() rejects such
+  // a sheet up front; this is the second line of defence for callers that skip it.)
   let grainOffered: number
   switch (decision.feedLevel) {
     case 'min':
@@ -68,14 +75,15 @@ export function resolveFeeding(
     case 'max':
       grainOffered = grainStockBeforeFeeding * 0.8
       break
-    case 'required':
-      grainOffered = requiredGrain
-      break
     case 'custom': {
       const pct = Math.min(80, Math.max(20, decision.customPercentage ?? 50))
       grainOffered = grainStockBeforeFeeding * (pct / 100)
       break
     }
+    case 'required':
+    default:
+      grainOffered = requiredGrain
+      break
   }
 
   const grainConsumed = Math.min(grainOffered, grainStockBeforeFeeding)

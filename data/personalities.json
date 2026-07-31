@@ -1,6 +1,5 @@
 {
   "_comment": "AI archetypes as weight vectors over the utility terms in src/ai/evaluator.ts. Every key here maps to a real, implemented utility component — no aspirational weights for mechanics that don't exist yet.",
-
   "_weightGuide": {
     "wealth": "Utility per Taler. The unit all other weights are calibrated against.",
     "population": "Utility per peasant. Peasants are labor (harvest capacity) and tax base.",
@@ -13,17 +12,14 @@
     "risk": "Multiplier on expected annual event loss. Higher = more willing to pay upkeep for mitigation buildings.",
     "riskHorizonYears": "How many years of avoided losses a mitigation building is credited with. Without this, a 1-year-lookahead AI would never buy insurance."
   },
-
-  "_deferred": "schemer and raider archetypes arrive in Phase 7 alongside espionage and raiding — the mechanics they would specialize in do not exist yet, so shipping their weights now would be dead data.",
-
   "archetypes": [
     {
       "id": "builder",
       "name": "The Builder",
       "description": "Invests in construction and prestige, and buys insurance. Slow but durable.",
       "weights": {
-        "wealth": 1.0,
-        "population": 5.0,
+        "wealth": 1,
+        "population": 5,
         "land": 0.4,
         "production": 3000,
         "prestige": 5000,
@@ -32,6 +28,11 @@
         "grainSecurity": 6000,
         "risk": 1.3,
         "riskHorizonYears": 6
+      },
+      "aggression": {
+        "aggression": 0.05,
+        "preferredMode": "raid",
+        "leaderFocus": 0.2
       }
     },
     {
@@ -40,8 +41,8 @@
       "description": "Grows the realm through its people: feeds them well, keeps them content, and shields them from plague.",
       "_tuningNote": "Three fixes from benchmarking, each a case of the archetype fighting the game's real economics. (1) risk was 0.7/3 — 'tolerates risk' as a theme — but it weights population highest of all three archetypes while under-insuring the one thing that destroys population. (2) prestige was 3000, BELOW the palace's 5,000-per-stage cost, so stages never paid for themselves and it simply never started the rank path. (3) land was 1.1, the highest of any archetype — but farmland is labor-gated at 5 ha per peasant, so a ruler with 13,400 ha and 757 peasants leaves 9,574 ha (71%) idle. It was buying hectares nobody could work, starving the very population that would make them useful, and finishing with the SMALLEST population despite caring most about population. Expansion in this game runs through people, not deeds: peasants unlock the land you already hold. Its identity is now food security, contentment, and protection — distinct from the Builder's monuments and the Merchant's treasury.",
       "weights": {
-        "wealth": 1.0,
-        "population": 9.0,
+        "wealth": 1,
+        "population": 9,
         "land": 0.45,
         "production": 2400,
         "prestige": 5400,
@@ -50,6 +51,11 @@
         "grainSecurity": 8000,
         "risk": 1.2,
         "riskHorizonYears": 5
+      },
+      "aggression": {
+        "aggression": 0.1,
+        "preferredMode": "sabotage",
+        "leaderFocus": 0.3
       }
     },
     {
@@ -58,16 +64,68 @@
       "description": "Maximises income and liquidity, favouring markets and mills over monuments.",
       "weights": {
         "wealth": 1.6,
-        "population": 5.0,
+        "population": 5,
         "land": 0.5,
         "production": 4200,
         "prestige": 2200,
         "rank": 900000,
         "unrest": 350,
         "grainSecurity": 5000,
-        "risk": 1.0,
+        "risk": 1,
         "riskHorizonYears": 4
+      },
+      "aggression": {
+        "aggression": 0.15,
+        "preferredMode": "raid",
+        "leaderFocus": 0.4
       }
+    },
+    {
+      "id": "schemer",
+      "name": "The Schemer",
+      "description": "Fights with the knife rather than the purse: burns rivals' workshops and carries off their grain.",
+      "weights": {
+        "wealth": 1,
+        "population": 6,
+        "land": 0.45,
+        "production": 2600,
+        "prestige": 5200,
+        "rank": 1000000,
+        "unrest": 400,
+        "grainSecurity": 6500,
+        "risk": 1,
+        "riskHorizonYears": 4
+      },
+      "aggression": {
+        "aggression": 0.85,
+        "preferredMode": "sabotage",
+        "leaderFocus": 1.2
+      },
+      "_tuningNote": "Sabotage succeeds often but was repaid mostly in GRAIN, which has no monetary value yet (no market to sell surplus into, and harvests already far exceed consumption). Per docs/kaiser-research.md the original transfers grain AND currency to the attacker, so sabotage now also carries off a smaller share of the treasury than a dedicated raid does. A proper grain market (PLAN.md Phase 8) would make the looted stores valuable in their own right."
+    },
+    {
+      "id": "raider",
+      "name": "The Raider",
+      "description": "Plunders rather than produces. Takes the leader's treasury and dares them to stop it.",
+      "weights": {
+        "wealth": 1.3,
+        "population": 6,
+        "land": 0.4,
+        "production": 2700,
+        "prestige": 5000,
+        "rank": 1000000,
+        "unrest": 380,
+        "grainSecurity": 5500,
+        "risk": 0.9,
+        "riskHorizonYears": 4
+      },
+      "aggression": {
+        "aggression": 0.8,
+        "preferredMode": "raid",
+        "leaderFocus": 1.5
+      },
+      "_tuningNote": "Started at aggression 1.0 with the weakest economic weights of any archetype and won 0 of 20 five-way matches: it bled saboteurs into a guard arms race with nothing at home to fall back on. Plunder has to supplement an economy, not replace one."
     }
-  ]
+  ],
+  "_aggressionGuide": "aggression 0-1 = appetite for striking rivals; preferredMode raid (plunder treasury) or sabotage (burn workshops, take grain); leaderFocus = how strongly to prefer whoever is ahead. Leader-focus is an anti-snowball lever: pulling ahead should invite attack."
 }

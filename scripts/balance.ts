@@ -5,16 +5,13 @@
 
 import { analyseBalance, BalanceReport } from '../src/ai/balance.ts'
 import { aiCompetitor, Competitor } from '../src/ai/sim.ts'
+import { getPersonalities } from '../src/ai/personalities.ts'
 import { BALANCE_THRESHOLDS, evaluateCriteria } from '../src/ai/balanceCriteria.ts'
 
 const matches = Number(process.argv[2] ?? 200)
 const maxYears = Number(process.argv[3] ?? 60)
 
-const competitors: Competitor[] = [
-  aiCompetitor('builder', 'builder'),
-  aiCompetitor('expansionist', 'expansionist'),
-  aiCompetitor('merchant', 'merchant')
-]
+const competitors: Competitor[] = getPersonalities().map((p) => aiCompetitor(p.id, p.id))
 
 console.log(`Kaiser 3 — balance harness`)
 console.log(`${matches} seeded matches x ${maxYears} years, ${competitors.length} AI rulers\n`)

@@ -3,12 +3,14 @@
 
 import personalitiesData from '../../data/personalities.json'
 import { PersonalityWeights } from './evaluator.ts'
+import { AggressionProfile } from './aggression.ts'
 
 export interface Personality {
   id: string
   name: string
   description: string
   weights: PersonalityWeights
+  aggression: AggressionProfile
 }
 
 const REQUIRED_WEIGHTS: Array<keyof PersonalityWeights> = [
@@ -38,6 +40,20 @@ export function validatePersonalities(archetypes: Personality[] = ARCHETYPES): v
 
     if (archetype.weights.riskHorizonYears < 1) {
       throw new Error(`Personality "${archetype.id}" has riskHorizonYears < 1 — it would never value mitigation buildings.`)
+    }
+
+    const aggression = archetype.aggression
+    if (!aggression) {
+      throw new Error(`Personality "${archetype.id}" has no aggression profile.`)
+    }
+    if (!(aggression.aggression >= 0 && aggression.aggression <= 1)) {
+      throw new Error(`Personality "${archetype.id}" has aggression outside 0-1.`)
+    }
+    if (aggression.preferredMode !== 'raid' && aggression.preferredMode !== 'sabotage') {
+      throw new Error(`Personality "${archetype.id}" has an unknown preferredMode "${aggression.preferredMode}".`)
+    }
+    if (!(aggression.leaderFocus >= 0)) {
+      throw new Error(`Personality "${archetype.id}" has a negative leaderFocus — it would prefer to attack the weakest, which is the opposite of the anti-snowball intent.`)
     }
   }
 }

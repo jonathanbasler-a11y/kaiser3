@@ -5,7 +5,7 @@
 import * as readline from 'node:readline/promises'
 import { readFileSync } from 'node:fs'
 import { stdin, stdout } from 'node:process'
-import { GameState, Decision, GrainDecision, TaxDecision } from '../src/engine/state.ts'
+import { GameState, Decision, GrainDecision, TaxDecision, EspionageDecision } from '../src/engine/state.ts'
 import { runGame } from '../src/engine/gameLoop.ts'
 import { getRankName } from '../src/engine/ranks.ts'
 import { getPersonalities } from '../src/ai/personalities.ts'
@@ -58,7 +58,16 @@ function printPlayerSummary(state: GameState, humanId: string): void {
 async function getHumanDecisions(state: GameState, humanId: string): Promise<Decision[]> {
   printPlayerSummary(state, humanId)
 
-  const feedLevel = await ask('Feed level (min/max/required/custom)', 'required') as GrainDecision['feedLevel']
+  // Validate rather than casting the raw string: an unrecognised value used to
+  // sail straight into the engine and produce NaN losses.
+  const FEED_LEVELS: Array<GrainDecision['feedLevel']> = ['min', 'max', 'required', 'custom']
+  const feedInput = await ask('Feed level (min/max/required/custom)', 'required')
+  const feedLevel = (FEED_LEVELS as string[]).includes(feedInput)
+    ? (feedInput as GrainDecision['feedLevel'])
+    : 'required'
+  if (feedLevel !== feedInput) {
+    console.log(`  (unrecognised feed level "${feedInput}" — using "required")`)
+  }
   const grainDecision: GrainDecision = feedLevel === 'custom'
     ? { type: 'grain', feedLevel, customPercentage: await askNumber('Custom feed % (20-80)', 50) }
     : { type: 'grain', feedLevel }
@@ -81,11 +90,31 @@ async function getHumanDecisions(state: GameState, humanId: string): Promise<Dec
   const granaryBuild = await askNumber('Granaries to build', 0)
   const garrisonBuild = await askNumber('Garrisons to build', 0)
 
+  // Secret service. The same EspionageDecision the AI emits — Decision parity
+  // means the player has exactly the tools its rivals do.
+  const player = state.players[humanId]
+  const rivals = state.activePlayerIds.filter((id) => id !== humanId)
+  const guardHire = await askNumber('Guards to hire (defence)', 0)
+  const saboteurHire = await askNumber('Saboteurs to hire (offence)', 0)
+
+  const espionage: EspionageDecision = { type: 'espionage', guardHire, saboteurHire }
+  if (player.saboteurs > 0 && rivals.length > 0) {
+    console.log(`  Rivals you could strike: ${rivals.map((id, i) => `${i + 1}=${state.players[id].name}`).join(', ')}`)
+    const choice = await askNumber(`Strike whom? (0 = nobody, you have ${player.saboteurs} saboteurs)`, 0)
+    if (choice >= 1 && choice <= rivals.length) {
+      espionage.targetPlayerId = rivals[choice - 1]
+      espionage.saboteursCommitted = await askNumber('Saboteurs to commit', player.saboteurs)
+      const mode = await ask('Mode — raid (take coin) or sabotage (burn a workshop, take grain and coin)', 'raid')
+      espionage.mode = mode.startsWith('s') ? 'sabotage' : 'raid'
+    }
+  }
+
   return [
     grainDecision,
     { type: 'land_trade', farmlanbuy, buildingLandBuy, partnerPlayerId: 'kaiser' },
     taxDecision,
-    { type: 'construction', marketBuild, millBuild, palaceStages, cathedralBuild, wellBuild, hospitalBuild, granaryBuild, garrisonBuild }
+    { type: 'construction', marketBuild, millBuild, palaceStages, cathedralBuild, wellBuild, hospitalBuild, granaryBuild, garrisonBuild },
+    espionage
   ]
 }
 
@@ -127,6 +156,26 @@ async function main() {
             ? `${event.loss.toFixed(0)} peasants lost`
             : `${event.loss.toFixed(0)} buildings destroyed`
         console.log(`\n  ! ${event.telegraphText} (${magnitude})`)
+      }
+
+      // Espionage is cross-player, so it lives on the chronicle rather than in
+      // any one ruler's report. Surface anything involving the human either way —
+      // being robbed without being told would be baffling.
+      for (const strike of chronicle.strikes) {
+        const verb = strike.mode === 'raid' ? 'raid' : 'sabotage'
+        if (strike.defenderId === 'human') {
+          const attacker = state.players[strike.attackerId]?.name ?? strike.attackerId
+          console.log(strike.succeeded
+            ? `\n  ! ${attacker} launched a ${verb} against you — ${strike.talerStolen.toFixed(0)} Taler` +
+              `${strike.grainStolen > 0 ? `, ${strike.grainStolen.toFixed(0)} grain` : ''}` +
+              `${strike.buildingsDestroyed > 0 ? `, and ${strike.buildingsDestroyed} building burned` : ''}`
+            : `\n  . ${attacker} attempted a ${verb} against you — your guards drove them off`)
+        } else if (strike.attackerId === 'human') {
+          const defender = state.players[strike.defenderId]?.name ?? strike.defenderId
+          console.log(strike.succeeded
+            ? `\n  > Your ${verb} against ${defender} succeeded — ${strike.talerStolen.toFixed(0)} Taler taken`
+            : `\n  > Your ${verb} against ${defender} failed — ${strike.saboteursLost} saboteurs lost`)
+        }
       }
 
       if (report.rankPromoted) {

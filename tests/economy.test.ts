@@ -81,6 +81,18 @@ describe('resolveFeeding', () => {
     expect(result.grainStockAfter).toBeGreaterThanOrEqual(0)
   })
 
+  it('degrades an unrecognised feed level to "required" instead of poisoning the simulation with NaN', () => {
+    // Regression guard. The switch had no default branch, so a malformed feedLevel
+    // left grainOffered undefined and NaN spread through feeding, population,
+    // events and the treasury — surfacing in the CLI as "NaN peasants lost" and a
+    // realm that collapsed in two years.
+    const malformed = { type: 'grain', feedLevel: 'nonsense' } as unknown as GrainDecision
+    const result = resolveFeeding(malformed, population, 5000)
+    expect(Number.isNaN(result.grainConsumed)).toBe(false)
+    expect(Number.isNaN(result.feedAdequacy)).toBe(false)
+    expect(result.grainConsumed).toBeCloseTo(500, 5) // same as 'required'
+  })
+
   it('starving population (zero stock) is severely underfed', () => {
     const decision: GrainDecision = { type: 'grain', feedLevel: 'required' }
     const result = resolveFeeding(decision, population, 0)

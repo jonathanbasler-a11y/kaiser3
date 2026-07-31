@@ -161,10 +161,10 @@ describe('planner', () => {
     expect(result.valid).toBe(true)
   })
 
-  it('emits one decision per domain', () => {
+  it('emits one decision per domain, espionage included', () => {
     const decisions = planYear(starterGame(), 'ai', BUILDER, 42)
     const types = decisions.map((d) => d.type).sort()
-    expect(types).toEqual(['construction', 'grain', 'land_trade', 'tax'])
+    expect(types).toEqual(['construction', 'espionage', 'grain', 'land_trade', 'tax'])
   })
 
   it('is deterministic for a given seed', () => {

@@ -53,6 +53,21 @@ export interface Chronicle {
   year: number
   playerReports: Record<string, PlayerChronicle>
   globalEvents: GameEvent[]        // Events that affect multiple players (market crashes, wars, etc.)
+  // Espionage is inherently cross-player, so strikes are recorded once at the top
+  // level rather than duplicated into both the attacker's and the victim's report.
+  strikes: StrikeRecord[]
+}
+
+export interface StrikeRecord {
+  attackerId: string
+  defenderId: string
+  mode: EspionageMode
+  saboteursCommitted: number
+  succeeded: boolean
+  saboteursLost: number
+  talerStolen: number
+  grainStolen: number
+  buildingsDestroyed: number
 }
 
 export interface PlayerChronicle {
@@ -146,13 +161,20 @@ export interface ConstructionDecision {
   garrisonBuild: number
 }
 
+// Two distinct ways to strike a rival, so the aggressive archetypes are not
+// merely two names for the same move:
+//   'sabotage' — burn infrastructure. Destroys a production building and spoils
+//                grain stores. The Kaiser secret-service move.
+//   'raid'     — plunder the treasury. The Fugger/Hanse piracy move.
+export type EspionageMode = 'sabotage' | 'raid'
+
 export interface EspionageDecision {
   type: 'espionage'
-  guardHire: number                // New guards to hire
-  saboteurHire: number             // New saboteurs to hire
-  targetPlayerId?: string          // Whom to spy on / attack
-  spyAllocation?: number           // How many guards to assign to defense
-  sabotageAllocation?: number      // How many saboteurs to assign to attacks
+  guardHire: number                 // New guards to recruit (defence)
+  saboteurHire: number              // New saboteurs to recruit (offence)
+  targetPlayerId?: string           // Whom to strike; omitted means stay home
+  saboteursCommitted?: number       // How many to send against that target
+  mode?: EspionageMode
 }
 
 export interface TradeDecision {

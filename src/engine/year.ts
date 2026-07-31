@@ -4,8 +4,8 @@
 
 import { SeededRng } from './rng.ts'
 import {
-  GameState, Decision, Chronicle, PlayerChronicle,
-  GrainDecision, LandTradeDecision, TaxDecision, ConstructionDecision
+  GameState, Decision, Chronicle, PlayerChronicle, StrikeRecord,
+  GrainDecision, LandTradeDecision, TaxDecision, ConstructionDecision, EspionageDecision
 } from './state.ts'
 import { calculateHarvest, resolveFeeding } from './economy.ts'
 import { applyLandTrade } from './land.ts'
@@ -14,6 +14,7 @@ import { applyTaxation } from './tax.ts'
 import { applyConstruction, calculateBuildingIncome, calculateUpkeep } from './buildings.ts'
 import { checkPromotion } from './ranks.ts'
 import { resolveEvents } from './events/events.ts'
+import { applyRecruitment, espionageUpkeep, resolveStrike } from './espionage.ts'
 
 function findDecision<T extends Decision>(decisions: Decision[], type: T['type']): T | undefined {
   return decisions.find((d) => d.type === type) as T | undefined
@@ -36,22 +37,35 @@ export function advanceYear(
   const chronicle: Chronicle = {
     year: state.year + 1,
     playerReports: {},
-    globalEvents: []
+    globalEvents: [],
+    strikes: []
   }
 
   // Year-advance sequence (mirrors the research doc's core gameplay loop):
-  // 1. Land trading            [Phase 1]
-  // 2. Construction             [Phase 2]
-  // 3. Harvest & grain calc    [Phase 1]
-  // 4. Grain distribution      [Phase 1]
-  // 5. Population dynamics     [Phase 1]
-  // 6. Building income          [Phase 2]
-  // 7. Taxation                 [Phase 2]
-  // 8. Upkeep                   [Phase 2]
-  // 9. Event system             [Phase 4]
-  // 10. Rank promotion check    [Phase 2]
-  // 11. Espionage / sabotage   [Phase 7]
-  // 12. Warfare                [Phase 8]
+  //
+  //   PER RULER, in isolation:
+  //     1. Land trading          [Phase 1]
+  //     2. Recruitment           [Phase 7]
+  //     3. Construction          [Phase 2]
+  //     4. Harvest & grain       [Phase 1]
+  //     5. Grain distribution    [Phase 1]
+  //     6. Population dynamics   [Phase 1]
+  //     7. Building income       [Phase 2]
+  //     8. Taxation              [Phase 2]
+  //     9. Upkeep                [Phase 2 + 7]
+  //    10. Events                [Phase 4]
+  //
+  //   ACROSS RULERS:
+  //    11. Espionage strikes     [Phase 7]
+  //
+  //   PER RULER again:
+  //    12. Rank promotion check  [Phase 2]
+  //
+  // Espionage sits between the two per-ruler passes because it is the only phase
+  // where rulers touch each other, and the promotion check has to come after it:
+  // a treasury emptied by raiders should cost you the title that year.
+  //
+  //    13. Warfare               [Phase 8]
 
   for (const playerId of newState.activePlayerIds) {
     const player = newState.players[playerId]
@@ -92,7 +106,14 @@ export function advanceYear(
       tradeVolume = Math.abs(tradeResult.talerDelta)
     }
 
-    // 2. Construction
+    // 2. Recruitment (guards and saboteurs) — before construction so the two
+    //    compete for the same treasury in a fixed, predictable order.
+    const espionageDecision = findDecision<EspionageDecision>(playerDecisions, 'espionage')
+    if (espionageDecision) {
+      applyRecruitment(player, espionageDecision.guardHire, espionageDecision.saboteurHire)
+    }
+
+    // 3. Construction
     const constructionDecision = findDecision<ConstructionDecision>(playerDecisions, 'construction') ?? DEFAULT_CONSTRUCTION_DECISION
     const constructionResult = applyConstruction(player.land, player.population, player.buildings, player.taler, constructionDecision)
     player.buildings = constructionResult.newBuildings
@@ -132,8 +153,10 @@ export function advanceYear(
     report.tariffIncome = taxResult.tariffIncome
     report.tributeIncome = taxResult.graftBonus
 
-    // 8. Upkeep (buildings + trading-house tribute — scales with holdings, the anti-snowball lever)
+    // 9. Upkeep (buildings, trading-house tribute, and the standing secret service —
+    //    all scale with holdings, the anti-snowball lever)
     const upkeep = calculateUpkeep(player.buildings, player.tradingHouses, player.taler)
+      + espionageUpkeep(player)
     player.taler = Math.max(0, player.taler - upkeep)
     report.upkeepCost = upkeep
 
@@ -149,15 +172,52 @@ export function advanceYear(
 
     report.unrestGain = player.population.unrest - unrestAtYearStart
 
-    // 10. Rank promotion check
+    chronicle.playerReports[playerId] = report
+  }
+
+  // 11. Espionage strikes — the only cross-ruler phase.
+  //
+  // Resolved in activePlayerIds order, which is deterministic: if two rulers raid
+  // each other in the same year, the first to act finds a fuller treasury. That is
+  // a real ordering effect rather than an accident, and it is stable for a seed.
+  for (const attackerId of newState.activePlayerIds) {
+    const attacker = newState.players[attackerId]
+    if (!attacker || attacker.dead) continue
+
+    const espionage = findDecision<EspionageDecision>(decisions[attackerId] ?? [], 'espionage')
+    if (!espionage?.targetPlayerId || !espionage.saboteursCommitted) continue
+
+    const defender = newState.players[espionage.targetPlayerId]
+    // Silently ignore strikes at a ruler who is gone, dead, or at oneself, rather
+    // than failing the whole year over a stale target.
+    if (!defender || defender.dead || defender.id === attackerId) continue
+    if (!newState.activePlayerIds.includes(defender.id)) continue
+
+    const outcome = resolveStrike(
+      attacker,
+      defender,
+      espionage.saboteursCommitted,
+      espionage.mode ?? 'raid',
+      rng
+    )
+    if (outcome.saboteursCommitted > 0) {
+      chronicle.strikes.push(outcome as StrikeRecord)
+    }
+  }
+
+  // 12. Rank promotion check — after espionage, so a treasury emptied by raiders
+  //     genuinely costs the title this year.
+  for (const playerId of newState.activePlayerIds) {
+    const player = newState.players[playerId]
+    const report = chronicle.playerReports[playerId]
+    if (!player || player.dead || !report) continue
+
     const promotion = checkPromotion(player)
     if (promotion.promoted) {
       player.rank = promotion.newRank
       report.rankPromoted = true
       report.newRank = promotion.newRank
     }
-
-    chronicle.playerReports[playerId] = report
   }
 
   newState.year += 1

@@ -51,6 +51,11 @@ export interface PlayerYearRecord {
   // investment with misfortune reverses the signal completely — early years look
   // dangerous merely because that is when land and palace stages get bought,
   // while a mature ruler with nothing left to buy looks serene.
+  //
+  // Counts BOTH natural disaster and hostile action. PLAN.md's criterion is about
+  // "events and AI aggression", and once rivals could raid each other an
+  // events-only measure understated late-game danger badly: a leader stripped of
+  // 18% of its treasury by raiders registered as having had a quiet year.
   eventLossShare: number
 }
 
@@ -83,11 +88,17 @@ export function snapshotYear(state: GameState, chronicle: Chronicle): YearSnapsh
       + report.taxIncome + report.tariffIncome + report.tributeIncome
     const netIncome = grossIncome - report.upkeepCost - report.eventGoldLoss
 
+    // Coin and grain taken by rivals this year, on top of natural disaster.
+    const plundered = chronicle.strikes
+      .filter((strike) => strike.defenderId === playerId && strike.succeeded)
+      .reduce((total, strike) => total + strike.talerStolen, 0)
+
     // Losses are already deducted from the live state, so the pre-blow figure is
     // recovered by adding them back.
-    const talerBefore = state.players[playerId].taler + report.eventGoldLoss
+    const goldLost = report.eventGoldLoss + plundered
+    const talerBefore = state.players[playerId].taler + goldLost
     const populationBefore = state.players[playerId].population.peasants + report.eventPopulationLoss
-    const goldShare = talerBefore > 0 ? report.eventGoldLoss / talerBefore : 0
+    const goldShare = talerBefore > 0 ? goldLost / talerBefore : 0
     const populationShare = populationBefore > 0 ? report.eventPopulationLoss / populationBefore : 0
 
     players[playerId] = {

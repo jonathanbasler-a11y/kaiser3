@@ -19,6 +19,7 @@ import { GameState, PlayerState, Decision, TaxDecision, ConstructionDecision, La
 import { advanceYear } from '../engine/year.ts'
 import { evaluateState, projectedFeedAdequacy, PersonalityWeights } from './evaluator.ts'
 import { Personality } from './personalities.ts'
+import { planAggression } from './aggression.ts'
 import buildingsData from '../../data/buildings.json'
 
 const PRESTIGE = buildingsData.prestige
@@ -204,6 +205,15 @@ export function planYear(
   const player = state.players[playerId]
   const candidates = generateCandidates(player, state.kaizerTradePrices)
 
+  // Espionage is decided separately (see aggression.ts): it is the one decision the
+  // isolated one-year lookahead cannot evaluate, because an isolated state contains
+  // no rivals to strike. It is still an ordinary EspionageDecision in the same
+  // sheet, so Decision parity with the human player holds.
+  const espionage: Decision = {
+    type: 'espionage',
+    ...planAggression(state, playerId, personality.aggression, personality.weights)
+  }
+
   // Fixed per-turn evaluation seeds: every candidate this turn sees identical
   // weather and identical event rolls, so differences in score come from the
   // decisions rather than from luck.
@@ -220,5 +230,5 @@ export function planYear(
     }
   }
 
-  return best
+  return [...best, espionage]
 }

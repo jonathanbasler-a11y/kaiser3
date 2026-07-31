@@ -297,6 +297,55 @@ Tuning exposed that the Phase 0 rank thresholds predated the population model en
 
 ---
 
+## Phase 7: Espionage and Aggressive Archetypes ✓
+
+**Status:** Done. Gate re-passed with five archetypes.
+
+### What was built
+- `src/engine/espionage.ts` — guards, saboteurs, and two distinct strike modes so the aggressive archetypes are not two names for the same move: **raid** plunders the treasury (the Fugger/Hanse piracy move), **sabotage** burns a workshop and carries off grain *and* coin (the Kaiser secret-service move). `strikeSuccessProbability` is exported so the AI prices attacks with the real formula.
+- `src/ai/aggression.ts` — target selection and strike valuation, deliberately kept out of `planner.ts` because it is the one decision the isolated one-year lookahead cannot score (an isolated state has no rivals in it). Still emits an ordinary `EspionageDecision`, so Decision parity holds.
+- Two new archetypes, **The Schemer** (sabotage) and **The Raider** (raid), plus aggression profiles for the original three.
+- `advanceYear` restructured into per-ruler → cross-ruler → per-ruler passes. The rank check moved **after** espionage, so a treasury emptied by raiders genuinely costs the title that year.
+- Strikes surfaced in the playable CLI both ways, and the human can now recruit and strike with the same decision the AI uses.
+
+### Results
+- **All five archetypes ≥91.7%** vs the random-legal bot; 5-way wins spread **3/5/7/4/5** over 24 matches — every archetype is genuinely viable.
+- **~3,270 strikes** across 24 matches, **33.7% aimed at the current leader** where random targeting would give 25%.
+- Gate re-passed with five rulers, and the aggression levers moved it decisively:
+
+| Criterion | Phase 6 (3 peaceful) | Phase 7 (5, with aggression) |
+|---|---|---|
+| Late lead volatility | 39.5% | **54.2%** |
+| Early leader wins | 50.5% | **20.8%** |
+| Late setback rate | 38.8% | **72.9%** |
+
+Being ahead is now actively dangerous, which is exactly the anti-snowball lever Phase 6 recorded as missing.
+
+### Bugs found and fixed
+1. **Aggression deadlock.** Target attractiveness was scored using the ruler's *current* saboteurs — zero at the start — so every target scored zero, so saboteurs were never recruited, so there were never any saboteurs. Espionage silently switched itself off: **zero strikes across twenty matches**, while every archetype still paid for guards. Targets are now scored at the force the ruler *aspires* to field.
+2. **Standing forces bought regardless of opportunity.** Recruitment was sized purely by personality appetite, so a Raider facing a pauper still paid saboteur upkeep for raids that could never repay it. Guards now answer the threat that actually exists (rivals' saboteur counts) and saboteurs are only kept while some rival is worth robbing.
+3. **Sabotage valued burning a workshop the victim did not own** — a flat constant in the AI's valuation regardless of the target's buildings.
+4. **The balance harness could not see aggression at all.** Its setback metric counted only *events*, so a leader stripped of 18% of its treasury by raiders registered as having had a quiet year — and the gate failed on loss persistence purely because leadership was changing hands too fast for events alone to land. Plundered coin now counts as adversity, which is what PLAN.md's "events **and AI aggression**" wording always meant.
+5. **`NaN` propagation from malformed input.** `resolveFeeding`'s switch had no default branch, so an unrecognised feed level left `grainOffered` undefined and NaN spread silently through feeding, population, events and the treasury — surfacing in the CLI as "NaN peasants lost" and a realm that collapsed in two years. Found by feeding the CLI deliberately misaligned input. Fixed in the engine (degrade to `required`) *and* in the CLI (validate before submitting), with a regression test.
+
+### Design finding recorded, not papered over
+The Schemer initially lost despite sabotage **succeeding over 70% of the time**, because its loot was grain — and **grain has no monetary value in this game**. There is no market to sell surplus into, and harvests already run far above consumption, so stockpiles reach hundreds of thousands and do nothing. The immediate fix was faithful to the source (the original transfers "grain/currency"), so sabotage now takes coin too, and that lifted the Schemer from 83.3% to 91.7%.
+
+The underlying gap remains: **a grain market is missing**, and with it the whole surplus-selling loop that was central to the original. That is the top item for Phase 8, and it is also the reason inter-ruler trade was not attempted here — trading grain between rulers is meaningless while grain cannot be priced. Shipping half a trade system would have been worse than shipping none.
+
+### Acceptance Criteria
+- ✓ Sabotage math tested — success odds, loot transfer conserving totals, saboteur losses heavier on failure, no resource driven below zero
+- ✓ Leading-ruler-draws-fire verified statistically (33.7% vs 25% random)
+- ✓ Phase 6's flatness criteria re-pass with all five archetypes in the pool
+- ✓ All five archetypes viable, none dominant
+- ✓ `npx tsc --noEmit` clean, 145/145 tests passing
+- ✓ Verified end-to-end in the playable CLI, both striking and being struck
+
+### Next Phase
+**Phase 8 — Grain market, warfare, and succession.** The grain market is now the highest-value item and should come first: it gives the harvest surplus a purpose, makes sabotage's loot meaningful on its own, restores the original's central buy/sell-corn loop, and is the precondition for inter-ruler trade. Then warfare, alliance voting, and the heir mechanic. Sonnet/Medium per the model table, but the grain market will require re-running the balance gate since it adds a whole income channel.
+
+---
+
 ## Implementation Notes
 
 ### The Reducer Contract
