@@ -18,8 +18,8 @@ let state = createStarterState([{ id: 'player1', name: 'P1' }, { id: 'player2', 
 const decisions = requiredFeedDecisions()
 
 console.log(`Kaiser 3 headless sim — ${YEARS} years, "required" feeding, no-op land trades\n`)
-console.log('Year | Player  | Peasants | Unrest | Taler   | GrainStock | Harvest')
-console.log('-----|---------|----------|--------|---------|------------|--------')
+console.log('Year | Player  | Peasants | Unrest | Taler   | GrainStock | Harvest | Events')
+console.log('-----|---------|----------|--------|---------|------------|---------|-------')
 
 for (let year = 0; year < YEARS; year++) {
   const result = advanceYear(state, decisions, year * 1000 + 1)
@@ -28,13 +28,15 @@ for (let year = 0; year < YEARS; year++) {
   for (const playerId of state.activePlayerIds) {
     const player = state.players[playerId]
     const report = result.chronicle.playerReports[playerId]
+    const events = report.events.map((e) => `${e.type}${e.mitigated ? '(mit)' : ''}`).join(', ')
     console.log(
       `${String(state.year).padStart(4)} | ${player.name.padEnd(7)} | ` +
       `${player.population.peasants.toFixed(0).padStart(8)} | ` +
       `${player.population.unrest.toFixed(1).padStart(6)} | ` +
       `${player.taler.toFixed(0).padStart(7)} | ` +
       `${player.grainStock.toFixed(0).padStart(10)} | ` +
-      `${report.harvestYield.toFixed(0)}`
+      `${report.harvestYield.toFixed(0).padStart(7)} | ` +
+      `${events}`
     )
   }
 }

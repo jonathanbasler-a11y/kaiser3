@@ -1,50 +1,86 @@
 {
-  "_comment": "Event system: plague, fire, famine, revolt, banditry, flood, drought. Filled in during Phase 4.",
+  "_comment": "Event system. Every event MUST declare a mitigation hook the player controls — enforced by validateEventCatalog() in src/engine/events/events.ts. Mitigation reduces risk but NEVER eliminates it (floorProbability), and mitigation buildings carry ongoing upkeep (data/buildings.json), so 'buy total safety once' is impossible.",
+
+  "_categories": {
+    "prosperity": "Exposure GROWS with success (population, buildings, wealth). These are the anti-snowball levers — thriving draws more risk, so success creates new pressure instead of removing it.",
+    "condition": "Exposure is driven by the player's own bad state (unrest, grain shortfall). These compound existing problems rather than rolling independently — a well-run principality rarely sees them."
+  },
+
   "events": [
     {
       "id": "plague",
       "name": "Plague",
-      "baseWeight": 0.05,
-      "prosperityScaling": 1.5,
-      "mitigation": { "buildingType": "hospital", "effectiveness": 0.7 },
-      "loss": { "type": "population", "amount": 0.15 },
-      "telegraphTemplate": "Plague outbreak in {location} — no hospital coverage"
+      "category": "prosperity",
+      "baseWeight": 0.10,
+      "exposure": { "driver": "population", "reference": 1000, "exponent": 0.5, "cap": 6 },
+      "mitigation": { "building": "hospital", "probabilityReduction": 0.7, "severityReduction": 0.4 },
+      "floorProbability": 0.01,
+      "maxProbability": 0.45,
+      "loss": { "type": "population", "fraction": 0.15, "severityJitter": 0.5 },
+      "telegraph": {
+        "unmitigated": "Plague sweeps the villages — no hospital to contain it",
+        "mitigated": "Plague reaches the principality, but the hospital limits the toll"
+      }
     },
     {
       "id": "fire",
       "name": "Fire",
-      "baseWeight": 0.08,
-      "prosperityScaling": 2.0,
-      "mitigation": { "buildingType": "well", "effectiveness": 0.6 },
-      "loss": { "type": "buildings", "amount": 0.1 },
-      "telegraphTemplate": "Fire in {location} — no firebreaks/wells"
-    },
-    {
-      "id": "famine",
-      "name": "Famine",
-      "baseWeight": 0.03,
-      "prosperityScaling": 0.5,
-      "mitigation": { "buildingType": "granary", "effectiveness": 0.8 },
-      "loss": { "type": "grain", "amount": 0.2 },
-      "telegraphTemplate": "Famine in {location} — inadequate granary reserves"
-    },
-    {
-      "id": "revolt",
-      "name": "Peasant Revolt",
-      "baseWeight": 0.04,
-      "prosperityScaling": 0.8,
-      "mitigation": { "policyType": "justiceGraft", "threshold": 50, "effectiveness": 0.6 },
-      "loss": { "type": "population", "amount": 0.1 },
-      "telegraphTemplate": "Peasant revolt in {location} — excessive greed/taxation"
+      "category": "prosperity",
+      "baseWeight": 0.09,
+      "exposure": { "driver": "buildings", "reference": 4, "exponent": 0.5, "cap": 5 },
+      "mitigation": { "building": "well", "probabilityReduction": 0.6, "severityReduction": 0.5 },
+      "floorProbability": 0.01,
+      "maxProbability": 0.40,
+      "loss": { "type": "buildings", "fraction": 0.2, "severityJitter": 0.4 },
+      "telegraph": {
+        "unmitigated": "Fire tears through the workshops — no wells or firebreaks",
+        "mitigated": "Fire breaks out, but the wells keep it from spreading far"
+      }
     },
     {
       "id": "banditry",
       "name": "Banditry",
-      "baseWeight": 0.06,
-      "prosperityScaling": 1.8,
-      "mitigation": { "buildingType": "garrison", "effectiveness": 0.75 },
-      "loss": { "type": "gold", "amount": 500 },
-      "telegraphTemplate": "Bandits strike {location} — no garrison/road patrols"
+      "category": "prosperity",
+      "baseWeight": 0.10,
+      "exposure": { "driver": "wealth", "reference": 15000, "exponent": 0.5, "cap": 6 },
+      "mitigation": { "building": "garrison", "probabilityReduction": 0.75, "severityReduction": 0.5 },
+      "floorProbability": 0.01,
+      "maxProbability": 0.45,
+      "loss": { "type": "gold", "fraction": 0.08, "minimum": 300, "severityJitter": 0.6 },
+      "telegraph": {
+        "unmitigated": "Bandits plunder the trade roads — no garrison to patrol them",
+        "mitigated": "Bandits raid the roads, but the garrison drives them off with light losses"
+      }
+    },
+    {
+      "id": "revolt",
+      "name": "Peasant Revolt",
+      "category": "condition",
+      "baseWeight": 0.55,
+      "exposure": { "driver": "unrest", "reference": 100, "exponent": 1.5, "cap": 1 },
+      "mitigation": { "building": "garrison", "probabilityReduction": 0.5, "severityReduction": 0.4 },
+      "floorProbability": 0.0,
+      "maxProbability": 0.55,
+      "loss": { "type": "population", "fraction": 0.12, "severityJitter": 0.5 },
+      "telegraph": {
+        "unmitigated": "The peasants rise in revolt — years of grievance boil over",
+        "mitigated": "Unrest erupts into revolt, but the garrison restores order quickly"
+      }
+    },
+    {
+      "id": "famine",
+      "name": "Famine",
+      "category": "condition",
+      "baseWeight": 0.70,
+      "exposure": { "driver": "grainShortfall", "reference": 1, "exponent": 1.0, "cap": 1 },
+      "mitigation": { "building": "granary", "probabilityReduction": 0.8, "severityReduction": 0.6 },
+      "floorProbability": 0.0,
+      "maxProbability": 0.70,
+      "loss": { "type": "population", "fraction": 0.10, "severityJitter": 0.5 },
+      "telegraph": {
+        "unmitigated": "Famine follows the shortage — the granaries stand empty",
+        "mitigated": "Shortage bites, but granary reserves blunt the famine"
+      }
     }
   ]
 }

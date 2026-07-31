@@ -102,6 +102,18 @@ async function main() {
     getHumanDecisions: (state) => getHumanDecisions(state, 'human'),
     onYearComplete: (_state, chronicle) => {
       const report = chronicle.playerReports['human']
+
+      // Always surface the telegraph text — a hard event must read as a
+      // consequence the player can learn from, never as an unexplained loss.
+      for (const event of report.events) {
+        const magnitude = event.lossType === 'gold'
+          ? `${event.loss.toFixed(0)} Taler lost`
+          : event.lossType === 'population'
+            ? `${event.loss.toFixed(0)} peasants lost`
+            : `${event.loss.toFixed(0)} buildings destroyed`
+        console.log(`\n  ! ${event.telegraphText} (${magnitude})`)
+      }
+
       if (report.rankPromoted) {
         console.log(`\n*** Promoted to ${getRankName(report.newRank!)}! ***`)
       }

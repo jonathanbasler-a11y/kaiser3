@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "sim": "tsx scripts/sim.ts",
     "play": "tsx scripts/play.ts",
+    "event-profile": "tsx scripts/event-profile.ts",
     "balance": "tsx scripts/balance.ts",
     "gen-art": "tsx scripts/gen-art.ts"
   },

@@ -75,13 +75,20 @@ export interface PlayerChronicle {
   newRank?: number
 }
 
+// The events shipped in data/events.json. Flood/drought are plausible future
+// additions but are NOT listed here until they actually exist — a union member
+// with no implementation behind it is a trap for exhaustive switches.
+export type EventId = 'plague' | 'fire' | 'famine' | 'revolt' | 'banditry'
+
+export type EventLossType = 'population' | 'gold' | 'buildings'
+
 export interface PlayerEvent {
-  type: 'plague' | 'fire' | 'famine' | 'revolt' | 'banditry' | 'flood' | 'drought'
-  location: string                 // Region/holding name
-  severity: number                 // 0–1, severity multiplier
-  mitigated: boolean               // Did a mitigation building reduce it?
-  loss: number                     // Gold lost, population lost, etc.
-  telegraphText: string            // Why it happened ("no hospital in Ostmark")
+  type: EventId
+  severity: number                 // Effective severity multiplier after mitigation
+  mitigated: boolean               // Did a mitigation building blunt this?
+  loss: number                     // Magnitude, in the units given by lossType
+  lossType: EventLossType          // What the loss was denominated in (so the UI can format it)
+  telegraphText: string            // Why it happened — always explains the cause
 }
 
 export interface GameEvent {

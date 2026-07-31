@@ -13,6 +13,7 @@ import { applyPopulationDynamics } from './population.ts'
 import { applyTaxation } from './tax.ts'
 import { applyConstruction, calculateBuildingIncome, calculateUpkeep } from './buildings.ts'
 import { checkPromotion } from './ranks.ts'
+import { resolveEvents } from './events/events.ts'
 
 function findDecision<T extends Decision>(decisions: Decision[], type: T['type']): T | undefined {
   return decisions.find((d) => d.type === type) as T | undefined
@@ -47,9 +48,9 @@ export function advanceYear(
   // 6. Building income          [Phase 2]
   // 7. Taxation                 [Phase 2]
   // 8. Upkeep                   [Phase 2]
-  // 9. Rank promotion check     [Phase 2]
-  // 10. Espionage / sabotage   [Phase 7]
-  // 11. Event system           [Phase 4]
+  // 9. Event system             [Phase 4]
+  // 10. Rank promotion check    [Phase 2]
+  // 11. Espionage / sabotage   [Phase 7]
   // 12. Warfare                [Phase 8]
 
   for (const playerId of newState.activePlayerIds) {
@@ -134,9 +135,17 @@ export function advanceYear(
     player.taler = Math.max(0, player.taler - upkeep)
     report.upkeepCost = upkeep
 
+    // 9. Events (plague/fire/banditry scale with prosperity; revolt/famine compound
+    //    the player's own bad state). Resolved AFTER taxation so revolt reacts to
+    //    this year's unrest including the tax burden, and BEFORE the rank check so
+    //    a bad year can genuinely cost a promotion.
+    const eventResult = resolveEvents(player, { feedAdequacy: feeding.feedAdequacy }, rng)
+    report.events = eventResult.events
+    report.eventLosses = eventResult.totalPopulationLoss + eventResult.totalGoldLoss
+
     report.unrestGain = player.population.unrest - unrestAtYearStart
 
-    // 9. Rank promotion check
+    // 10. Rank promotion check
     const promotion = checkPromotion(player)
     if (promotion.promoted) {
       player.rank = promotion.newRank

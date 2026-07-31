@@ -136,6 +136,63 @@ Population mortality/emigration are percentage-based (a fraction of current peas
 
 ---
 
+## Phase 4: Event System ✓
+
+**Status:** Done (Opus/High effort per the model strategy table)
+
+### What was built
+- `src/engine/scarcity.ts` — the anti-snowball lever module CLAUDE.md designates. Owns event *exposure*: rather than one global "prosperity" number, **each event scales with the specific kind of prosperity that makes it plausible** — plague follows people, fire follows buildings, banditry follows wealth. That's both more believable and a better lever: there's no single stat a player can dump to become globally safe. Exposure is deliberately **sublinear** (exponent < 1) with a hard cap, so growth always costs something without becoming a death spiral.
+- `src/engine/events/events.ts` — probability/mitigation/resolution engine plus `validateEventCatalog()`, which **enforces the design rules in code rather than leaving them as documentation**: every event must name a mitigation building that actually exists in `data/buildings.json`, and no event may declare `probabilityReduction`/`severityReduction` ≥ 1 (mitigation caps risk, never eliminates it). Invalid data throws at import — bad event data can never reach a running game.
+- `data/events.json` — rewritten with a real schema (category, exposure spec, mitigation coefficients, floor/max probability, loss spec, per-outcome telegraph text).
+- Wired into `advanceYear` as step 9 — **after** taxation (so revolt reacts to this year's unrest including tax burden) and **before** the rank check (so a bad year can genuinely cost a promotion).
+- `scripts/event-profile.ts` (`npm run event-profile`) — balance diagnostic printing predicted vs. observed risk curves per prosperity tier. Written for Phase 6, which needs exactly this.
+
+### Two event categories (a deliberate taxonomy, documented in `data/events.json`)
+- **Prosperity events** (plague, fire, banditry) — exposure *grows with success*. These are the anti-snowball levers.
+- **Condition events** (revolt, famine) — exposure is driven by the player's own bad state (unrest, grain shortfall). These *compound existing problems* rather than rolling independently, which is what satisfies the "famine must compound a shortage" acceptance criterion. A well-governed principality legitimately sees a 0% revolt/famine rate — so the "risk floor" invariant is asserted against prosperity events only, which is the honest scope rather than forcing all five to behave identically.
+
+### Measured risk curve (`npm run event-profile`, 4000 trials/tier)
+| Tier | plague | fire | banditry | revolt | famine | ≥1 event/yr |
+|---|---|---|---|---|---|---|
+| Starting (1k pop, 15k Taler, 0 bld) | 10.0% | 0.0% | 10.1% | 0% | 0% | **19.4%** |
+| Growing (4k pop, 60k, 6 bld) | 20.0% | 12.0% | 20.8% | 1.8% | 0% | **45.1%** |
+| Thriving (20k pop, 200k, 27 bld) | 44.8% | 23.3% | 37.3% | 4.6% | 0% | **75.2%** |
+| Thriving + fully mitigated | 13.5% | 10.9% | 9.2% | 2.4% | 0% | **31.4%** |
+| Crisis (unrest 85, feedAdequacy 0.35) | 17.3% | 10.9% | 14.5% | 42.8% | 45.3% | **80.4%** |
+
+This is the intended shape: early game is forgiving (19%), success draws pressure (75%), and full mitigation is *worth buying* (75% → 31%) without ever making you safe — at 850 Taler/yr standing upkeep. Safety is rent, not a purchase.
+
+### Tests (76 total, all passing — 25 new this phase)
+- **Schema enforcement (5)** — the shipped catalog validates; an event with no mitigation hook, a nonexistent mitigation building, risk-eliminating mitigation, or a duplicate id each throw.
+- **Prosperity scaling (5)** — plague/banditry/fire risk each rise monotonically across a range of driver values; a thriving principality suffers measurably more total disaster than a modest one; exposure caps so even an absurd empire can't exceed `maxProbability`.
+- **Mitigation (6)** — hospital/garrison/granary each measurably cut their event's frequency; mitigation reduces expected population loss (severity as well as frequency); a fully-mitigated thriving ruler *still* suffers events over 800 trials; every prosperity event keeps a nonzero floor when exposed.
+- **Condition events (3)** — famine rate is 0% when well fed and rises as the shortage deepens (compounding, not independent); a well-governed principality never revolts; revolt risk rises with unrest from a true 0% base.
+- **Resolution mechanics (6)** — no event fires twice for one player in a year (300 seeds at maximum exposure); every fired event carries telegraph text and a loss type; losses never drive any resource below zero; fire never destroys the palace or cathedral; results are deterministic per seed; **event resolution consumes a fixed RNG draw count regardless of outcome**.
+
+### Design decision: fixed RNG draw count
+`resolveEvents` draws **both** the occurrence roll and the severity roll unconditionally — a fixed 2 draws per event per player per year, whether or not the event fires. This was a real bug caught mid-implementation: an earlier version only drew severity when an event fired, which meant a *prevented* plague desynced the RNG stream and scrambled every later fire/banditry roll. That would have silently invalidated Phase 6's A/B balance comparisons — a "with hospital vs. without hospital" run would have differed in unrelated events too. Now an A/B run differs only in the knob actually changed. Covered by a dedicated test asserting stream position matches.
+
+### Other decisions worth recording
+- **`justiceGraft` as revolt mitigation was backwards in the Phase 0 stub data** and has been removed. Graft *causes* unrest — it can't also protect against the revolt that unrest drives. Revolt is now driven by unrest and mitigated by the garrison (civic order), which gives the garrison a meaningful dual role (banditry + revolt) and makes it a real investment decision rather than a single-purpose tax.
+- **Fire never destroys the palace or cathedral** — they're stone, they're the rank-progression path, and losing 12 palace stages to one dice roll would be the kind of unfair that makes players quit. It burns markets and mills.
+- **Banditry loss scales with wealth** (fraction, with a flat minimum floor) so raids stay relevant late-game instead of becoming rounding errors — another anti-snowball detail.
+- **`PlayerEvent.location` was removed** rather than filled with a placeholder: there are no regions yet (that's the deferred Fugger-style multi-region idea). `flood`/`drought` were likewise dropped from the `EventId` union — a union member with no implementation behind it is a trap for exhaustive switches. `data/buildings.json` claimed `well` mitigates a `drought` event that doesn't exist; that stale metadata is fixed, and unreferenced `effectiveness`/`storageCapacity`/`maintainsCivicOrder` fields were removed after grepping to confirm nothing read them.
+
+### Acceptance Criteria
+- ✓ Event frequency rises monotonically with prosperity (verified per-event and in aggregate)
+- ✓ Each mitigation building measurably reduces its event's expected loss
+- ✓ No event fires twice on the same target in one year (structurally guaranteed, tested over 300 seeds)
+- ✓ Famine compounds an existing grain shortage rather than rolling independently
+- ✓ Every event has a mitigation hook — enforced by schema validation, not convention
+- ✓ Mitigation never eliminates risk — enforced by schema validation and verified over 800 trials
+- ✓ `npx tsc --noEmit` clean, 76/76 tests passing
+- ✓ Verified end-to-end: events fire through `advanceYear` in the headless sim, and telegraph text surfaces in the playable CLI with loss magnitudes
+
+### Next Phase
+**Phase 5 — AI opponents v1.** Implement `src/ai/evaluator.ts` (scoring candidate `Decision` sheets using the *real* engine functions — including `calculateEventProbability`, so the AI correctly values mitigation buildings), `personalities.ts` (builder/expansionist/merchant weight vectors from `data/personalities.json`), and `planner.ts`. Stays at Opus/High effort per the model strategy table — the evaluator contract is the load-bearing piece for solo play.
+
+---
+
 ## Implementation Notes
 
 ### The Reducer Contract
