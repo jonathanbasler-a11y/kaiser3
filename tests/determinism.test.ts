@@ -1,69 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { advanceYear } from '../src/engine/year.ts'
-import { GameState, Decision, serializeGameState } from '../src/engine/state.ts'
-
-// Minimal starter state for testing
-function createStarterState(): GameState {
-  return {
-    year: 0,
-    players: {
-      player1: {
-        id: 'player1',
-        name: 'Test Player 1',
-        taler: 15000,
-        land: { farmland: 10000, buildingLand: 0 },
-        grainStock: 5000,
-        population: { peasants: 1000, unrest: 0 },
-        buildings: {
-          markets: 0,
-          mills: 0,
-          palace: 0,
-          cathedral: 0,
-          hospital: 0,
-          well: 0,
-          granary: 0,
-          garrison: 0
-        },
-        rank: 0,
-        guards: 0,
-        saboteurs: 0,
-        tradingHouses: 0,
-        score: 0,
-        dead: false
-      },
-      player2: {
-        id: 'player2',
-        name: 'Test Player 2',
-        taler: 15000,
-        land: { farmland: 10000, buildingLand: 0 },
-        grainStock: 5000,
-        population: { peasants: 1000, unrest: 0 },
-        buildings: {
-          markets: 0,
-          mills: 0,
-          palace: 0,
-          cathedral: 0,
-          hospital: 0,
-          well: 0,
-          granary: 0,
-          garrison: 0
-        },
-        rank: 0,
-        guards: 0,
-        saboteurs: 0,
-        tradingHouses: 0,
-        score: 0,
-        dead: false
-      }
-    },
-    activePlayerIds: ['player1', 'player2'],
-    kaizerTradePrices: {
-      corn: 40,
-      farmland: 30,
-      buildingLand: 50
-    }
-  }
-}
+import { Decision, serializeGameState } from '../src/engine/state.ts'
+import { createStarterState } from '../src/engine/starter.ts'
 
 // Minimal decisions (no-op)
 function createNoOpDecisions(): Record<string, Decision[]> {
@@ -89,7 +27,7 @@ function createNoOpDecisions(): Record<string, Decision[]> {
 
 describe('Determinism', () => {
   it('same seed twice produces byte-identical serialized state', () => {
-    const state = createStarterState()
+    const state = createStarterState([{ id: 'player1', name: 'Test Player 1' }, { id: 'player2', name: 'Test Player 2' }])
     const decisions = createNoOpDecisions()
     const seed = 42
 
@@ -103,7 +41,7 @@ describe('Determinism', () => {
   })
 
   it('different seeds produce different states', () => {
-    const state = createStarterState()
+    const state = createStarterState([{ id: 'player1', name: 'Test Player 1' }, { id: 'player2', name: 'Test Player 2' }])
     const decisions = createNoOpDecisions()
 
     const run1 = advanceYear(JSON.parse(JSON.stringify(state)), decisions, 42)

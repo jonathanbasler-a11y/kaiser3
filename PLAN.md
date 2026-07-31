@@ -109,6 +109,33 @@ The Phase 1 headless sim shows grain stock accumulating unboundedly over 20 year
 
 ---
 
+## Phase 3: Playable Text/CLI Game ✓
+
+**Status:** Done
+
+### What was built
+- `src/engine/starter.ts` — shared `createStarterState()`/`createStarterPlayer()` (previously duplicated across `scripts/sim.ts`, `tests/determinism.test.ts`, `tests/integration.test.ts` — now a single source of truth)
+- `src/engine/gameLoop.ts` — `runGame()`: wires the pure `advanceYear` reducer into a runnable game against scripted opponents. Checks victory (any player reaches Kaiser rank) and population collapse (the human's peasants fall below the extinction floor) each year; drops collapsed opponents from `activePlayerIds`. `scriptedOpponentDecisions()` — a simple, deliberately unambitious placeholder ruler (feeds adequately, taxes moderately, buys a little land, builds toward 3 markets/2 mills) — real AI evaluator-driven opponents are Phase 5.
+- `scripts/play.ts` — the interactive CLI (`npm run play`): prompts a human for every decision each year, prints a state summary and the chronicle, and reports the final outcome. Supports both real interactive terminals (via `readline/promises`) and piped/scripted input (reads stdin synchronously up front when not a TTY) — see the code comment on why: Node's `readline` interface auto-closes as soon as a piped stdin hits EOF (near-instant for a file redirect), silently orphaning any `.question()` call made after that point. This was caught by actually running the CLI end-to-end with scripted input, not just unit-testing the underlying loop.
+- `scripts/sim.ts` — refactored to use the shared starter helper (dead-code removal)
+
+### Tests (51 total, all passing — 7 new this phase)
+- `tests/gameLoop.test.ts` (7) — a full game against scripted opponents completes without crashing; a catastrophic strategy (sell all farmland, then under-feed) eventually collapses the human's population (traced empirically — mortality/emigration are percentage-based, so decay is asymptotic, not instant); a construction-focused strategy ends with strictly more productive buildings than passive play (proving decisions propagate through the full loop, same seed for a fair comparison); `onYearComplete` fires exactly once per year played with a matching chronicle; an async human-decision provider works (proving the interactive-callback shape is sound before wiring real terminal I/O)
+- Refactored `tests/determinism.test.ts` and `tests/integration.test.ts` to use the new shared `starter.ts` helper instead of locally duplicated fixtures
+
+### Acceptance Criteria
+- ✓ A human can play to bankruptcy (population collapse) or Kaiser rank (victory) without crashing — verified both by automated tests AND by actually running `npx tsx scripts/play.ts` end-to-end with scripted terminal input
+- ✓ Chronicle output covers every income/loss source (printed per year in the CLI)
+- ✓ `npx tsc --noEmit` clean, 51/51 tests passing
+
+### Design Note: The Extinction Floor
+Population mortality/emigration are percentage-based (a fraction of current peasants), so population decays asymptotically toward zero rather than reaching it in finite time under a fixed strategy — this was discovered empirically while building the "reckless play collapses the population" test (a naive `peasants <= 0` check basically never fires; traced the real trajectory and found it crosses below 1 peasant around year ~75 under a maximally catastrophic strategy). `gameLoop.ts` treats "fewer than 1 whole peasant" as the collapse threshold — a legitimate design call (a principality can't function with a fractional population), not a workaround. This is worth keeping in mind for Phase 6: if the balance harness needs a faster-resolving loss condition for AI-vs-AI tournaments, the same asymptotic-decay shape will show up there too.
+
+### Next Phase
+**Phase 4 — Event system.** Implement `events/events.ts` (probability/mitigation engine) and `events/catalog.ts` (plague, fire, famine, revolt, banditry), each with a mitigation hook tied to `data/buildings.json`'s mitigation buildings and prosperity-scaled weight per `data/events.json`. This phase escalates to Opus/High effort per the model strategy table — fairness tradeoffs in event design are judgment-dense, matching this project's Phase-4-analog escalation trigger.
+
+---
+
 ## Implementation Notes
 
 ### The Reducer Contract

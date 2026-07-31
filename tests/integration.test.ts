@@ -1,33 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { advanceYear } from '../src/engine/year.ts'
 import { GameState, Decision } from '../src/engine/state.ts'
+import { createStarterState } from '../src/engine/starter.ts'
 
-function createStarterState(): GameState {
-  const makePlayer = (id: string, name: string) => ({
-    id,
-    name,
-    taler: 15000,
-    land: { farmland: 10000, buildingLand: 0 },
-    grainStock: 5000,
-    population: { peasants: 1000, unrest: 0 },
-    buildings: {
-      markets: 0, mills: 0, palace: 0, cathedral: 0,
-      hospital: 0, well: 0, granary: 0, garrison: 0
-    },
-    rank: 0,
-    guards: 0,
-    saboteurs: 0,
-    tradingHouses: 0,
-    score: 0,
-    dead: false
-  })
-
-  return {
-    year: 0,
-    players: { player1: makePlayer('player1', 'P1'), player2: makePlayer('player2', 'P2') },
-    activePlayerIds: ['player1', 'player2'],
-    kaizerTradePrices: { corn: 40, farmland: 30, buildingLand: 50 }
-  }
+function twoPlayerStarterState(): GameState {
+  return createStarterState([{ id: 'player1', name: 'P1' }, { id: 'player2', name: 'P2' }])
 }
 
 function noOpDecisions(): Record<string, Decision[]> {
@@ -40,7 +17,7 @@ function noOpDecisions(): Record<string, Decision[]> {
 
 describe('20-year integration run', () => {
   it('stays in sane numeric ranges over 20 years with required feeding (no NaN, no negative population/taler)', () => {
-    let state = createStarterState()
+    let state = twoPlayerStarterState()
     const decisions = noOpDecisions()
 
     for (let year = 0; year < 20; year++) {
@@ -63,7 +40,7 @@ describe('20-year integration run', () => {
   })
 
   it('sustained min-feeding over 20 years drives population down or unrest up (scarcity is real)', () => {
-    let state = createStarterState()
+    let state = twoPlayerStarterState()
     const starveDecisions: Record<string, Decision[]> = {
       player1: [{ type: 'grain', feedLevel: 'min' }, { type: 'land_trade', farmlanbuy: 0, buildingLandBuy: 0, partnerPlayerId: 'kaiser' }],
       player2: [{ type: 'grain', feedLevel: 'min' }, { type: 'land_trade', farmlanbuy: 0, buildingLandBuy: 0, partnerPlayerId: 'kaiser' }]
@@ -98,7 +75,7 @@ describe('20-year integration run', () => {
 
     let state: GameState = {
       year: 0,
-      players: { player1: wellFundedPlayer(), player2: (createStarterState()).players.player2 },
+      players: { player1: wellFundedPlayer(), player2: (twoPlayerStarterState()).players.player2 },
       activePlayerIds: ['player1', 'player2'],
       kaizerTradePrices: { corn: 40, farmland: 30, buildingLand: 50 }
     }

@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "sim": "tsx scripts/sim.ts",
+    "play": "tsx scripts/play.ts",
     "balance": "tsx scripts/balance.ts",
     "gen-art": "tsx scripts/gen-art.ts"
   },

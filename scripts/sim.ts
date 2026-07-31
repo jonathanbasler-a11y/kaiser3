@@ -2,35 +2,8 @@
 // (Phase 5+) and quick sanity checks during core-sim development (Phase 1+).
 
 import { advanceYear } from '../src/engine/year.ts'
-import { GameState, Decision } from '../src/engine/state.ts'
-
-function createStarterState(): GameState {
-  const makePlayer = (id: string, name: string) => ({
-    id,
-    name,
-    taler: 15000,
-    land: { farmland: 10000, buildingLand: 0 },
-    grainStock: 5000,
-    population: { peasants: 1000, unrest: 0 },
-    buildings: {
-      markets: 0, mills: 0, palace: 0, cathedral: 0,
-      hospital: 0, well: 0, granary: 0, garrison: 0
-    },
-    rank: 0,
-    guards: 0,
-    saboteurs: 0,
-    tradingHouses: 0,
-    score: 0,
-    dead: false
-  })
-
-  return {
-    year: 0,
-    players: { player1: makePlayer('player1', 'P1'), player2: makePlayer('player2', 'P2') },
-    activePlayerIds: ['player1', 'player2'],
-    kaizerTradePrices: { corn: 40, farmland: 30, buildingLand: 50 }
-  }
-}
+import { Decision } from '../src/engine/state.ts'
+import { createStarterState } from '../src/engine/starter.ts'
 
 function requiredFeedDecisions(): Record<string, Decision[]> {
   const forPlayer: Decision[] = [
@@ -41,7 +14,7 @@ function requiredFeedDecisions(): Record<string, Decision[]> {
 }
 
 const YEARS = 20
-let state = createStarterState()
+let state = createStarterState([{ id: 'player1', name: 'P1' }, { id: 'player2', name: 'P2' }])
 const decisions = requiredFeedDecisions()
 
 console.log(`Kaiser 3 headless sim — ${YEARS} years, "required" feeding, no-op land trades\n`)
