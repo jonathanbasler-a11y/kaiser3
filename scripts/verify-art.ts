@@ -23,6 +23,7 @@ async function main() {
   let totalBytes = 0
 
   for (const [category, assets] of Object.entries(tileset)) {
+    if (category.startsWith('_')) continue // skip metadata fields
     for (const [assetId, filePath] of Object.entries(assets)) {
       const fullPath = path.join(projectRoot, 'public', filePath)
       if (fs.existsSync(fullPath)) {

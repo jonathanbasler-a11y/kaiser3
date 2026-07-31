@@ -136,6 +136,7 @@ async function main() {
   const jobs: AssetJob[] = []
 
   for (const [category, assets] of Object.entries(tileset)) {
+    if (category.startsWith('_')) continue // skip metadata fields
     if (filterCategory && category !== filterCategory) continue
 
     for (const [assetId, filePath] of Object.entries(assets)) {
