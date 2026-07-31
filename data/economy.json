@@ -3,22 +3,23 @@
   "harvest": {
     "baseYieldPerHectare": 2.5,
     "weatherVariance": 0.15,
-    "spoilagePercentage": 0.05
+    "spoilagePercentage": 0.05,
+    "laborHectaresPerPeasant": 5
   },
   "prices": {
     "cornBasePrice": 40,
     "cornPriceBands": { "min": 20, "max": 80 },
-    "farmlAndBasePrice": 30,
+    "farmlandBasePrice": 30,
     "buildingLandBasePrice": 50
   },
   "upkeep": {
     "marketCostPerYear": 100,
     "millCostPerYear": 150,
     "palaceStageReduction": 500,
-    "cathedrCostPerYear": 200,
+    "cathedralCostPerYear": 200,
     "hospitalCostPerYear": 250,
     "wellCostPerYear": 150,
-    "granlaryCostPerYear": 150,
+    "granaryCostPerYear": 150,
     "garrisonCostPerYear": 300,
     "tradingHouseTributePercentage": 0.1
   },
@@ -26,6 +27,10 @@
     "birthRateBase": 0.02,
     "deathRateBase": 0.01,
     "unrestEmigrationThreshold": 50,
-    "populationGrainRequirement": 0.5
+    "populationGrainRequirement": 0.5,
+    "emigrationRate": 0.05,
+    "immigrationRate": 0.02,
+    "diseaseOverfeedMortality": 0.03,
+    "starvationMortality": 0.04
   }
 }

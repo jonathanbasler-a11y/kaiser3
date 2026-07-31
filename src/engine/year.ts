@@ -3,11 +3,18 @@
 // This is the load-bearing contract for AI parity, testability, and future multiplayer.
 
 import { SeededRng } from './rng.ts'
-import { GameState, Decision, Chronicle, PlayerChronicle, PlayerEvent } from './state.ts'
+import { GameState, Decision, Chronicle, PlayerChronicle, GrainDecision, LandTradeDecision } from './state.ts'
+import { calculateHarvest, resolveFeeding } from './economy.ts'
+import { applyLandTrade } from './land.ts'
+import { applyPopulationDynamics } from './population.ts'
+
+function findDecision<T extends Decision>(decisions: Decision[], type: T['type']): T | undefined {
+  return decisions.find((d) => d.type === type) as T | undefined
+}
 
 export function advanceYear(
   state: GameState,
-  decisions: Record<string, Decision[]>,  // Map player ID → their yearly decisions
+  decisions: Record<string, Decision[]>,
   seed: number
 ): { state: GameState; chronicle: Chronicle } {
   const rng = new SeededRng(seed)
@@ -19,21 +26,21 @@ export function advanceYear(
   }
 
   // Year-advance sequence (mirrors the research doc's core gameplay loop):
-  // 1. Harvest & grain calculation
-  // 2. Grain distribution outcome
-  // 3. Land trading
-  // 4. Taxation & income
-  // 5. Construction
-  // 6. Population dynamics
-  // 7. Espionage / sabotage
-  // 8. Event system (plague, fire, famine, revolt, banditry)
-  // 9. Warfare (optional)
-  // 10. Chronicle/rank check
+  // 1. Land trading            [Phase 1 — implemented]
+  // 2. Harvest & grain calc    [Phase 1 — implemented]
+  // 3. Grain distribution      [Phase 1 — implemented]
+  // 4. Population dynamics     [Phase 1 — implemented]
+  // 5. Taxation & income       [Phase 2]
+  // 6. Construction & ranks    [Phase 2]
+  // 7. Espionage / sabotage    [Phase 7]
+  // 8. Event system            [Phase 4]
+  // 9. Warfare                 [Phase 8]
 
-  // For each active player:
   for (const playerId of newState.activePlayerIds) {
     const player = newState.players[playerId]
     if (!player || player.dead) continue
+
+    const playerDecisions = decisions[playerId] ?? []
 
     const report: PlayerChronicle = {
       births: 0,
@@ -54,17 +61,34 @@ export function advanceYear(
       rankPromoted: false
     }
 
-    // TODO: Implement each phase (Phases 1–2 will fill these in)
-    // - Harvest (economy.ts)
-    // - Grain feeding (population.ts)
-    // - Land trading (land.ts)
-    // - Tax/tariff (tax.ts)
-    // - Construction (buildings.ts)
-    // - Population births/deaths/migration (population.ts)
-    // - Espionage (espionage.ts)
-    // - Events (events/events.ts)
-    // - Warfare (war.ts)
-    // - Rank check (ranks.ts)
+    // 1. Land trading (against the NPC Kaiser)
+    const landDecision = findDecision<LandTradeDecision>(playerDecisions, 'land_trade')
+    if (landDecision) {
+      const tradeResult = applyLandTrade(player.land, player.taler, landDecision, newState.kaizerTradePrices)
+      player.land = tradeResult.newLand
+      player.taler = tradeResult.newTaler
+    }
+
+    // 2. Harvest (labor-gated productivity, weather variance, spoilage on carried-over stock)
+    const harvest = calculateHarvest(player.land, player.population, player.grainStock, rng)
+    player.grainStock = harvest.newGrainStock
+    report.harvestYield = harvest.grossYield
+    report.spoilage = harvest.spoiledFromStock
+
+    // 3. Grain feeding decision
+    const grainDecision = findDecision<GrainDecision>(playerDecisions, 'grain') ?? { type: 'grain', feedLevel: 'required' }
+    const feeding = resolveFeeding(grainDecision, player.population, player.grainStock)
+    player.grainStock = feeding.grainStockAfter
+
+    // 4. Population dynamics (births/deaths/migration driven by feeding adequacy)
+    const popResult = applyPopulationDynamics(player.population, feeding, rng)
+    const unrestBefore = player.population.unrest
+    player.population = popResult.newPopulation
+    report.births = popResult.births
+    report.deaths = popResult.deaths
+    report.emigration = popResult.emigration
+    report.immigration = popResult.immigration
+    report.unrestGain = player.population.unrest - unrestBefore
 
     chronicle.playerReports[playerId] = report
   }

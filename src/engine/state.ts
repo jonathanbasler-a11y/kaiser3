@@ -5,6 +5,7 @@ export interface PlayerState {
   name: string
   taler: number                    // Currency
   land: LandHolding               // Farmland and building-land holdings
+  grainStock: number                // Stored grain carried over between years (spoils annually)
   population: PopulationState
   buildings: BuildingState
   rank: number                     // 0–7 (Baron → Kaiser)

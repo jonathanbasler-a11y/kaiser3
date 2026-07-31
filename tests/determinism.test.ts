@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { advanceYear, GameState } from '../src/engine/year.ts'
-import { Decision, serializeGameState } from '../src/engine/state.ts'
+import { advanceYear } from '../src/engine/year.ts'
+import { GameState, Decision, serializeGameState } from '../src/engine/state.ts'
 
 // Minimal starter state for testing
 function createStarterState(): GameState {
@@ -12,6 +12,7 @@ function createStarterState(): GameState {
         name: 'Test Player 1',
         taler: 15000,
         land: { farmland: 10000, buildingLand: 0 },
+        grainStock: 5000,
         population: { peasants: 1000, unrest: 0 },
         buildings: {
           markets: 0,
@@ -35,6 +36,7 @@ function createStarterState(): GameState {
         name: 'Test Player 2',
         taler: 15000,
         land: { farmland: 10000, buildingLand: 0 },
+        grainStock: 5000,
         population: { peasants: 1000, unrest: 0 },
         buildings: {
           markets: 0,
