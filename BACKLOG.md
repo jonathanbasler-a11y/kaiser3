@@ -142,17 +142,26 @@ harness or profiling `planYear`, whose candidate sweep dominates.
 
 ## Platform
 
-### P1. Playable in a mobile browser, iOS included ⭐
-The game must run in Safari on iOS, not merely on desktop. This constrains Phase 9's
-UI from the outset rather than being retrofitted:
-- **Touch-first**: no hover-dependent affordances, tap targets ≥44 px.
-- **Viewport**: portrait-first layout; must survive the iOS dynamic toolbar and safe-area
-  insets (`env(safe-area-inset-*)`).
-- **No numeric keyboard traps**: use sliders and steppers rather than free text where
-  possible; `inputmode="numeric"` where not.
-- **Canvas sizing** must honour `devicePixelRatio` or it renders blurry on Retina.
-- **Static hosting only** — no backend, so it can be served from any static host.
-- Performance target: a game year must resolve fast enough on a phone that the AI's
-  candidate sweep does not visibly stall the UI. `planYear` currently evaluates ~150
-  candidates × 2 seeds per ruler per year, which is comfortable on a laptop and
-  **unmeasured on a phone**. Measure before Phase 9 commits to a turn flow.
+### ~~P1. Playable in a mobile browser, iOS included~~ ✅ DONE (Phase 9)
+Built mobile-first: touch-first controls (steppers/sliders/segmented — no free-text
+numeric entry anywhere in normal play), portrait-first layout with `env(safe-area-inset-*)`
+and `100dvh` for the iOS dynamic toolbar, `devicePixelRatio`-aware canvas, and a static
+build (47.75 kB JS / 15.56 kB gzipped, root-relative asset paths — deployable to any
+static host, no backend). Verified at a 375×812 (iPhone) viewport: zero horizontal
+overflow, zero console errors across a full 20-year game including every tab, the
+espionage flow, and game-over.
+
+`planYear`'s candidate sweep measured **in-browser**, not just in Node: 30-118ms per
+year at 2-5 rivals — comfortable even at 3-6x phone slowdown, no Web Worker needed.
+
+**Real bug found by that measurement, not by inspection:** the year-advance handler
+used a double `requestAnimationFrame` to yield one frame before the heavy synchronous
+planning work. rAF callbacks are tied to the display compositor and **do not fire at
+all** while a tab isn't actively compositing (backgrounded, screen-locked, mid-navigation
+on some mobile browsers) — confirmed directly: an "advance year" call that should take
+~50ms instead hung for 6+ seconds in a non-compositing browser context, because the rAF
+callback simply never fired at the normal rate. Replaced with `setTimeout(fn, 0)`, which
+still yields a turn for the loading screen to paint but fires regardless of visibility.
+Left as a note for Phase 10+: **any future use of rAF in this codebase should go through
+the same scrutiny** — it is the wrong primitive for "defer this synchronous work",
+right only for "run this in sync with the next paint".

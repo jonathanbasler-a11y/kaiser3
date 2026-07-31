@@ -397,6 +397,40 @@ Scope was set by owner direction: a grain market, grain that keeps a couple of s
 
 ---
 
+## Phase 9: Mobile-First UI ✓
+
+**Status:** Done. The game is playable end-to-end in a browser for the first time — previously only a Node CLI.
+
+### What was built
+- `index.html` + `src/ui/` — a small no-framework app (`app.ts` state machine, `dom.ts` DOM helpers, `decisions.ts` draft→Decision builder, `render.ts`/`theme.ts` a procedural Canvas 2D banner). Screens: setup → decisions (tabbed: Realm/Grain/Land/Tax/Build/Secret Service) → year report → game over → play again.
+- Touch-first controls throughout: **steppers** (+/− buttons) for bounded integer choices and **sliders** for 0-100 rates — no free-text numeric entry anywhere in normal play, so no numeric keyboard ever needs to appear on a phone.
+- Mobile-safe layout: `viewport-fit=cover` + `env(safe-area-inset-*)` for the iPhone notch/home-indicator, `100dvh` for the iOS dynamic toolbar, `touch-action: manipulation` to remove the old 300ms iOS tap delay, 44px minimum tap targets throughout.
+- `Decision` parity holds for the human too: `decisions.ts` builds the exact same `Decision[]` shape `planYear` emits, validated by the same `validateDecisions()` — one definition of a legal turn across AI, UI, and (already, from Phase 3) the CLI.
+- Static production build: 47.75 kB JS / 15.56 kB gzipped, root-relative asset paths, zero backend calls anywhere in the bundle.
+
+### Verified in-browser, not just compiled
+Screenshot capture failed in this environment (Browser pane not compositing — a known limitation, not a bug in the app). Verification instead drove real synthetic click/input events via `javascript_tool` and read results back via `get_page_text`/console/DOM inspection — the `verify-without-screenshot` approach. Covered: full setup → 20-year game → game-over → play-again loop, every tab, grain/land steppers, tax sliders, construction, hiring guards/saboteurs, selecting a strike target and mode, and the resulting event/strike log. Zero console errors across the entire session. Confirmed zero horizontal overflow at an exact 375×812 (iPhone) viewport and correct centered layout at desktop width.
+
+### The performance question, answered
+`planYear`'s candidate sweep was flagged in Phase 8 as "comfortable on a laptop, unmeasured on mobile." Measured **in the actual browser** (not Node): **30-50ms per year at 2 rivals, 77-118ms at 5 (the maximum)**. Even at the 3-6x slowdown phones typically show versus a dev laptop, that is comfortably under any threshold a user would notice, let alone the ~1s mark where browsers start warning about an unresponsive page. No Web Worker needed for this phase.
+
+### A real bug the measurement caught
+The year-advance handler used a double `requestAnimationFrame` to yield one frame — so the "Advancing the year…" loading screen would paint — before running the heavy synchronous planning work. First timing attempt showed this taking **6+ seconds** instead of the expected ~50ms. The cause: rAF callbacks are scheduled by the display compositor and **do not fire at all** while a tab is not actively compositing — confirmed directly, since this session's Browser pane has exactly that property (the same reason screenshot capture failed above). Any real device hitting the same condition — backgrounding mid-tap, a screen lock, certain mobile-browser navigation states — would see the same stall, indefinitely in the worst case, with no error and no way out except reloading. Replaced with `setTimeout(fn, 0)`, which still yields a turn for the paint but fires regardless of visibility. **rAF is the wrong primitive for "defer this synchronous work"** — it's for "run this in sync with the next paint," a different thing — and this is flagged in BACKLOG.md as a pattern to watch for in any future UI code.
+
+### Acceptance Criteria
+- ✓ Playable end-to-end in a browser (previously CLI-only)
+- ✓ Touch-first: no free-text numeric entry, 44px minimum tap targets, no hover-only affordances
+- ✓ Portrait-friendly with correct iOS safe-area/dynamic-toolbar handling
+- ✓ Verified at a real mobile viewport (375×812) with zero overflow and zero console errors
+- ✓ Static build, no backend, deployable anywhere
+- ✓ AI turn latency measured in-browser and found comfortable without a Worker
+- ✓ `npx tsc --noEmit` clean, all 154 existing tests still passing, production build succeeds
+
+### Next Phase
+**Phase 10 — ComfyUI art pass**, or **warfare + succession** (BACKLOG F4/F5) if gameplay depth is prioritized over visuals first — the procedural banner is a genuine fallback, not a blocker, so either order works. Recommend warfare/succession next: the UI now exists to surface it immediately, and it is the more direct lever on the archetype-convergence problem (BACKLOG D2) than another art pass would be.
+
+---
+
 ## Implementation Notes
 
 ### The Reducer Contract

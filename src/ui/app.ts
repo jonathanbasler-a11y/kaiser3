@@ -1,0 +1,552 @@
+// App state machine: setup -> game (decisions) -> year report -> game (loop) -> game over.
+// No framework — a module-level state object and a render() that rebuilds the
+// active screen from scratch on every transition. The game only re-renders on
+// discrete player actions (never continuously), so this is plenty fast.
+
+import { GameState, Decision, Chronicle, PlayerState, EspionageMode } from '../engine/state.ts'
+import { createStarterState } from '../engine/starter.ts'
+import { advanceYear } from '../engine/year.ts'
+import { getRankName } from '../engine/ranks.ts'
+import { getPersonalities, Personality } from '../ai/personalities.ts'
+import { planYear } from '../ai/planner.ts'
+import { compareStanding } from '../ai/sim.ts'
+import { annualGrainRequirement, storageCapacity, grainBuybackPrice } from '../engine/economy.ts'
+import { el, clear, stepper, sliderField, segmented, statTile } from './dom.ts'
+import { DecisionDraft, defaultDraft, draftToDecisions, rivalOptions, affordableHectares, maxSellableGrain, maxAffordableGrainBuy, yearsOfFoodLabel } from './decisions.ts'
+import { drawBanner } from './render.ts'
+
+const HUMAN_ID = 'human'
+const KAISER_RANK = 7
+
+type Tab = 'overview' | 'grain' | 'land' | 'tax' | 'build' | 'spy'
+
+interface Session {
+  state: GameState
+  rivals: Map<string, Personality>
+  maxYears: number
+  draft: DecisionDraft
+  activeTab: Tab
+  yearReport: { entries: HTMLElement[]; outcome: Outcome | null } | null
+}
+
+type Outcome =
+  | { kind: 'victory'; winnerId: string }
+  | { kind: 'collapse' }
+  | { kind: 'timeout' }
+
+let session: Session | null = null
+let root: HTMLElement
+
+export function mount(container: HTMLElement): void {
+  root = container
+  renderSetup()
+}
+
+// ---------------------------------------------------------------------------
+// Setup screen
+// ---------------------------------------------------------------------------
+
+function renderSetup(): void {
+  clear(root)
+  const personalities = getPersonalities()
+
+  let opponentCount = 2
+  let maxYears = 60
+
+  const rivalList = el('div', { class: 'card' },
+    el('h2', {}, 'Rival rulers'),
+    ...personalities.map((p) => el('p', { class: 'help-text' },
+      el('strong', { style: 'color:var(--ink)' } as never, p.name), ' — ', p.description
+    ))
+  )
+
+  const opponentStepperHost = el('div', {})
+  const yearsStepperHost = el('div', {})
+
+  const rerenderSteppers = () => {
+    clear(opponentStepperHost as HTMLElement)
+    opponentStepperHost.appendChild(stepper({
+      label: 'Number of rival rulers',
+      value: opponentCount, min: 1, max: personalities.length, step: 1,
+      onChange: (v) => { opponentCount = v }
+    }))
+    clear(yearsStepperHost as HTMLElement)
+    yearsStepperHost.appendChild(stepper({
+      label: 'Maximum years to play',
+      value: maxYears, min: 20, max: 300, step: 20,
+      onChange: (v) => { maxYears = v }
+    }))
+  }
+  rerenderSteppers()
+
+  const startBtn = el('button', { class: 'primary full', textContent: 'Begin Your Reign' })
+  startBtn.addEventListener('click', () => startGame(opponentCount, maxYears))
+
+  root.append(
+    el('div', { class: 'screen' },
+      el('h1', {}, 'Kaiser 3'),
+      el('p', { class: 'subtitle' }, 'Rule a principality. Outlast your rivals. Be crowned Kaiser.'),
+      el('div', { class: 'card' }, opponentStepperHost, yearsStepperHost),
+      rivalList,
+      el('div', { class: 'sticky-footer' }, startBtn)
+    )
+  )
+}
+
+function startGame(opponentCount: number, maxYears: number): void {
+  const personalities = getPersonalities()
+  const rivalIds = Array.from({ length: opponentCount }, (_, i) => `rival${i + 1}`)
+  const rivals = new Map<string, Personality>()
+  rivalIds.forEach((id, i) => rivals.set(id, personalities[i % personalities.length]))
+
+  const playerIds = [
+    { id: HUMAN_ID, name: 'You' },
+    ...rivalIds.map((id) => ({ id, name: rivals.get(id)!.name }))
+  ]
+  const state = createStarterState(playerIds)
+
+  session = {
+    state,
+    rivals,
+    maxYears,
+    draft: defaultDraft(state.players[HUMAN_ID]),
+    activeTab: 'overview',
+    yearReport: null
+  }
+  renderGame()
+}
+
+// ---------------------------------------------------------------------------
+// Game screen (decisions)
+// ---------------------------------------------------------------------------
+
+function renderGame(): void {
+  if (!session) return
+  clear(root)
+  const { state, draft } = session
+  const player = state.players[HUMAN_ID]
+
+  const banner = el('canvas', { id: 'banner' })
+
+  const tabs: Array<{ id: Tab; label: string }> = [
+    { id: 'overview', label: 'Realm' },
+    { id: 'grain', label: 'Grain' },
+    { id: 'land', label: 'Land' },
+    { id: 'tax', label: 'Tax' },
+    { id: 'build', label: 'Build' },
+    { id: 'spy', label: 'Secret Service' }
+  ]
+  const tabbar = el('div', { class: 'tabbar' })
+  const content = el('div', { class: 'card' })
+
+  const renderTab = () => {
+    clear(content)
+    for (const b of Array.from(tabbar.children)) b.classList.remove('active')
+    const activeBtn = tabbar.querySelector(`[data-tab="${session!.activeTab}"]`)
+    activeBtn?.classList.add('active')
+    content.appendChild(renderTabContent(session!.activeTab))
+  }
+
+  for (const tab of tabs) {
+    const btn = el('button', { textContent: tab.label })
+    btn.dataset.tab = tab.id
+    btn.addEventListener('click', () => { session!.activeTab = tab.id; renderTab() })
+    tabbar.appendChild(btn)
+  }
+
+  const endYearBtn = el('button', { class: 'primary full', textContent: `End Year ${state.year + 1}` })
+  endYearBtn.addEventListener('click', () => runYear())
+
+  root.append(
+    el('div', { class: 'screen' },
+      banner,
+      el('h1', {}, `${getRankName(player.rank)} of the Realm`),
+      statGrid(player, state),
+      tabbar,
+      content,
+      el('div', { class: 'sticky-footer' }, endYearBtn)
+    )
+  )
+
+  drawBanner(banner, undefined, getRankName(player.rank))
+  renderTab()
+
+  void draft // referenced to keep TS happy about the destructure above being used
+}
+
+function statGrid(player: PlayerState, _state: GameState): HTMLElement {
+  const grainYears = Number(yearsOfFoodLabel(player))
+  const grainTone = grainYears < 0.5 ? 'bad' : grainYears >= 1 ? 'good' : undefined
+  const unrestTone = player.population.unrest > 60 ? 'bad' : player.population.unrest < 20 ? 'good' : undefined
+
+  return el('div', { class: 'stat-grid' },
+    statTile('Taler', player.taler.toFixed(0)),
+    statTile('Population', player.population.peasants.toFixed(0)),
+    statTile('Grain', `${player.grainStock.toFixed(0)} (${yearsOfFoodLabel(player)}y)`, grainTone),
+    statTile('Unrest', `${player.population.unrest.toFixed(0)}/100`, unrestTone),
+    statTile('Land', `${(player.land.farmland + player.land.buildingLand).toFixed(0)} ha`),
+    statTile('Palace', `${player.buildings.palace}/16${player.buildings.cathedral ? ' + Cathedral' : ''}`),
+  )
+}
+
+function renderTabContent(tab: Tab): HTMLElement {
+  const { state, draft } = session!
+  const player = state.players[HUMAN_ID]
+
+  switch (tab) {
+    case 'overview':
+      return renderOverviewTab()
+    case 'grain':
+      return renderGrainTab(player, state)
+    case 'land':
+      return renderLandTab(player, state)
+    case 'tax':
+      return renderTaxTab(draft)
+    case 'build':
+      return renderBuildTab(player, draft)
+    case 'spy':
+      return renderSpyTab(player, state, draft)
+  }
+}
+
+function renderOverviewTab(): HTMLElement {
+  const { state } = session!
+  const rivals = rivalOptions(state, HUMAN_ID)
+  return el('div', {},
+    el('h2', {}, 'Rival standings'),
+    el('div', { class: 'rival-list' },
+      ...rivals.map(({ id, name }) => {
+        const p = state.players[id]
+        return el('div', { class: 'rival-row' },
+          el('span', {}, name),
+          el('span', { class: 'rival-rank' }, `${getRankName(p.rank)} · ${p.taler.toFixed(0)} Taler · ${p.population.peasants.toFixed(0)} pop`)
+        )
+      })
+    ),
+    el('p', { class: 'help-text' }, `Year ${state.year} of up to ${session!.maxYears}. Corn: ${state.kaizerTradePrices.corn.toFixed(2)}/unit · Farmland: ${state.kaizerTradePrices.farmland.toFixed(0)}/ha`)
+  )
+}
+
+function renderGrainTab(player: GameState['players'][string], state: GameState): HTMLElement {
+  const draft = session!.draft
+  const container = el('div', {})
+
+  container.appendChild(el('p', { class: 'help-text' },
+    `Storage: ${player.grainStock.toFixed(0)} of ${storageCapacity(player.population, player.buildings.granary).toFixed(0)} — needs ${annualGrainRequirement(player.population).toFixed(0)}/year`
+  ))
+
+  container.appendChild(segmented<DecisionDraft['feedLevel']>({
+    options: [
+      { value: 'min', label: 'Min' },
+      { value: 'required', label: 'Required' },
+      { value: 'max', label: 'Max' },
+      { value: 'custom', label: 'Custom' }
+    ],
+    value: draft.feedLevel,
+    onChange: (v) => { draft.feedLevel = v; session!.activeTab = 'grain'; renderGame() }
+  }))
+
+  if (draft.feedLevel === 'custom') {
+    container.appendChild(sliderField({
+      label: 'Feed percentage', value: draft.customPercentage, min: 20, max: 80,
+      onChange: (v) => { draft.customPercentage = v }
+    }))
+  }
+
+  container.appendChild(stepper({
+    label: `Sell grain to the Kaiser (${state.kaizerTradePrices.corn.toFixed(2)}/unit)`,
+    value: draft.sellGrain, min: 0, max: maxSellableGrain(player), step: 250,
+    onChange: (v) => { draft.sellGrain = v }
+  }))
+  container.appendChild(stepper({
+    label: `Buy grain from the Kaiser (${grainBuybackPrice(state.kaizerTradePrices.corn).toFixed(2)}/unit)`,
+    value: draft.buyGrain, min: 0, max: maxAffordableGrainBuy(player, grainBuybackPrice(state.kaizerTradePrices.corn)), step: 100,
+    onChange: (v) => { draft.buyGrain = v }
+  }))
+
+  return container
+}
+
+function renderLandTab(player: GameState['players'][string], state: GameState): HTMLElement {
+  const draft = session!.draft
+  const maxFarmBuy = affordableHectares(player.taler, state.kaizerTradePrices.farmland)
+  const maxBuildBuy = affordableHectares(player.taler, state.kaizerTradePrices.buildingLand)
+
+  return el('div', {},
+    el('p', { class: 'help-text' }, `Farmland ${player.land.farmland.toFixed(0)} ha · Building land ${player.land.buildingLand.toFixed(0)} ha. Farmland beyond ~5 ha per peasant sits idle.`),
+    stepper({
+      label: `Farmland (buy up to ${maxFarmBuy}, or sell what you hold)`,
+      value: draft.farmlanbuy, min: -player.land.farmland, max: maxFarmBuy, step: 100,
+      onChange: (v) => { draft.farmlanbuy = v }
+    }),
+    stepper({
+      label: `Building land (buy up to ${maxBuildBuy}, or sell what you hold)`,
+      value: draft.buildingLandBuy, min: -player.land.buildingLand, max: maxBuildBuy, step: 100,
+      onChange: (v) => { draft.buildingLandBuy = v }
+    })
+  )
+}
+
+function renderTaxTab(draft: DecisionDraft): HTMLElement {
+  return el('div', {},
+    sliderField({ label: 'VAT', value: draft.vat, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.vat = v } }),
+    sliderField({ label: 'Income tax', value: draft.incomeTax, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.incomeTax = v } }),
+    sliderField({ label: 'Tariff', value: draft.tariff, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.tariff = v } }),
+    sliderField({ label: 'Judicial graft', value: draft.justiceGraft, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.justiceGraft = v } }),
+    el('p', { class: 'help-text' }, 'Higher rates raise revenue but push unrest up — past a point, revolt becomes likely.')
+  )
+}
+
+function renderBuildTab(player: GameState['players'][string], draft: DecisionDraft): HTMLElement {
+  const container = el('div', {},
+    el('h3', {}, 'Production'),
+    stepper({ label: `Markets (${player.buildings.markets})`, value: draft.marketBuild, min: 0, max: 10, step: 1, onChange: (v) => { draft.marketBuild = v } }),
+    stepper({ label: `Mills (${player.buildings.mills})`, value: draft.millBuild, min: 0, max: 10, step: 1, onChange: (v) => { draft.millBuild = v } }),
+    el('h3', {}, 'Rank path'),
+    stepper({ label: `Palace stages (${player.buildings.palace}/16)`, value: draft.palaceStages, min: 0, max: 16, step: 1, onChange: (v) => { draft.palaceStages = v } }),
+  )
+
+  if (!player.buildings.cathedral) {
+    const cathedralBtn = el('button', { class: 'full', textContent: draft.cathedralBuild ? 'Cathedral: Building ✓' : 'Attempt Cathedral' })
+    cathedralBtn.addEventListener('click', () => {
+      draft.cathedralBuild = !draft.cathedralBuild
+      cathedralBtn.textContent = draft.cathedralBuild ? 'Cathedral: Building ✓' : 'Attempt Cathedral'
+    })
+    container.appendChild(cathedralBtn)
+  }
+
+  container.append(
+    el('h3', {}, 'Mitigation'),
+    stepper({ label: `Wells — fire (${player.buildings.well})`, value: draft.wellBuild, min: 0, max: 1, step: 1, onChange: (v) => { draft.wellBuild = v } }),
+    stepper({ label: `Hospitals — plague (${player.buildings.hospital})`, value: draft.hospitalBuild, min: 0, max: 1, step: 1, onChange: (v) => { draft.hospitalBuild = v } }),
+    stepper({ label: `Granaries — famine (${player.buildings.granary})`, value: draft.granaryBuild, min: 0, max: 1, step: 1, onChange: (v) => { draft.granaryBuild = v } }),
+    stepper({ label: `Garrisons — banditry/revolt (${player.buildings.garrison})`, value: draft.garrisonBuild, min: 0, max: 1, step: 1, onChange: (v) => { draft.garrisonBuild = v } })
+  )
+
+  return container
+}
+
+function renderSpyTab(player: GameState['players'][string], state: GameState, draft: DecisionDraft): HTMLElement {
+  const rivals = rivalOptions(state, HUMAN_ID)
+  const container = el('div', {},
+    el('p', { class: 'help-text' }, `Guards: ${player.guards} · Saboteurs: ${player.saboteurs}`),
+    stepper({ label: 'Hire guards (defence)', value: draft.guardHire, min: 0, max: 10, step: 1, onChange: (v) => { draft.guardHire = v } }),
+    stepper({ label: 'Hire saboteurs (offence)', value: draft.saboteurHire, min: 0, max: 10, step: 1, onChange: (v) => { draft.saboteurHire = v } })
+  )
+
+  if (player.saboteurs > 0 && rivals.length > 0) {
+    container.appendChild(el('h3', {}, 'Strike'))
+    const targetRow = el('div', { class: 'segmented' })
+    const noneBtn = el('button', { textContent: 'None', className: draft.targetPlayerId === null ? 'active' : '' })
+    noneBtn.addEventListener('click', () => { draft.targetPlayerId = null; session!.activeTab = 'spy'; renderGame() })
+    targetRow.appendChild(noneBtn)
+    for (const rival of rivals) {
+      const btn = el('button', { textContent: rival.name, className: draft.targetPlayerId === rival.id ? 'active' : '' })
+      btn.addEventListener('click', () => { draft.targetPlayerId = rival.id; session!.activeTab = 'spy'; renderGame() })
+      targetRow.appendChild(btn)
+    }
+    container.appendChild(targetRow)
+
+    if (draft.targetPlayerId) {
+      container.appendChild(stepper({
+        label: 'Saboteurs to commit',
+        value: draft.saboteursCommitted, min: 1, max: player.saboteurs, step: 1,
+        onChange: (v) => { draft.saboteursCommitted = v }
+      }))
+      container.appendChild(segmented<EspionageMode>({
+        options: [{ value: 'raid', label: 'Raid (coin)' }, { value: 'sabotage', label: 'Sabotage (burn + coin)' }],
+        value: draft.mode,
+        onChange: (v) => { draft.mode = v }
+      }))
+    }
+  }
+
+  return container
+}
+
+// ---------------------------------------------------------------------------
+// Turn resolution
+// ---------------------------------------------------------------------------
+
+function runYear(): void {
+  if (!session) return
+  clear(root)
+  // A visible loading state before the (up to a few hundred ms on a phone —
+  // see BACKLOG P1) AI planning work runs, so the tap always gets instant
+  // feedback rather than an apparently-frozen button.
+  root.appendChild(el('div', { class: 'screen' }, el('h2', {}, 'Advancing the year…')))
+
+  // setTimeout, NOT requestAnimationFrame: rAF callbacks are tied to the
+  // display's compositor and simply do not fire while a tab is backgrounded or
+  // not visible (screen lock, app-switch on mobile, a hidden tab) — verified
+  // directly, this stalled a year-advance for 6+ seconds in a non-composited
+  // browser context that would otherwise never have painted the rAF callback
+  // at all. setTimeout still yields a turn to let the loading screen paint,
+  // but keeps firing regardless of visibility.
+  setTimeout(() => resolveYear(), 0)
+}
+
+function resolveYear(): void {
+  if (!session) return
+  const { state, rivals, draft } = session
+
+  const decisions: Record<string, Decision[]> = {
+    [HUMAN_ID]: draftToDecisions(draft)
+  }
+  const year = state.year
+  for (const [id, personality] of rivals) {
+    if (!state.activePlayerIds.includes(id)) continue
+    const seed = 5000 + year * 104729 + id.length
+    decisions[id] = planYear(state, id, personality, seed)
+  }
+
+  const seed = 1 + year * 1000
+  const result = advanceYear(state, decisions, seed)
+  session.state = result.state
+
+  session.yearReport = { entries: buildReportEntries(result.chronicle, result.state), outcome: null }
+
+  // Check end conditions.
+  for (const id of result.state.activePlayerIds) {
+    if (result.state.players[id].rank >= KAISER_RANK) {
+      session.yearReport.outcome = { kind: 'victory', winnerId: id }
+      break
+    }
+  }
+  if (!session.yearReport.outcome) {
+    result.state.activePlayerIds = result.state.activePlayerIds.filter(
+      (id) => id === HUMAN_ID || result.state.players[id].population.peasants >= 1
+    )
+    if (result.state.players[HUMAN_ID].population.peasants < 1) {
+      session.yearReport.outcome = { kind: 'collapse' }
+    } else if (result.state.year >= session.maxYears) {
+      session.yearReport.outcome = { kind: 'timeout' }
+    }
+  }
+
+  session.draft = defaultDraft(result.state.players[HUMAN_ID])
+  renderYearReport()
+}
+
+function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement[] {
+  const entries: HTMLElement[] = []
+  const report = chronicle.playerReports[HUMAN_ID]
+  if (!report) return entries
+
+  const traded = report.grainSold > 0
+    ? `Sold ${report.grainSold.toFixed(0)} grain for ${report.grainTradeIncome.toFixed(0)} Taler.`
+    : report.grainBought > 0
+      ? `Bought ${report.grainBought.toFixed(0)} grain for ${(-report.grainTradeIncome).toFixed(0)} Taler.`
+      : ''
+  entries.push(el('div', { class: 'log-entry weather' },
+    `${report.weatherName}: harvest ${report.harvestYield.toFixed(0)}. ${traded}`
+  ))
+  if (report.grainOverflowLost > 100) {
+    entries.push(el('div', { class: 'log-entry' }, `${report.grainOverflowLost.toFixed(0)} grain rotted — the barns were full.`))
+  }
+
+  for (const event of report.events) {
+    const magnitude = event.lossType === 'gold' ? `${event.loss.toFixed(0)} Taler lost`
+      : event.lossType === 'population' ? `${event.loss.toFixed(0)} peasants lost`
+      : `${event.loss.toFixed(0)} buildings destroyed`
+    entries.push(el('div', { class: 'log-entry bad' }, `${event.telegraphText} (${magnitude})`))
+  }
+
+  for (const strike of chronicle.strikes) {
+    const verb = strike.mode === 'raid' ? 'raid' : 'sabotage'
+    if (strike.defenderId === HUMAN_ID) {
+      const attackerName = state.players[strike.attackerId]?.name ?? strike.attackerId
+      entries.push(el('div', { class: `log-entry ${strike.succeeded ? 'bad' : 'good'}` },
+        strike.succeeded
+          ? `${attackerName} succeeded with a ${verb} against you — ${strike.talerStolen.toFixed(0)} Taler taken.`
+          : `${attackerName} attempted a ${verb} — your guards drove them off.`
+      ))
+    } else if (strike.attackerId === HUMAN_ID) {
+      const defenderName = state.players[strike.defenderId]?.name ?? strike.defenderId
+      entries.push(el('div', { class: `log-entry ${strike.succeeded ? 'good' : 'bad'}` },
+        strike.succeeded
+          ? `Your ${verb} against ${defenderName} succeeded — ${strike.talerStolen.toFixed(0)} Taler taken.`
+          : `Your ${verb} against ${defenderName} failed — ${strike.saboteursLost} saboteurs lost.`
+      ))
+    }
+  }
+
+  if (report.rankPromoted) {
+    entries.push(el('div', { class: 'log-entry good' }, `Promoted to ${getRankName(report.newRank!)}!`))
+  }
+  if (report.emigration > 1) {
+    entries.push(el('div', { class: 'log-entry bad' }, `${report.emigration.toFixed(0)} peasants emigrated — unrest is taking its toll.`))
+  }
+
+  if (entries.length === 0) {
+    entries.push(el('div', { class: 'log-entry' }, 'A quiet year.'))
+  }
+  return entries
+}
+
+function renderYearReport(): void {
+  if (!session?.yearReport) return
+  clear(root)
+  const { entries, outcome } = session.yearReport
+  const player = session.state.players[HUMAN_ID]
+
+  const continueBtn = el('button', { class: 'primary full', textContent: outcome ? 'See Final Standings' : 'Continue' })
+  continueBtn.addEventListener('click', () => {
+    if (outcome) renderGameOver(outcome)
+    else renderGame()
+  })
+
+  root.append(
+    el('div', { class: 'screen' },
+      el('h1', {}, `Year ${session.state.year}`),
+      el('p', { class: 'subtitle' }, `${getRankName(player.rank)} · ${player.taler.toFixed(0)} Taler · ${player.population.peasants.toFixed(0)} peasants`),
+      el('div', { class: 'log' }, ...entries),
+      el('div', { class: 'sticky-footer' }, continueBtn)
+    )
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Game over
+// ---------------------------------------------------------------------------
+
+function renderGameOver(outcome: Outcome): void {
+  if (!session) return
+  clear(root)
+  const { state } = session
+
+  let headline: string
+  if (outcome.kind === 'victory') {
+    headline = outcome.winnerId === HUMAN_ID
+      ? 'You have been crowned Kaiser!'
+      : `${state.players[outcome.winnerId].name} was crowned Kaiser.`
+  } else if (outcome.kind === 'collapse') {
+    headline = 'Your realm has collapsed.'
+  } else {
+    headline = 'The years have run their course.'
+  }
+
+  // Standings sorted the same way the game itself decides a winner.
+  const standings = [...state.activePlayerIds].sort(
+    (a, b) => compareStanding(state.players[b], state.players[a])
+  )
+
+  const rows = standings.map((id) => {
+    const p = state.players[id]
+    return el('div', { class: 'rival-row' },
+      el('span', {}, id === HUMAN_ID ? 'You' : p.name),
+      el('span', { class: 'rival-rank' }, `${getRankName(p.rank)} · ${p.taler.toFixed(0)} Taler · ${p.population.peasants.toFixed(0)} pop`)
+    )
+  })
+
+  const again = el('button', { class: 'primary full', textContent: 'Play Again' })
+  again.addEventListener('click', () => { session = null; renderSetup() })
+
+  root.append(
+    el('div', { class: 'screen' },
+      el('h1', {}, headline),
+      el('div', { class: 'card' }, el('h2', {}, 'Final standings'), el('div', { class: 'rival-list' }, ...rows)),
+      el('div', { class: 'sticky-footer' }, again)
+    )
+  )
+}
