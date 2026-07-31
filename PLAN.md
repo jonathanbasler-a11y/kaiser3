@@ -431,6 +431,51 @@ The year-advance handler used a double `requestAnimationFrame` to yield one fram
 
 ---
 
+## Phase 10: ComfyUI Art Pass (Ready to Execute)
+
+**Status:** Fully prepared, awaiting generation
+
+### What Will Be Built
+45 art assets via local ComfyUI (all original, no copyrighted reference material):
+- **Portraits (5):** One per archetype (builder, expansionist, merchant, schemer, raider), 256×256
+- **Buildings (21):** Market, mill, cathedral, hospital, well, granary, garrison, trading house, palace 16 stages, 128×96
+- **Event Icons (7):** Plague, fire, famine, revolt, banditry, flood, drought, 96×96
+- **Terrain (6):** Farmland (fallow/planted/ripe/blighted), forest, river, 128×96
+- **Scenes (3):** Coronation tableau, battlefield backdrop, chronicle parchment, 1280×720
+
+**Generated to:** `public/art/<category>/<assetId>.png`  
+**Fallback:** Procedural Canvas 2D rendering if any file missing (game remains 100% playable)
+
+### Fully Prepared Infrastructure
+- ✅ `docs/art-spec.md` — complete asset specifications with visual preambles and per-asset prompts
+- ✅ `docs/phase-10-plan.md` — full execution workflow, generation parameters, success criteria
+- ✅ `data/tileset.json` — manifest mapping all 45 asset IDs → paths
+- ✅ `src/ui/spriteLoader.ts` — loader tries disk art, falls back to procedural
+- ✅ `src/ui/render.ts` — procedural fallback renderers for all 5 categories (portraits, buildings, events, terrain, scenes)
+- ✅ `scripts/gen-art.ts` — orchestration script: reads specs, dispatches to ComfyUI, saves PNGs
+- ✅ `scripts/verify-art.ts` — post-generation validation (file sizes, load test, fallback check)
+- ✅ `package.json` — added `npm run gen-art` and `npm run verify-art` scripts
+
+### Generation Workflow
+1. **Parallel asset generation:** Portraits → Event icons → Buildings → Terrain → Scenes (can parallelize by category via multi-agent `Workflow`)
+2. **ComfyUI parameters:** DPM++ 2M Karras, 30–40 steps, CFG 7–8, seed derived from asset ID (deterministic)
+3. **Verification:** `npm run verify-art` confirms all files, procedural fallback still works
+4. **Testing:** `npm run test`, `npm run build`, play full game end-to-end, spot-check at 375×812 viewport
+5. **Commit:** All 45 PNGs checked in, auto-deploy to Vercel
+
+### Acceptance Criteria
+- ✓ All 45 assets generated, > 1 KB each, correct dimensions
+- ✓ No fetch/404 errors in browser console
+- ✓ Visual spot-check: faces recognizable, building silhouettes clear, event icons readable, terrain distinct
+- ✓ Game plays end-to-end with generated art
+- ✓ Procedural fallback works (delete art, game renders procedurally, restore)
+- ✓ Tests pass, build clean, deployed live
+
+### Next Phase
+**Phase 11 — QA/Hardening** or optional **Phase 11b (Warfare + Succession)** if gameplay depth is prioritized over polish. After art is live, the game is feature-complete and ready for regression, difficulty presets, and final balance validation.
+
+---
+
 ## Implementation Notes
 
 ### The Reducer Contract

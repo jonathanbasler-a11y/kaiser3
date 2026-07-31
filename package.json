@@ -14,7 +14,8 @@
     "event-profile": "tsx scripts/event-profile.ts",
     "ai-bench": "tsx scripts/ai-bench.ts",
     "balance": "tsx scripts/balance.ts",
-    "gen-art": "tsx scripts/gen-art.ts"
+    "gen-art": "tsx scripts/gen-art.ts",
+    "verify-art": "tsx scripts/verify-art.ts"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
