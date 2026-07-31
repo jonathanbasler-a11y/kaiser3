@@ -35,6 +35,18 @@ export interface EventLossSpec {
   fraction: number
   minimum?: number       // gold only: a floor so early-game raids still sting
   severityJitter: number // Width of the random severity band around 1.0
+  // How much the loss FRACTION grows with exposure, on top of exposure already
+  // raising the probability. Without this, a large realm is struck more often but
+  // each blow stays proportionally identical — and once mitigation shaves 40-50%
+  // off, no single event can dent a mature ruler at all. Measured directly: the
+  // leader's chance of a serious reverse fell to 0.0% in every decade after year
+  // 30, which is the soft late game this whole harness exists to prevent.
+  //
+  // It is also the more faithful model. A plague in a dense city of 20,000 really
+  // is proportionally worse than one in a village of 1,000; crowding drives
+  // epidemics. Condition-driven events (revolt, famine) have exposure <= 1 by
+  // construction, so this term leaves them untouched — only prosperity amplifies.
+  severityExposureScaling?: number
 }
 
 export interface EventDefinition {
@@ -154,13 +166,27 @@ function destroyProductionBuildings(player: PlayerState, count: number): number 
 
 // Applies a fired event's loss to the player, mutating them, and returns a
 // structured record for the chronicle.
+// Ceiling on how far exposure may amplify a loss, so that even at the exposure cap
+// a single event is a heavy blow rather than an instant collapse.
+const MAX_SEVERITY_EXPOSURE_MULTIPLIER = 3
+
+export function severityExposureMultiplier(event: EventDefinition, exposure: number): number {
+  const scaling = event.loss.severityExposureScaling ?? 0
+  if (scaling <= 0) return 1
+  // Exposure of 1 is the reference (a starting realm), so only growth ABOVE that
+  // amplifies. Condition events never exceed 1 and so are never amplified.
+  return Math.min(MAX_SEVERITY_EXPOSURE_MULTIPLIER, 1 + scaling * Math.max(0, exposure - 1))
+}
+
 function applyEventLoss(
   event: EventDefinition,
   player: PlayerState,
   severity: number,
-  mitigated: boolean
+  mitigated: boolean,
+  exposure: number
 ): ResolvedEvent {
-  const severityFactor = mitigated ? severity * (1 - event.mitigation.severityReduction) : severity
+  const mitigationFactor = mitigated ? 1 - event.mitigation.severityReduction : 1
+  const severityFactor = severity * mitigationFactor * severityExposureMultiplier(event, exposure)
 
   let populationLoss = 0
   let goldLoss = 0
@@ -246,7 +272,10 @@ export function resolveEvents(
     if (roll >= probability) continue
 
     const mitigated = hasMitigationBuilding(player, event.mitigation.building)
-    const resolved = applyEventLoss(event, player, severity, mitigated)
+    // Same exposure that set the probability, reused to amplify severity — the
+    // realm's size raises both how often it is struck and how hard.
+    const exposure = calculateExposure(event.exposure, player, context)
+    const resolved = applyEventLoss(event, player, severity, mitigated, exposure)
 
     events.push(resolved.event)
     totalPopulationLoss += resolved.populationLoss

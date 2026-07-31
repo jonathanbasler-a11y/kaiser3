@@ -4,44 +4,78 @@
     {
       "id": 0,
       "name": "Baron",
-      "requirements": { "wealthMin": 15000, "populationMin": 1000, "palaceStages": 0 }
+      "requirements": {
+        "wealthMin": 15000,
+        "populationMin": 1000,
+        "palaceStages": 0
+      }
     },
     {
       "id": 1,
       "name": "Duke",
-      "requirements": { "wealthMin": 20000, "populationMin": 2000, "palaceStages": 4 }
+      "requirements": {
+        "wealthMin": 20000,
+        "populationMin": 1300,
+        "palaceStages": 4
+      }
     },
     {
       "id": 2,
       "name": "Prince",
-      "requirements": { "wealthMin": 30000, "populationMin": 3000, "palaceStages": 8 }
+      "requirements": {
+        "wealthMin": 30000,
+        "populationMin": 1700,
+        "palaceStages": 8
+      }
     },
     {
       "id": 3,
       "name": "Count",
-      "requirements": { "wealthMin": 50000, "populationMin": 5000, "palaceStages": 12 }
+      "requirements": {
+        "wealthMin": 50000,
+        "populationMin": 2100,
+        "palaceStages": 12
+      }
     },
     {
       "id": 4,
       "name": "Margrave",
-      "requirements": { "wealthMin": 75000, "populationMin": 7500, "palaceStages": 14 },
+      "requirements": {
+        "wealthMin": 75000,
+        "populationMin": 2500,
+        "palaceStages": 14
+      },
       "unlockedFeature": "tradingHouses"
     },
     {
       "id": 5,
       "name": "Archbishop",
-      "requirements": { "wealthMin": 100000, "populationMin": 10000, "cathedral": true }
+      "requirements": {
+        "wealthMin": 100000,
+        "populationMin": 3000,
+        "cathedral": true
+      }
     },
     {
       "id": 6,
       "name": "King",
-      "requirements": { "wealthMin": 150000, "populationMin": 15000, "palaceStages": 15 }
+      "requirements": {
+        "wealthMin": 150000,
+        "populationMin": 3500,
+        "palaceStages": 15
+      }
     },
     {
       "id": 7,
       "name": "Kaiser",
-      "requirements": { "wealthMin": 200000, "populationMin": 20000, "palaceStages": 16, "cathedral": true },
+      "requirements": {
+        "wealthMin": 200000,
+        "populationMin": 4200,
+        "palaceStages": 16,
+        "cathedral": true
+      },
       "description": "Emperor of the Holy Roman Empire — Victory!"
     }
-  ]
+  ],
+  "_populationNote": "Population thresholds are calibrated against what the simulation can actually produce: net natural growth is ~1%/yr and plague claws much of it back, so an ideally-played realm with full mitigation peaks near 4,600 peasants (measured, scripts/balance.ts era). The original Phase 0 figures ran to 20,000 and made every rank above Prince unreachable."
 }

@@ -4,7 +4,7 @@
 // a random-legal bot, emits only legal decisions, and archetypes are actually
 // distinct). Phase 6's balance harness builds on the same primitives.
 
-import { GameState, Decision, PlayerState } from '../engine/state.ts'
+import { GameState, Decision, PlayerState, Chronicle } from '../engine/state.ts'
 import { advanceYear } from '../engine/year.ts'
 import { createStarterState } from '../engine/starter.ts'
 import { SeededRng } from '../engine/rng.ts'
@@ -133,7 +133,16 @@ export function compareStanding(a: PlayerState, b: PlayerState): number {
   return materialScore(a) - materialScore(b)
 }
 
-export function runMatch(competitors: Competitor[], seed: number, maxYears: number): MatchResult {
+// Called after each year with the state and that year's chronicle. Used by the
+// Phase 6 balance harness to build a timeline without duplicating the match loop.
+export type YearObserver = (state: GameState, chronicle: Chronicle) => void
+
+export function runMatch(
+  competitors: Competitor[],
+  seed: number,
+  maxYears: number,
+  observeYear?: YearObserver
+): MatchResult {
   let state = createStarterState(competitors.map((c) => ({ id: c.id, name: c.name })))
   const rng = new SeededRng(seed)
   const allDecisions: Array<{ playerId: string; decisions: Decision[] }> = []
@@ -151,6 +160,7 @@ export function runMatch(competitors: Competitor[], seed: number, maxYears: numb
 
     const result = advanceYear(state, decisions, seed + year * 1000)
     state = result.state
+    observeYear?.(state, result.chronicle)
 
     for (const playerId of state.activePlayerIds) {
       if (state.players[playerId].rank >= KAISER_RANK) {

@@ -13,10 +13,10 @@
       "category": "prosperity",
       "baseWeight": 0.10,
       "exposure": { "driver": "population", "reference": 1000, "exponent": 0.5, "cap": 6 },
-      "mitigation": { "building": "hospital", "probabilityReduction": 0.7, "severityReduction": 0.4 },
+      "mitigation": { "building": "hospital", "probabilityReduction": 0.6, "severityReduction": 0.2 },
       "floorProbability": 0.01,
       "maxProbability": 0.45,
-      "loss": { "type": "population", "fraction": 0.15, "severityJitter": 0.5 },
+      "loss": { "type": "population", "fraction": 0.15, "severityJitter": 0.5, "severityExposureScaling": 0.45 },
       "telegraph": {
         "unmitigated": "Plague sweeps the villages — no hospital to contain it",
         "mitigated": "Plague reaches the principality, but the hospital limits the toll"
@@ -28,10 +28,10 @@
       "category": "prosperity",
       "baseWeight": 0.09,
       "exposure": { "driver": "buildings", "reference": 4, "exponent": 0.5, "cap": 5 },
-      "mitigation": { "building": "well", "probabilityReduction": 0.6, "severityReduction": 0.5 },
+      "mitigation": { "building": "well", "probabilityReduction": 0.6, "severityReduction": 0.25 },
       "floorProbability": 0.01,
       "maxProbability": 0.40,
-      "loss": { "type": "buildings", "fraction": 0.2, "severityJitter": 0.4 },
+      "loss": { "type": "buildings", "fraction": 0.2, "severityJitter": 0.4, "severityExposureScaling": 0.3 },
       "telegraph": {
         "unmitigated": "Fire tears through the workshops — no wells or firebreaks",
         "mitigated": "Fire breaks out, but the wells keep it from spreading far"
@@ -43,10 +43,10 @@
       "category": "prosperity",
       "baseWeight": 0.10,
       "exposure": { "driver": "wealth", "reference": 15000, "exponent": 0.5, "cap": 6 },
-      "mitigation": { "building": "garrison", "probabilityReduction": 0.75, "severityReduction": 0.5 },
+      "mitigation": { "building": "garrison", "probabilityReduction": 0.6, "severityReduction": 0.25 },
       "floorProbability": 0.01,
       "maxProbability": 0.45,
-      "loss": { "type": "gold", "fraction": 0.08, "minimum": 300, "severityJitter": 0.6 },
+      "loss": { "type": "gold", "fraction": 0.08, "minimum": 300, "severityJitter": 0.6, "severityExposureScaling": 0.45 },
       "telegraph": {
         "unmitigated": "Bandits plunder the trade roads — no garrison to patrol them",
         "mitigated": "Bandits raid the roads, but the garrison drives them off with light losses"
@@ -58,7 +58,7 @@
       "category": "condition",
       "baseWeight": 0.55,
       "exposure": { "driver": "unrest", "reference": 100, "exponent": 1.5, "cap": 1 },
-      "mitigation": { "building": "garrison", "probabilityReduction": 0.5, "severityReduction": 0.4 },
+      "mitigation": { "building": "garrison", "probabilityReduction": 0.5, "severityReduction": 0.2 },
       "floorProbability": 0.0,
       "maxProbability": 0.55,
       "loss": { "type": "population", "fraction": 0.12, "severityJitter": 0.5 },
@@ -73,7 +73,7 @@
       "category": "condition",
       "baseWeight": 0.70,
       "exposure": { "driver": "grainShortfall", "reference": 1, "exponent": 1.0, "cap": 1 },
-      "mitigation": { "building": "granary", "probabilityReduction": 0.8, "severityReduction": 0.6 },
+      "mitigation": { "building": "granary", "probabilityReduction": 0.7, "severityReduction": 0.3 },
       "floorProbability": 0.0,
       "maxProbability": 0.70,
       "loss": { "type": "population", "fraction": 0.10, "severityJitter": 0.5 },

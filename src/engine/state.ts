@@ -68,7 +68,12 @@ export interface PlayerChronicle {
   taxIncome: number
   tariffIncome: number
   upkeepCost: number
-  eventLosses: number
+  // Event losses are recorded PER UNIT, never summed together: adding peasants to
+  // Taler produces a number that means nothing. Phase 6's balance harness needs
+  // the gold figure on its own to compute net income.
+  eventGoldLoss: number
+  eventPopulationLoss: number
+  eventBuildingsDestroyed: number
   unrestGain: number
   events: PlayerEvent[]
   rankPromoted: boolean

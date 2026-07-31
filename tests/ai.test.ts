@@ -3,7 +3,7 @@ import { intrinsicUtility, expectedAnnualEventCost, evaluateState, projectedFeed
 import { getPersonality, getPersonalities, validatePersonalities, Personality } from '../src/ai/personalities.ts'
 import { planYear, generateCandidates } from '../src/ai/planner.ts'
 import { aiCompetitor, runMatch, runTournament, compareStanding, Competitor } from '../src/ai/sim.ts'
-import { rankProgress } from '../src/engine/ranks.ts'
+import { rankProgress, getNextRank, getTopRank } from '../src/engine/ranks.ts'
 import { validateDecisions } from '../src/engine/decisions.ts'
 import { createStarterState } from '../src/engine/starter.ts'
 import { PlayerState, GameState } from '../src/engine/state.ts'
@@ -49,28 +49,37 @@ describe('personalities', () => {
 })
 
 describe('rankProgress', () => {
+  // Derived from data/ranks.json rather than hardcoded, so retuning the ladder
+  // (as Phase 6 did) cannot silently rot these expectations into nonsense.
+  const duke = getNextRank(0)!.requirements
+
   it('is the MINIMUM across requirements, so the binding constraint governs', () => {
-    // Duke needs wealth 20000, population 2000, palace 4.
     // Enormous wealth cannot compensate for a missing palace.
-    const rich = makePlayer({ taler: 10_000_000, population: { peasants: 2000, unrest: 0 } })
+    const rich = makePlayer({
+      taler: 10_000_000,
+      population: { peasants: duke.populationMin, unrest: 0 }
+    })
     expect(rankProgress(rich)).toBe(0)
 
+    // Wealth and palace fully met, population at half its requirement — so the
+    // binding constraint is population, and progress must equal exactly that.
+    const halfPopulation = duke.populationMin / 2
     const balanced = makePlayer({
-      taler: 20000,
-      population: { peasants: 1000, unrest: 0 },
-      buildings: { ...makePlayer().buildings, palace: 4 }
+      taler: duke.wealthMin,
+      population: { peasants: halfPopulation, unrest: 0 },
+      buildings: { ...makePlayer().buildings, palace: duke.palaceStages ?? 0 }
     })
-    expect(rankProgress(balanced)).toBeCloseTo(0.5, 5) // population is binding: 1000/2000
+    expect(rankProgress(balanced)).toBeCloseTo(0.5, 5)
   })
 
   it('reaches 1 when every requirement is met, and stays 1 at the top rank', () => {
     const ready = makePlayer({
-      taler: 25000,
-      population: { peasants: 2500, unrest: 0 },
-      buildings: { ...makePlayer().buildings, palace: 4 }
+      taler: duke.wealthMin * 1.25,
+      population: { peasants: duke.populationMin * 1.25, unrest: 0 },
+      buildings: { ...makePlayer().buildings, palace: duke.palaceStages ?? 0 }
     })
     expect(rankProgress(ready)).toBe(1)
-    expect(rankProgress(makePlayer({ rank: 7 }))).toBe(1)
+    expect(rankProgress(makePlayer({ rank: getTopRank() }))).toBe(1)
   })
 })
 

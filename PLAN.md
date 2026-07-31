@@ -253,6 +253,50 @@ Ranks arrive slowly: Duke ~80 years, Prince ~120, Margrave ~200; Kaiser (20,000 
 
 ---
 
+## Phase 6: Balance Harness + Anti-Snowball Gate ✓
+
+**Status:** Done — **GATE PASSED** at full scale (200 matches × 60 years). Full results in [docs/balance-report.md](docs/balance-report.md).
+
+### What was built
+- `src/ai/balance.ts` — instrumentation and the three criteria. `runInstrumentedMatch` collects a per-year timeline via a `YearObserver` callback threaded through the existing `runMatch`, so there is no duplicated match loop to drift.
+- `src/ai/balanceCriteria.ts` — thresholds in **one place**, shared by the script and the committed tests, so they cannot disagree about what "balanced" means.
+- `scripts/balance.ts` (`npm run balance [matches] [years]`) — prints all criteria and **exits non-zero on failure**, so it can gate a build as well as inform tuning.
+- `tests/balance.test.ts` — the criteria as committed acceptance tests on a smaller sample of the same deterministic seeds.
+
+### Gate results (200 matches × 60 years)
+| Criterion | Result | Threshold |
+|---|---|---|
+| Margin flatness | slope **−2.821e-3** (returns fall 2.13% → 0.95%) | ≤ 0.002 |
+| Loss persistence | late rate **38.8%**, late/early ratio **1.30** | ≥ 25%, ≥ 0.6 |
+| Late lead volatility | leader changes late in **39.5%** of matches | ≥ 20% |
+| No early runaway | yr-20 leader wins **50.5%** | ≤ 85% |
+
+The setback arc by decade — **27% → 33% → 10% → 14% → 27% → 51%** — is the intended shape: danger dips while mitigation is being bought, then climbs past its starting level as prosperity outgrows the insurance. Success creates new pressure instead of removing it.
+
+### The first run passed — and was wrong
+The most valuable thing this phase did was catch its own measurements. Three bugs, all of which **flattered the game**:
+1. Setbacks measured against **total holdings** read 0.0% in every decade of every match (holdings are dominated by land at book value and barely move), and a division-by-zero fallback let that "pass" vacuously. A criterion that never fires is not evidence of balance. The vacuous path is now an explicit failure with an absolute floor alongside the ratio, plus a test asserting the metric actually fires.
+2. Setbacks measured against **treasury movement** were worse than useless — they counted the ruler's own **spending** as misfortune. The early game looked perilous precisely because that is when land and palace stages get bought, while a mature ruler with nothing left to buy looked serene. Exactly backwards. Adversity is now read from event losses in the chronicle.
+3. `PlayerChronicle.eventLosses` **summed peasants and Taler into a single number**, which means nothing. Split into `eventGoldLoss` / `eventPopulationLoss` / `eventBuildingsDestroyed`.
+
+### Two genuine design faults, then fixed
+4. **Only event frequency scaled with prosperity, not severity.** A large realm was struck more often but each blow stayed proportionally identical — and once mitigation shaved 40–50% off, no single event could dent a mature ruler at all. Added `severityExposureScaling`: a plague in a dense city really is worse than one in a village. Condition events (revolt, famine) have exposure ≤ 1 by construction and are deliberately untouched — only prosperity amplifies.
+5. **Mitigation was close to immunity.** Cutting frequency 70–80% *and* severity 40–60% compounds to ~87% risk reduction. Insurance should mean "this happens to me less often", not "this barely matters when it happens". Severity reductions cut to 0.2–0.3, probability reductions moderated to 0.6–0.7.
+
+### Separate finding: the rank ladder was unreachable
+Tuning exposed that the Phase 0 rank thresholds predated the population model entirely. Measured: under *ideal* play with full mitigation, population peaks near **4,600** and oscillates. Kaiser required **20,000** — unreachable by 4–5×, making every rank above Prince unattainable however well the game was played. Thresholds recalibrated to what the simulation actually produces (Duke 1,300 → Kaiser 4,200). Progression now: **Duke at 60y, Count at 120y, Margrave at 300y.** Kaiser stays deliberately out of reach in a normal-length game — recorded for Phase 11's difficulty presets rather than quietly tuned away.
+
+### Acceptance Criteria
+- ✓ All three flatness criteria pass over ≥200 seeded matches — **the hard gate is met**
+- ✓ Thresholds committed as CI-enforced tests so regressions fail automatically
+- ✓ Results written to `docs/balance-report.md`
+- ✓ `npx tsc --noEmit` clean, 124/124 tests passing
+
+### Next Phase
+**Phase 7 — Espionage, inter-ruler trade, and the schemer/raider archetypes.** Drops back to Opus/High. Two things to carry forward: the loss-persistence criterion is partly about "events **and AI aggression**" in the plan's own wording, so it should be re-examined and likely tightened once rulers can strike each other; and Phase 5's recorded limitation — Builder and Expansionist converging because the strategy space is narrow — is exactly what this phase's mechanics should open up.
+
+---
+
 ## Implementation Notes
 
 ### The Reducer Contract

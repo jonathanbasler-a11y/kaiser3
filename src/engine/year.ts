@@ -72,7 +72,9 @@ export function advanceYear(
       taxIncome: 0,
       tariffIncome: 0,
       upkeepCost: 0,
-      eventLosses: 0,
+      eventGoldLoss: 0,
+      eventPopulationLoss: 0,
+      eventBuildingsDestroyed: 0,
       unrestGain: 0,
       events: [],
       rankPromoted: false
@@ -141,7 +143,9 @@ export function advanceYear(
     //    a bad year can genuinely cost a promotion.
     const eventResult = resolveEvents(player, { feedAdequacy: feeding.feedAdequacy }, rng)
     report.events = eventResult.events
-    report.eventLosses = eventResult.totalPopulationLoss + eventResult.totalGoldLoss
+    report.eventGoldLoss = eventResult.totalGoldLoss
+    report.eventPopulationLoss = eventResult.totalPopulationLoss
+    report.eventBuildingsDestroyed = eventResult.totalBuildingsDestroyed
 
     report.unrestGain = player.population.unrest - unrestAtYearStart
 
