@@ -34,12 +34,29 @@ export function scriptedOpponentDecisions(player: PlayerState, kaizerPrices: Gam
   ]
 }
 
+export interface OpponentSpec {
+  id: string
+  name: string
+}
+
 export interface PlayGameConfig {
   humanId: string
   humanName: string
   opponentCount: number
   maxYears: number
   getHumanDecisions: (state: GameState) => Decision[] | Promise<Decision[]>
+  // Supplies each rival's decisions. Injected rather than imported so the engine
+  // never depends on src/ai — the AI layer is a consumer of the engine, not the
+  // other way round. Defaults to the simple scripted ruler below, which keeps the
+  // engine independently runnable (and testable) with no AI present at all.
+  getOpponentDecisions?: (
+    state: GameState,
+    opponent: OpponentSpec,
+    year: number
+  ) => Decision[] | Promise<Decision[]>
+  // Names for the rivals, so a caller wiring in AI personalities can label them
+  // "The Builder", "The Merchant", and so on rather than "Rival 1".
+  opponentNames?: string[]
   onYearComplete?: (state: GameState, chronicle: Chronicle) => void
   seedBase?: number
 }
@@ -54,11 +71,11 @@ export interface PlayGameResult {
 }
 
 export async function runGame(config: PlayGameConfig): Promise<PlayGameResult> {
-  const opponentIds = Array.from({ length: config.opponentCount }, (_, i) => `opponent${i + 1}`)
-  const playerIds = [
-    { id: config.humanId, name: config.humanName },
-    ...opponentIds.map((id, i) => ({ id, name: `Rival ${i + 1}` }))
-  ]
+  const opponents: OpponentSpec[] = Array.from({ length: config.opponentCount }, (_, i) => ({
+    id: `opponent${i + 1}`,
+    name: config.opponentNames?.[i] ?? `Rival ${i + 1}`
+  }))
+  const playerIds = [{ id: config.humanId, name: config.humanName }, ...opponents]
 
   let state = createStarterState(playerIds)
   const seedBase = config.seedBase ?? 1
@@ -66,8 +83,11 @@ export async function runGame(config: PlayGameConfig): Promise<PlayGameResult> {
   for (let year = 0; year < config.maxYears; year++) {
     const humanDecisions = await config.getHumanDecisions(state)
     const decisions: Record<string, Decision[]> = { [config.humanId]: humanDecisions }
-    for (const oppId of opponentIds) {
-      decisions[oppId] = scriptedOpponentDecisions(state.players[oppId], state.kaizerTradePrices)
+    for (const opponent of opponents) {
+      if (!state.activePlayerIds.includes(opponent.id)) continue
+      decisions[opponent.id] = config.getOpponentDecisions
+        ? await config.getOpponentDecisions(state, opponent, year)
+        : scriptedOpponentDecisions(state.players[opponent.id], state.kaizerTradePrices)
     }
 
     const result = advanceYear(state, decisions, seedBase + year * 1000)

@@ -1,64 +1,72 @@
 {
-  "_comment": "AI archetype personalities: weight vectors over evaluator dimensions. Filled in during Phase 5.",
+  "_comment": "AI archetypes as weight vectors over the utility terms in src/ai/evaluator.ts. Every key here maps to a real, implemented utility component — no aspirational weights for mechanics that don't exist yet.",
+
+  "_weightGuide": {
+    "wealth": "Utility per Taler. The unit all other weights are calibrated against.",
+    "population": "Utility per peasant. Peasants are labor (harvest capacity) and tax base.",
+    "land": "Utility per hectare held.",
+    "production": "Utility per market/mill — steady income, and they are what fires destroys.",
+    "prestige": "Utility per palace stage (a cathedral counts as 16 stages). The rank path.",
+    "rank": "Utility per rank level, INCLUDING fractional progress toward the next one. This must dominate the other terms by roughly the same margin that rank dominates the actual victory condition (see standingScore in src/ai/sim.ts), or the AI optimises a different game than the one it is scored on — an early benchmark had cash outweighing a whole rank by 17x, and the AI duly hoarded 431k Taler and never left rank 0.",
+    "unrest": "Penalty per unrest point. Unrest drives emigration and revolt.",
+    "grainSecurity": "Bonus for holding a grain buffer above the population's need, capped at 1 year of surplus.",
+    "risk": "Multiplier on expected annual event loss. Higher = more willing to pay upkeep for mitigation buildings.",
+    "riskHorizonYears": "How many years of avoided losses a mitigation building is credited with. Without this, a 1-year-lookahead AI would never buy insurance."
+  },
+
+  "_deferred": "schemer and raider archetypes arrive in Phase 7 alongside espionage and raiding — the mechanics they would specialize in do not exist yet, so shipping their weights now would be dead data.",
+
   "archetypes": [
     {
       "id": "builder",
       "name": "The Builder",
-      "description": "Focuses on construction and prestige. Trades cautiously.",
+      "description": "Invests in construction and prestige, and buys insurance. Slow but durable.",
       "weights": {
-        "constructionPriority": 1.5,
-        "prestigeValue": 1.3,
-        "tradingRisk": 0.3,
-        "espionageDrive": 0.4,
-        "raidingAggression": 0.2
+        "wealth": 1.0,
+        "population": 5.0,
+        "land": 0.4,
+        "production": 3000,
+        "prestige": 5000,
+        "rank": 1200000,
+        "unrest": 400,
+        "grainSecurity": 6000,
+        "risk": 1.3,
+        "riskHorizonYears": 6
       }
     },
     {
       "id": "expansionist",
       "name": "The Expansionist",
-      "description": "Aggressive land accumulation and warfare.",
+      "description": "Grows the realm through its people: feeds them well, keeps them content, and shields them from plague.",
+      "_tuningNote": "Three fixes from benchmarking, each a case of the archetype fighting the game's real economics. (1) risk was 0.7/3 — 'tolerates risk' as a theme — but it weights population highest of all three archetypes while under-insuring the one thing that destroys population. (2) prestige was 3000, BELOW the palace's 5,000-per-stage cost, so stages never paid for themselves and it simply never started the rank path. (3) land was 1.1, the highest of any archetype — but farmland is labor-gated at 5 ha per peasant, so a ruler with 13,400 ha and 757 peasants leaves 9,574 ha (71%) idle. It was buying hectares nobody could work, starving the very population that would make them useful, and finishing with the SMALLEST population despite caring most about population. Expansion in this game runs through people, not deeds: peasants unlock the land you already hold. Its identity is now food security, contentment, and protection — distinct from the Builder's monuments and the Merchant's treasury.",
       "weights": {
-        "landBuyingPriority": 1.8,
-        "militaryInvestment": 1.6,
-        "raidingAggression": 1.4,
-        "espionageDrive": 0.8,
-        "constructionPriority": 0.5
+        "wealth": 1.0,
+        "population": 9.0,
+        "land": 0.45,
+        "production": 2400,
+        "prestige": 5400,
+        "rank": 1000000,
+        "unrest": 550,
+        "grainSecurity": 8000,
+        "risk": 1.2,
+        "riskHorizonYears": 5
       }
     },
     {
       "id": "merchant",
       "name": "The Merchant",
-      "description": "Focuses on trade, price arbitrage, and steady income.",
+      "description": "Maximises income and liquidity, favouring markets and mills over monuments.",
       "weights": {
-        "tradingPriority": 1.9,
-        "priceArbitrage": 1.7,
-        "marketAnalysis": 1.5,
-        "militaryInvestment": 0.3,
-        "espionageDrive": 0.5
-      }
-    },
-    {
-      "id": "schemer",
-      "name": "The Schemer",
-      "description": "Espionage-focused, undermines rivals through sabotage.",
-      "weights": {
-        "espionageDrive": 2.0,
-        "sabotageTargeting": 1.8,
-        "spyingIntensity": 1.5,
-        "constructionPriority": 0.4,
-        "militaryInvestment": 0.5
-      }
-    },
-    {
-      "id": "raider",
-      "name": "The Raider",
-      "description": "Piracy, banditry, direct wealth plunder. Riskiest archetype.",
-      "weights": {
-        "raidingAggression": 2.2,
-        "banditryInvestment": 1.9,
-        "piracyHideouts": 1.7,
-        "militaryInvestment": 1.2,
-        "tradingPriority": 0.2
+        "wealth": 1.6,
+        "population": 5.0,
+        "land": 0.5,
+        "production": 4200,
+        "prestige": 2200,
+        "rank": 900000,
+        "unrest": 350,
+        "grainSecurity": 5000,
+        "risk": 1.0,
+        "riskHorizonYears": 4
       }
     }
   ]

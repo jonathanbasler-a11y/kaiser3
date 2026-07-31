@@ -193,6 +193,66 @@ This is the intended shape: early game is forgiving (19%), success draws pressur
 
 ---
 
+## Phase 5: AI Opponents v1 ✓
+
+**Status:** Done (Opus/High effort per the model strategy table)
+
+### What was built
+- `src/engine/decisions.ts` — `validateDecisions()`, the single definition of a *well-formed* decision sheet (the engine already clamps over-ambitious ones). Shared by the AI and, later, the UI, so legality can't drift into two definitions.
+- `src/ai/evaluator.ts` — state valuation. Scores using the **real** engine functions: `calculateEventProbability()` and `rankProgress()`. Risk is priced by **perturbation** — apply expected annual losses to a copy and measure the utility destroyed — rather than by a hand-written formula.
+- `src/ai/personalities.ts` + `data/personalities.json` — three validated archetypes as pure weight vectors.
+- `src/ai/planner.ts` — generates coherent candidate sheets and simulates each **one year forward through the actual `advanceYear` reducer**, then keeps the best. All candidates share the same evaluation seeds, so they're compared under identical weather and identical event rolls; each is averaged over 2 seeds so a single lucky harvest can't decide the plan.
+- `src/ai/sim.ts` — match runner, random-legal benchmark bot, tournaments, and `compareStanding()`.
+- `src/engine/ranks.ts` — added `rankProgress()` (see below) and `getNextRank()`.
+- `scripts/ai-bench.ts` (`npm run ai-bench`) — measures every acceptance criterion and prints archetype profiles.
+- `scripts/play.ts` + `gameLoop.ts` — **the human now plays against real AI rivals** with distinct personalities and visible year-by-year standings. Opponent decisions are *injected* into `runGame`, so the engine never imports from `src/ai` (the AI is a consumer of the engine, not the reverse) and the engine stays runnable with no AI present.
+
+### Results (`npm run ai-bench`, 60-year matches)
+| Archetype | vs. random bot | vs. passive | Taler | Peasants | Palace | Rank |
+|---|---|---|---|---|---|---|
+| The Builder | **100%** (30/30) | 100% | 385,185 | 1,305 | 16.0 | 0.08 |
+| The Expansionist | **100%** (30/30) | 100% | 376,086 | 1,373 | 16.0 | 0.25 |
+| The Merchant | **100%** (30/30) | 100% | 437,074 | 1,159 | 3.0 | 0.08 |
+
+Legality audit: **360 decision sheets, 0 illegal.**
+
+### Acceptance Criteria
+- ✓ AI beats a random-legal bot in ≥90% of matches — 100% for all three archetypes
+- ✓ Never emits an illegal decision — 0 of 360 audited sheets
+- ✓ Archetypes measurably distinct — Merchant is richest with the fewest monuments (palace 3 vs 16); Expansionist grows the largest population
+- ✓ `npx tsc --noEmit` clean, 112/112 tests passing
+- ✓ Verified end-to-end in the playable CLI, not only in benchmarks
+
+### Four bugs found by benchmarking (each was measured, not guessed)
+The AI initially **lost to a random bot (26.7%)**. Diagnosis was iterative, and each fix came from a measurement:
+
+1. **The AI optimised a different game than it was scored on.** Its utility valued a whole rank at 25,000 while a typical treasury reached 431,000 — cash outweighed a rank by **17×**. It rationally hoarded money and never left rank 0. Rank weights are now ~1,000,000, matching how decisively rank dominates the actual victory condition.
+2. **Rank is a step function a one-year planner is blind to.** A palace stage costs 5,000 and pays nothing until the 4th lands alongside wealth and population thresholds. Added `rankProgress()` — a continuous ladder using the **minimum** across requirements, so credit goes to whichever dimension is *binding* and hoarding the easy one earns nothing.
+3. **Construction candidates were generated from pre-purchase land.** The palace needs 13,000 ha and a ruler starts with 10,000, so "buy land *and* start the palace" was never generated and the rank path was unreachable. Candidates now use post-purchase land, matching the engine's own land→construction ordering.
+4. **Risk was priced with the raw `population` weight (5.0)** when a peasant's real marginal value — as the binding rank constraint — is ~600. So the AI refused to build a hospital, which measurement showed is *decisive*: unmitigated plague costs ~19.7 peasants/year against ~12/year natural growth, so an uninsured principality shrinks forever. Perturbation-based pricing fixed this, and the AI now buys the hospital and grows (1,038 → 1,809 peasants over 60 years).
+
+### A bug I introduced and caught
+The palace-land enablement term was first gated on "palace stages still outstanding", which put a ~540,000-utility **cliff at exactly 4 stages** — building the 4th was a catastrophic loss, so the AI refused, and the Builder's palace stalled at 2.8 stages instead of the 16 it had been completing. **Any term that vanishes on meeting a requirement bribes the planner not to meet it.** The term now varies only with land and stays smooth.
+
+### The Expansionist was fighting the game's own economics
+It failed at 75-83% while the others hit 100%, and the cause was a genuine design flaw, not tuning noise. Three compounding problems, all measured:
+- `risk` 0.7 — it weighted population highest of all three archetypes yet **under-insured the one thing that destroys population**.
+- `prestige` 3000, **below the palace's 5,000-per-stage cost**, so stages never paid for themselves and it never started the rank path. Runs split cleanly into "reached 13,000 ha and won" and "stuck at palace 0, progress 0.000, lost".
+- `land` 1.1, the highest of any archetype — but **farmland is labor-gated at 5 ha per peasant**. It finished holding 13,412 ha with 757 peasants: **9,574 ha (71%) idle**, and the *smallest* population of the three despite caring most about population. It was buying hectares nobody could work, starving the population that would have made them useful.
+
+Expansion in this game runs through **people**, not deeds — peasants unlock the land you already hold. Rebuilt around food security, contentment, and protection, it went 75% → **100%**, and its population from 757 → 1,457.
+
+### Known limitation (deferred to Phase 7, recorded honestly)
+The Builder and Expansionist have **converged** more than is ideal (385k vs 376k Taler, both palace 16). With only economy, construction, and events implemented, the strategy space is narrow enough that competent AIs rationally find the same path; the clear separation is Merchant-vs-the-others. Genuine archetype diversity needs Phase 7's espionage, inter-ruler trade, and raiding to open up strategies that reward genuinely different play. The distinctness test asserts only the differences that are real today rather than overclaiming.
+
+### Balance note for Phase 6
+Ranks arrive slowly: Duke ~80 years, Prince ~120, Margrave ~200; Kaiser (20,000 peasants) is far out of reach in a normal-length game. The ladder works and the AI climbs it, so this is a **pacing** question, which is exactly Phase 6's remit.
+
+### Next Phase
+**Phase 6 — Balance harness + anti-snowball gate.** Build `scripts/balance.ts` and enforce the three flatness criteria (margin flatness, loss persistence, lead volatility) over ≥200 seeded matches. **This is a hard gate: no content or art work proceeds until it passes.** Escalates to Opus/Max per the model strategy table — it is the numeric proof of the "stays hard throughout" requirement. Note that `resolveEvents` deliberately consumes a fixed RNG draw count (Phase 4) precisely so this harness can attribute effects to the knob it changed.
+
+---
+
 ## Implementation Notes
 
 ### The Reducer Contract

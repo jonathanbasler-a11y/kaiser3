@@ -6,14 +6,14 @@
 import ranksData from '../../data/ranks.json'
 import { PlayerState } from './state.ts'
 
-interface RankRequirement {
+export interface RankRequirement {
   wealthMin: number
   populationMin: number
   palaceStages?: number
   cathedral?: boolean
 }
 
-interface RankDef {
+export interface RankDef {
   id: number
   name: string
   requirements: RankRequirement
@@ -64,4 +64,42 @@ export function getRankName(rankId: number): string {
 
 export function isFeatureUnlocked(currentRank: number, feature: string): boolean {
   return RANKS.some((r) => r.id <= currentRank && r.unlockedFeature === feature)
+}
+
+// The rank a player is currently working toward, or undefined at Kaiser (the top).
+export function getNextRank(currentRank: number): RankDef | undefined {
+  return RANKS.find((r) => r.id === currentRank + 1)
+}
+
+// Fractional progress (0-1) toward the NEXT rank.
+//
+// Progress is the MINIMUM across the requirements, not the average, because the
+// requirements must all be satisfied simultaneously — so the meaningful number is
+// how the BINDING constraint is doing. A ruler sitting on ten times the required
+// wealth with half the required population is halfway there, not comfortable.
+//
+// Lives in the engine rather than the AI because it describes the rank system
+// itself: both the AI's valuation and the standings comparator need it, and two
+// copies would be free to drift apart.
+export function rankProgress(player: PlayerState): number {
+  const next = getNextRank(player.rank)
+  if (!next) return 1 // already Kaiser
+
+  const req = next.requirements
+  const ratios: number[] = [
+    req.wealthMin > 0 ? player.taler / req.wealthMin : 1,
+    req.populationMin > 0 ? player.population.peasants / req.populationMin : 1
+  ]
+  if (req.palaceStages !== undefined && req.palaceStages > 0) {
+    ratios.push(player.buildings.palace / req.palaceStages)
+  }
+  if (req.cathedral === true) {
+    ratios.push(player.buildings.cathedral >= 1 ? 1 : 0)
+  }
+
+  return Math.max(0, Math.min(1, Math.min(...ratios)))
+}
+
+export function getTopRank(): number {
+  return RANKS[RANKS.length - 1].id
 }

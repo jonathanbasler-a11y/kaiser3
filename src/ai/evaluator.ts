@@ -1,0 +1,188 @@
+// STATE VALUATION — how an AI ruler judges how well it is doing.
+//
+// The load-bearing rule (CLAUDE.md): the evaluator scores states using the REAL
+// engine functions, never a parallel approximation. It calls the actual
+// calculateEventProbability() and the actual rankProgress(), so the AI's view of
+// risk and of progress is exactly what the game will apply to it.
+//
+// Risk is priced by PERTURBATION rather than by a hand-written formula: we apply
+// the expected annual event losses to a copy of the state and ask how much
+// intrinsic utility that destroys. This matters more than it sounds. Valuing a
+// lost peasant at the personality's raw `population` weight (5.0) badly
+// understates it, because population is usually the BINDING rank requirement —
+// where a peasant is really worth weights.rank / populationMin, two orders of
+// magnitude more. Perturbation picks that up automatically, along with every
+// other nonlinearity in the utility function, and cannot drift out of sync with
+// it the way a parallel formula would.
+//
+// Without this, the AI declines to build a hospital — and a benchmark showed
+// exactly why that is fatal: unmitigated plague costs ~19.7 peasants a year
+// against natural growth of ~12, so an uninsured principality shrinks forever and
+// never reaches the population thresholds the higher ranks require.
+
+import economyData from '../../data/economy.json'
+import buildingsData from '../../data/buildings.json'
+import { PlayerState } from '../engine/state.ts'
+import { getEventCatalog, calculateEventProbability } from '../engine/events/events.ts'
+import { ExposureContext } from '../engine/scarcity.ts'
+import { rankProgress, getNextRank } from '../engine/ranks.ts'
+
+const POP_ECONOMY = economyData.population
+const PALACE = buildingsData.prestige.palace
+
+// Share of a rank's value credited for holding the land the palace requires.
+//
+// The palace needs 13,000 ha and a ruler starts with 10,000, so the rank path has
+// a PRECONDITION costing ~90,000 Taler in a single lump. rankProgress() rightly
+// gives no credit for a half-met precondition — you cannot build half a palace on
+// insufficient land — but that leaves a greedy planner facing a cliff: every
+// partial land purchase scores as pure loss, so it never accumulates toward the
+// jump and the entire rank path stays unreachable.
+//
+// Observed directly: expansionist runs split cleanly into "reached 13,000 ha,
+// built the palace, won" and "stuck at 10,000 ha, palace 0, progress 0.000, lost".
+//
+// Sized as a NUDGE, not a driver. Making marginal land purchases self-financing
+// on their own would need share > pricePerHectare x landRequirement / rankWeight
+// ~= 0.39; at that strength it dominated the valuation and made the Builder
+// strictly worse (385k -> 36k Taler, 16 -> 9.8 palace stages, win rate 100% ->
+// 96.7%) because land crowded out the economy that funds the palace. At 0.15 it
+// tips decisions at the margin without overriding them, and the palace stages
+// themselves stay worth building on their own prestige value.
+//
+// Self-limiting: readiness caps at 1, so it cannot drive unbounded land buying.
+const PALACE_LAND_ENABLEMENT_SHARE = 0.15
+
+export interface PersonalityWeights {
+  wealth: number
+  population: number
+  land: number
+  production: number
+  prestige: number
+  rank: number
+  unrest: number
+  grainSecurity: number
+  risk: number
+  riskHorizonYears: number
+}
+
+// How secure the grain stores are, as a 0-1 fraction of one year's requirement
+// held in reserve. Capped at 1: hoarding ten years of grain is not ten times as
+// useful as one (and it would rot anyway — see economy.ts spoilage).
+function grainSecurityRatio(player: PlayerState): number {
+  const required = player.population.peasants * POP_ECONOMY.populationGrainRequirement
+  if (required <= 0) return 1
+  return Math.min(1, player.grainStock / required)
+}
+
+// The feeding adequacy this player can expect to achieve NEXT year given the grain
+// they are holding now. Famine exposure keys off exactly this (scarcity.ts), so it
+// is what a forward-looking evaluation should use: a ruler sitting on full stores
+// faces no famine risk, one running on empty faces a lot.
+export function projectedFeedAdequacy(player: PlayerState): number {
+  return grainSecurityRatio(player)
+}
+
+// Everything the ruler is worth right now, ignoring future risk.
+export function intrinsicUtility(player: PlayerState, weights: PersonalityWeights): number {
+  const totalLand = player.land.farmland + player.land.buildingLand
+  const productionBuildings = player.buildings.markets + player.buildings.mills
+  // A cathedral represents a comparable investment to a completed palace, so it is
+  // valued as a full palace's worth of prestige rather than as a single stage.
+  const prestigeStages = player.buildings.palace + player.buildings.cathedral * 16
+
+  let utility = 0
+  utility += player.taler * weights.wealth
+  utility += player.population.peasants * weights.population
+  utility += totalLand * weights.land
+  utility += productionBuildings * weights.production
+  utility += prestigeStages * weights.prestige
+  // A continuous rank ladder: whole ranks earned, plus fractional progress toward
+  // the next. The fractional part is what makes multi-year investment in the win
+  // condition legible to a one-year planner, which cannot otherwise see a step
+  // function four palace stages away.
+  utility += (player.rank + rankProgress(player)) * weights.rank
+  utility -= player.population.unrest * weights.unrest
+  utility += grainSecurityRatio(player) * weights.grainSecurity
+  utility += palaceLandEnablement(player) * weights.rank * PALACE_LAND_ENABLEMENT_SHARE
+
+  return utility
+}
+
+// Readiness (0-1) to build the palace at all, measured in land held. Applies
+// whenever the next rank has a palace requirement.
+//
+// Deliberately NOT gated on "palace stages still outstanding". An earlier version
+// switched the term off once the ruler held the stages the next rank needed, which
+// put a ~540,000-utility cliff at exactly 4 stages: building the 4th was a
+// catastrophic loss, so the AI refused to, and the Builder's palace stalled at an
+// average of 2.8 stages instead of the 16 it had been completing. Any term that
+// vanishes on meeting a requirement will bribe the planner not to meet it — this
+// one varies only with land, and so stays smooth.
+function palaceLandEnablement(player: PlayerState): number {
+  const next = getNextRank(player.rank)
+  if (next?.requirements.palaceStages === undefined) return 0
+
+  const totalLand = player.land.farmland + player.land.buildingLand
+  return Math.min(1, totalLand / PALACE.landRequirement)
+}
+
+// A copy of the player with one year's EXPECTED event losses already applied.
+function applyExpectedLosses(player: PlayerState, context: ExposureContext): PlayerState {
+  const projected = JSON.parse(JSON.stringify(player)) as PlayerState
+
+  for (const event of getEventCatalog()) {
+    const probability = calculateEventProbability(event, player, context)
+    if (probability <= 0) continue
+
+    // Mean severity is 1.0 (the jitter band is symmetric about it), reduced when a
+    // mitigation building is present — mirroring applyEventLoss()'s severityFactor.
+    const mitigated = (player.buildings as unknown as Record<string, number>)[event.mitigation.building] > 0
+    const severityFactor = mitigated ? 1 - event.mitigation.severityReduction : 1
+    const expectedShare = probability * severityFactor
+
+    switch (event.loss.type) {
+      case 'population':
+        projected.population.peasants = Math.max(
+          0,
+          projected.population.peasants - player.population.peasants * event.loss.fraction * expectedShare
+        )
+        break
+      case 'gold': {
+        const magnitude = Math.min(player.taler, Math.max(player.taler * event.loss.fraction, event.loss.minimum ?? 0))
+        projected.taler = Math.max(0, projected.taler - magnitude * expectedShare)
+        break
+      }
+      case 'buildings': {
+        // Fractional building counts are fine here: this state is a hypothetical
+        // used only for valuation, never fed back into the simulation.
+        const lossShare = event.loss.fraction * expectedShare
+        projected.buildings.markets = Math.max(0, projected.buildings.markets - player.buildings.markets * lossShare)
+        projected.buildings.mills = Math.max(0, projected.buildings.mills - player.buildings.mills * lossShare)
+        break
+      }
+    }
+  }
+
+  return projected
+}
+
+// Expected utility destroyed by events over one year, in the same units as
+// intrinsicUtility — so risk is directly comparable to what it threatens.
+export function expectedAnnualEventCost(
+  player: PlayerState,
+  context: ExposureContext,
+  weights: PersonalityWeights
+): number {
+  const damaged = applyExpectedLosses(player, context)
+  return Math.max(0, intrinsicUtility(player, weights) - intrinsicUtility(damaged, weights))
+}
+
+export function evaluateState(
+  player: PlayerState,
+  context: ExposureContext,
+  weights: PersonalityWeights
+): number {
+  const risk = expectedAnnualEventCost(player, context, weights)
+  return intrinsicUtility(player, weights) - risk * weights.risk * weights.riskHorizonYears
+}

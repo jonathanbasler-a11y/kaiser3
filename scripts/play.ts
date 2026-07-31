@@ -8,6 +8,8 @@ import { stdin, stdout } from 'node:process'
 import { GameState, Decision, GrainDecision, TaxDecision } from '../src/engine/state.ts'
 import { runGame } from '../src/engine/gameLoop.ts'
 import { getRankName } from '../src/engine/ranks.ts'
+import { getPersonalities } from '../src/ai/personalities.ts'
+import { planYear } from '../src/ai/planner.ts'
 
 // Real terminals stay interactive via readline.question(). Piped/non-TTY input
 // (scripted playthroughs, automated verification) is read synchronously up front —
@@ -88,19 +90,32 @@ async function getHumanDecisions(state: GameState, humanId: string): Promise<Dec
 }
 
 async function main() {
-  console.log('=== Kaiser 3 — Playable Text Prototype (Phase 3) ===')
-  console.log('You rule a principality. Compete against scripted rival rulers to become Kaiser.\n')
+  console.log('=== Kaiser 3 ===')
+  console.log('You rule a principality. Compete against rival rulers to become Kaiser.\n')
 
-  const opponentCount = await askNumber('Number of rival rulers', 2)
+  const personalities = getPersonalities()
+  console.log('Rival rulers available:')
+  for (const p of personalities) console.log(`  ${p.name} — ${p.description}`)
+  console.log('')
+
+  const opponentCount = await askNumber(`Number of rival rulers (1-${personalities.length})`, 2)
   const maxYears = await askNumber('Maximum years to play', 50)
+
+  // Each rival is driven by a distinct AI personality, cycling through the roster.
+  const rivals = Array.from({ length: opponentCount }, (_, i) => personalities[i % personalities.length])
 
   const result = await runGame({
     humanId: 'human',
     humanName: 'You',
     opponentCount,
     maxYears,
+    opponentNames: rivals.map((p) => p.name),
     getHumanDecisions: (state) => getHumanDecisions(state, 'human'),
-    onYearComplete: (_state, chronicle) => {
+    getOpponentDecisions: (state, opponent, year) => {
+      const index = Number(opponent.id.replace('opponent', '')) - 1
+      return planYear(state, opponent.id, rivals[index], 5000 + year * 104729 + index)
+    },
+    onYearComplete: (state, chronicle) => {
       const report = chronicle.playerReports['human']
 
       // Always surface the telegraph text — a hard event must read as a
@@ -120,6 +135,16 @@ async function main() {
       if (report.emigration > 0) {
         console.log(`(${report.emigration.toFixed(0)} peasants emigrated this year — unrest is taking a toll)`)
       }
+
+      // Show the rivals' standing, so the competition is visible rather than
+      // something the player only discovers at the end.
+      const rivalLines = state.activePlayerIds
+        .filter((id) => id !== 'human')
+        .map((id) => {
+          const p = state.players[id]
+          return `${p.name}: ${getRankName(p.rank)}, ${p.taler.toFixed(0)} Taler, ${p.population.peasants.toFixed(0)} peasants`
+        })
+      if (rivalLines.length > 0) console.log(`  Rivals — ${rivalLines.join(' | ')}`)
     }
   })
 
@@ -129,6 +154,14 @@ async function main() {
   if (result.outcome === 'victory') {
     const winnerName = result.finalState.players[result.winnerId!].name
     console.log(`${winnerName} was crowned Kaiser!`)
+  }
+  console.log('\nFinal standings:')
+  for (const id of result.finalState.activePlayerIds) {
+    const p = result.finalState.players[id]
+    console.log(
+      `  ${p.name.padEnd(18)} ${getRankName(p.rank).padEnd(10)} ` +
+      `${p.taler.toFixed(0).padStart(8)} Taler  ${p.population.peasants.toFixed(0).padStart(6)} peasants  palace ${p.buildings.palace}/16`
+    )
   }
 
   rl?.close()
