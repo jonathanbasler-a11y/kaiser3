@@ -165,3 +165,12 @@ still yields a turn for the loading screen to paint but fires regardless of visi
 Left as a note for Phase 10+: **any future use of rAF in this codebase should go through
 the same scrutiny** — it is the wrong primitive for "defer this synchronous work",
 right only for "run this in sync with the next paint".
+
+### P2. Bug report → GitHub Issues integration (Phase 9.5)
+`api/bug-report.ts` is a Vercel serverless function that files an in-game bug
+report as a GitHub issue (label `bug-report`) on `jonathanbasler-a11y/kaiser3`.
+This is the one deliberate exception to the "no backend" invariant — bug
+reports need to outlive a static deploy. Reads via `GITHUB_TOKEN` and
+`GITHUB_REPO` env vars set on Vercel (fine-grained PAT, Issues read/write only,
+scoped to this repo). Read reports anytime with:
+`gh issue list --repo jonathanbasler-a11y/kaiser3 --label bug-report`

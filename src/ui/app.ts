@@ -39,7 +39,87 @@ let root: HTMLElement
 
 export function mount(container: HTMLElement): void {
   root = container
+  mountBugReport()
   renderSetup()
+}
+
+// ---------------------------------------------------------------------------
+// Bug report — files a GitHub issue via /api/bug-report. Lives outside
+// `root` (appended to document.body) since renderGame()/renderSetup() wipe
+// root wholesale on every transition; the report button must survive that.
+// ---------------------------------------------------------------------------
+
+function mountBugReport(): void {
+  const overlay = el('div', { class: 'modal-overlay hidden' })
+  const statusEl = el('p', { class: 'help-text' })
+  const summaryInput = el('input', { type: 'text', placeholder: 'What went wrong? (required)', maxLength: 200 })
+  const detailsInput = el('textarea', { placeholder: 'Steps to reproduce, what you expected, anything else (optional)' })
+  const submitBtn = el('button', { class: 'primary full', textContent: 'Send report' })
+  const cancelBtn = el('button', { class: 'full', textContent: 'Cancel' })
+
+  const closeModal = () => {
+    overlay.classList.add('hidden')
+    summaryInput.value = ''
+    detailsInput.value = ''
+    statusEl.textContent = ''
+  }
+
+  cancelBtn.addEventListener('click', closeModal)
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal() })
+
+  submitBtn.addEventListener('click', () => {
+    const summary = summaryInput.value.trim()
+    if (!summary) {
+      statusEl.textContent = 'Please describe the problem first.'
+      return
+    }
+    submitBtn.setAttribute('disabled', 'true')
+    statusEl.textContent = 'Sending…'
+
+    const player = session?.state.players[HUMAN_ID]
+    fetch('/api/bug-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        summary,
+        details: detailsInput.value.trim(),
+        tab: session?.activeTab,
+        year: session?.state.year,
+        rank: player ? getRankName(player.rank) : undefined,
+        userAgent: navigator.userAgent
+      })
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `HTTP ${res.status}`)
+        return res.json() as Promise<{ number: number }>
+      })
+      .then((data) => {
+        statusEl.textContent = `Thanks — filed as issue #${data.number}.`
+        summaryInput.value = ''
+        detailsInput.value = ''
+        setTimeout(closeModal, 1800)
+      })
+      .catch((err: Error) => {
+        statusEl.textContent = `Could not send: ${err.message}`
+      })
+      .finally(() => submitBtn.removeAttribute('disabled'))
+  })
+
+  overlay.appendChild(
+    el('div', { class: 'modal-sheet' },
+      el('h2', {}, 'Report a bug'),
+      summaryInput,
+      detailsInput,
+      statusEl,
+      el('div', { class: 'row' }, submitBtn, cancelBtn)
+    )
+  )
+
+  const fab = el('button', { class: 'bug-report-fab', textContent: '🐞 Report bug' })
+  fab.addEventListener('click', () => overlay.classList.remove('hidden'))
+
+  document.body.appendChild(fab)
+  document.body.appendChild(overlay)
 }
 
 // ---------------------------------------------------------------------------

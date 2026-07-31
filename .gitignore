@@ -13,3 +13,6 @@ dist/
 build/
 coverage/
 .vitest/
+
+.vercel
+.env*
