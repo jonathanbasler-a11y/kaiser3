@@ -3,12 +3,14 @@
   "production": {
     "market": {
       "ratioPerHectares": 1000,
+      "buildCost": 2000,
       "incomePerYear": 500,
       "upkeepPerYear": 100,
       "laborRequirement": 20
     },
     "mill": {
       "ratioPerHectares": 1000,
+      "buildCost": 2500,
       "incomePerYear": 600,
       "upkeepPerYear": 150,
       "laborRequirement": 30

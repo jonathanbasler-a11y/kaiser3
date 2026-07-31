@@ -81,4 +81,50 @@ describe('20-year integration run', () => {
     const unrestIsHigh = finalPlayer.population.unrest > 50
     expect(populationDropped || unrestIsHigh).toBe(true)
   })
+
+  it('a player who already holds enough land can build a palace and reach Duke rank within a few years', () => {
+    // Duke requires wealthMin 20000, populationMin 2000, palaceStages 4 (data/ranks.json).
+    // Start with palace-eligible land (13,000 ha) and enough treasury to fund 2 stages/year.
+    const wellFundedPlayer = () => ({
+      id: 'player1',
+      name: 'P1',
+      taler: 50000,
+      land: { farmland: 13000, buildingLand: 0 },
+      grainStock: 5000,
+      population: { peasants: 3000, unrest: 0 },
+      buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 0 },
+      rank: 0, guards: 0, saboteurs: 0, tradingHouses: 0, score: 0, dead: false
+    })
+
+    let state: GameState = {
+      year: 0,
+      players: { player1: wellFundedPlayer(), player2: (createStarterState()).players.player2 },
+      activePlayerIds: ['player1', 'player2'],
+      kaizerTradePrices: { corn: 40, farmland: 30, buildingLand: 50 }
+    }
+
+    const decisions: Record<string, Decision[]> = {
+      player1: [
+        { type: 'grain', feedLevel: 'required' },
+        { type: 'tax', vat: 15, incomeTax: 15, tariff: 5, justiceGraft: 0 },
+        { type: 'construction', marketBuild: 0, millBuild: 0, palaceStages: 2, cathedralBuild: false, wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0 }
+      ],
+      player2: noOpDecisions().player2
+    }
+
+    let reachedDuke = false
+    for (let year = 0; year < 5; year++) {
+      const result = advanceYear(state, decisions, year * 1000 + 1)
+      state = result.state
+      if (state.players.player1.rank >= 1) {
+        reachedDuke = true
+        break
+      }
+    }
+
+    expect(reachedDuke).toBe(true)
+    expect(state.players.player1.buildings.palace).toBeGreaterThanOrEqual(4)
+    // Unrest should stay well within tolerance at this moderate tax rate.
+    expect(state.players.player1.population.unrest).toBeLessThan(50)
+  })
 })

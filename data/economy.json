@@ -12,15 +12,8 @@
     "farmlandBasePrice": 30,
     "buildingLandBasePrice": 50
   },
+  "_upkeepNote": "Per-building upkeep now lives in data/buildings.json alongside each building's other specs. This section only holds cross-cutting upkeep that isn't tied to a single building type.",
   "upkeep": {
-    "marketCostPerYear": 100,
-    "millCostPerYear": 150,
-    "palaceStageReduction": 500,
-    "cathedralCostPerYear": 200,
-    "hospitalCostPerYear": 250,
-    "wellCostPerYear": 150,
-    "granaryCostPerYear": 150,
-    "garrisonCostPerYear": 300,
     "tradingHouseTributePercentage": 0.1
   },
   "population": {
@@ -31,6 +24,13 @@
     "emigrationRate": 0.05,
     "immigrationRate": 0.02,
     "diseaseOverfeedMortality": 0.03,
-    "starvationMortality": 0.04
+    "starvationMortality": 0.04,
+    "incomePerCapita": 3
+  },
+  "taxation": {
+    "toleranceThreshold": 40,
+    "unrestPerExcessPoint": 1.2,
+    "graftRevenueBonus": 0.3,
+    "graftUnrestMultiplier": 0.5
   }
 }

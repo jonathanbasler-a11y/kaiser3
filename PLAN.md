@@ -79,6 +79,36 @@ The Phase 1 headless sim shows grain stock accumulating unboundedly over 20 year
 
 ---
 
+## Phase 2: Tax, Construction, Ranks ✓
+
+**Status:** Done
+
+### What was built
+- `src/engine/tax.ts` — `applyTaxation()`: VAT/income-tax revenue drawn from the population's economic output (not building income — tax is levied on the populace), tariff revenue on land-trade volume, judicial graft extracts extra revenue at the cost of compounding unrest. Burden past the tolerance threshold (data/economy.json `taxation.toleranceThreshold`) raises unrest — the "population has a tolerance ceiling" mechanic from the research doc.
+- `src/engine/buildings.ts` — `applyConstruction()`: markets/mills ratio-gated by total land (1 per 1,000 ha), mitigation buildings (hospital/well/granary/garrison) gated by affordability and population thresholds, palace gated by a 13,000 ha land requirement before any stage can be built (16 stages, 5,000 Taler each), cathedral requires land + population thresholds simultaneously. Every build path clamps to affordability rather than failing the whole decision. `calculateBuildingIncome()` and `calculateUpkeep()` — upkeep scales with holdings (more buildings = more upkeep) and trading-house tribute scales with wealth (not a flat fee) — both are the anti-snowball levers called out in `docs/kaiser-research.md` § Persistent Scarcity.
+- `src/engine/ranks.ts` — `checkPromotion()`: finds the highest rank whose wealth/population/building requirements are ALL met simultaneously; never demotes; a player can leapfrog multiple ranks in one year if they outright qualify. `getRankName()`, `isFeatureUnlocked()` (Margrave rank unlocks trading houses, per the original's design).
+- `src/engine/year.ts` — `advanceYear()` now sequences: land trade → construction → harvest → feeding → population → building income → taxation → upkeep → rank check, per active player.
+- Cleaned up `data/economy.json`'s `upkeep` section (per-building upkeep now lives in `data/buildings.json` next to each building's other specs — the old duplicate fields were dead data) and added a `buildCost` field for markets/mills.
+
+### Tests (44 total, all passing — 21 new this phase)
+- `tests/tax.test.ts` (5) — fair taxation generates revenue without unrest; taxation past tolerance raises unrest; higher rates generate more revenue; judicial graft extracts more revenue but compounds unrest at the same nominal rate; tariff income scales with trade volume
+- `tests/buildings.test.ts` (8) — markets capped by land ratio; construction capped by affordability; hospital blocked below minimum population; palace blocked below land requirement, unblocked above it; cathedral requires land AND population simultaneously; building income scales linearly; upkeep scales with holdings; trading-house tribute scales with wealth
+- `tests/ranks.test.ts` (7) — no promotion when any single requirement is unmet; promotion when all three are met simultaneously; leapfrogging multiple ranks in one check; never demotes; unlocked-feature reporting (trading houses at Margrave); rank name/feature-unlock lookups
+- `tests/integration.test.ts` (+1) — a player with palace-eligible land who funds 2 palace stages/year reaches Duke rank (wealth + population + 4 palace stages, all data-driven from `data/ranks.json`) within a few years, end-to-end through `advanceYear`
+
+### Acceptance Criteria
+- ✓ Promotion test matrix: each rank reachable only when all thresholds met simultaneously
+- ✓ Over-taxation raises unrest; the tolerance-threshold cutoff is data-driven and testable
+- ✓ Construction respects land ratios, affordability, and population/land thresholds — never overspends or overbuilds
+- ✓ Upkeep and tribute both scale with holdings/wealth (anti-snowball levers verified by test, not just asserted in docs)
+- ✓ `npx tsc --noEmit` clean, 44/44 tests passing
+- ✓ End-to-end promotion path verified through the full `advanceYear` reducer, not just unit-level
+
+### Next Phase
+**Phase 3 — Playable text/CLI game.** Wire a human-playable loop (`scripts/play.ts` or similar) where a player makes real decisions each year against 2-3 scripted/do-nothing AI rulers, with the chronicle printed per year. This is the "is the loop fun at all" gate before investing further — per PLAN.md's sequencing principle, playable-text-first before AI opponents (Phase 5) or art (Phase 10).
+
+---
+
 ## Implementation Notes
 
 ### The Reducer Contract
