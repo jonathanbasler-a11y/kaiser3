@@ -1,0 +1,50 @@
+{
+  "_comment": "Event system: plague, fire, famine, revolt, banditry, flood, drought. Filled in during Phase 4.",
+  "events": [
+    {
+      "id": "plague",
+      "name": "Plague",
+      "baseWeight": 0.05,
+      "prosperityScaling": 1.5,
+      "mitigation": { "buildingType": "hospital", "effectiveness": 0.7 },
+      "loss": { "type": "population", "amount": 0.15 },
+      "telegraphTemplate": "Plague outbreak in {location} — no hospital coverage"
+    },
+    {
+      "id": "fire",
+      "name": "Fire",
+      "baseWeight": 0.08,
+      "prosperityScaling": 2.0,
+      "mitigation": { "buildingType": "well", "effectiveness": 0.6 },
+      "loss": { "type": "buildings", "amount": 0.1 },
+      "telegraphTemplate": "Fire in {location} — no firebreaks/wells"
+    },
+    {
+      "id": "famine",
+      "name": "Famine",
+      "baseWeight": 0.03,
+      "prosperityScaling": 0.5,
+      "mitigation": { "buildingType": "granary", "effectiveness": 0.8 },
+      "loss": { "type": "grain", "amount": 0.2 },
+      "telegraphTemplate": "Famine in {location} — inadequate granary reserves"
+    },
+    {
+      "id": "revolt",
+      "name": "Peasant Revolt",
+      "baseWeight": 0.04,
+      "prosperityScaling": 0.8,
+      "mitigation": { "policyType": "justiceGraft", "threshold": 50, "effectiveness": 0.6 },
+      "loss": { "type": "population", "amount": 0.1 },
+      "telegraphTemplate": "Peasant revolt in {location} — excessive greed/taxation"
+    },
+    {
+      "id": "banditry",
+      "name": "Banditry",
+      "baseWeight": 0.06,
+      "prosperityScaling": 1.8,
+      "mitigation": { "buildingType": "garrison", "effectiveness": 0.75 },
+      "loss": { "type": "gold", "amount": 500 },
+      "telegraphTemplate": "Bandits strike {location} — no garrison/road patrols"
+    }
+  ]
+}

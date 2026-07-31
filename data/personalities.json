@@ -1,0 +1,65 @@
+{
+  "_comment": "AI archetype personalities: weight vectors over evaluator dimensions. Filled in during Phase 5.",
+  "archetypes": [
+    {
+      "id": "builder",
+      "name": "The Builder",
+      "description": "Focuses on construction and prestige. Trades cautiously.",
+      "weights": {
+        "constructionPriority": 1.5,
+        "prestigeValue": 1.3,
+        "tradingRisk": 0.3,
+        "espionageDrive": 0.4,
+        "raidingAggression": 0.2
+      }
+    },
+    {
+      "id": "expansionist",
+      "name": "The Expansionist",
+      "description": "Aggressive land accumulation and warfare.",
+      "weights": {
+        "landBuyingPriority": 1.8,
+        "militaryInvestment": 1.6,
+        "raidingAggression": 1.4,
+        "espionageDrive": 0.8,
+        "constructionPriority": 0.5
+      }
+    },
+    {
+      "id": "merchant",
+      "name": "The Merchant",
+      "description": "Focuses on trade, price arbitrage, and steady income.",
+      "weights": {
+        "tradingPriority": 1.9,
+        "priceArbitrage": 1.7,
+        "marketAnalysis": 1.5,
+        "militaryInvestment": 0.3,
+        "espionageDrive": 0.5
+      }
+    },
+    {
+      "id": "schemer",
+      "name": "The Schemer",
+      "description": "Espionage-focused, undermines rivals through sabotage.",
+      "weights": {
+        "espionageDrive": 2.0,
+        "sabotageTargeting": 1.8,
+        "spyingIntensity": 1.5,
+        "constructionPriority": 0.4,
+        "militaryInvestment": 0.5
+      }
+    },
+    {
+      "id": "raider",
+      "name": "The Raider",
+      "description": "Piracy, banditry, direct wealth plunder. Riskiest archetype.",
+      "weights": {
+        "raidingAggression": 2.2,
+        "banditryInvestment": 1.9,
+        "piracyHideouts": 1.7,
+        "militaryInvestment": 1.2,
+        "tradingPriority": 0.2
+      }
+    }
+  ]
+}

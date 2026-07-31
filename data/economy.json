@@ -1,0 +1,31 @@
+{
+  "_comment": "Economic parameters: harvest yields, spoilage, price curves, upkeep rates. Filled in during Phase 1.",
+  "harvest": {
+    "baseYieldPerHectare": 2.5,
+    "weatherVariance": 0.15,
+    "spoilagePercentage": 0.05
+  },
+  "prices": {
+    "cornBasePrice": 40,
+    "cornPriceBands": { "min": 20, "max": 80 },
+    "farmlAndBasePrice": 30,
+    "buildingLandBasePrice": 50
+  },
+  "upkeep": {
+    "marketCostPerYear": 100,
+    "millCostPerYear": 150,
+    "palaceStageReduction": 500,
+    "cathedrCostPerYear": 200,
+    "hospitalCostPerYear": 250,
+    "wellCostPerYear": 150,
+    "granlaryCostPerYear": 150,
+    "garrisonCostPerYear": 300,
+    "tradingHouseTributePercentage": 0.1
+  },
+  "population": {
+    "birthRateBase": 0.02,
+    "deathRateBase": 0.01,
+    "unrestEmigrationThreshold": 50,
+    "populationGrainRequirement": 0.5
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "_comment": "Building specs: markets, mills, prestige buildings, mitigation infrastructure. Filled in during Phase 2.",
+  "production": {
+    "market": {
+      "ratioPerHectares": 1000,
+      "incomePerYear": 500,
+      "upkeepPerYear": 100,
+      "laborRequirement": 20
+    },
+    "mill": {
+      "ratioPerHectares": 1000,
+      "incomePerYear": 600,
+      "upkeepPerYear": 150,
+      "laborRequirement": 30
+    }
+  },
+  "prestige": {
+    "palace": {
+      "stages": 16,
+      "costPerStage": 5000,
+      "landRequirement": 13000,
+      "completeAtStage": 16,
+      "upkeepPerYear": 500
+    },
+    "cathedral": {
+      "cost": 20000,
+      "landRequirement": 5000,
+      "upkeepPerYear": 200,
+      "requiresMinPopulation": 5000
+    }
+  },
+  "mitigation": {
+    "hospital": {
+      "cost": 3000,
+      "upkeepPerYear": 250,
+      "mitigates": "plague",
+      "effectiveness": 0.7,
+      "requiresMinPopulation": 1000
+    },
+    "well": {
+      "cost": 1500,
+      "upkeepPerYear": 150,
+      "mitigates": ["fire", "drought"],
+      "effectiveness": 0.6
+    },
+    "granary": {
+      "cost": 2000,
+      "upkeepPerYear": 150,
+      "mitigates": ["famine"],
+      "effectiveness": 0.8,
+      "storageCapacity": 5000
+    },
+    "garrison": {
+      "cost": 4000,
+      "upkeepPerYear": 300,
+      "mitigates": "banditry",
+      "effectiveness": 0.75,
+      "maintainsCivicOrder": true
+    }
+  }
+}

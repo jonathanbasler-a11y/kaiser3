@@ -1,0 +1,47 @@
+{
+  "_comment": "8 ranks with thresholds (wealth, population, buildings) and unlocked powers. Filled in during Phase 2.",
+  "ranks": [
+    {
+      "id": 0,
+      "name": "Baron",
+      "requirements": { "wealthMin": 15000, "populationMin": 1000, "palaceStages": 0 }
+    },
+    {
+      "id": 1,
+      "name": "Duke",
+      "requirements": { "wealthMin": 20000, "populationMin": 2000, "palaceStages": 4 }
+    },
+    {
+      "id": 2,
+      "name": "Prince",
+      "requirements": { "wealthMin": 30000, "populationMin": 3000, "palaceStages": 8 }
+    },
+    {
+      "id": 3,
+      "name": "Count",
+      "requirements": { "wealthMin": 50000, "populationMin": 5000, "palaceStages": 12 }
+    },
+    {
+      "id": 4,
+      "name": "Margrave",
+      "requirements": { "wealthMin": 75000, "populationMin": 7500, "palaceStages": 14 },
+      "unlockedFeature": "tradingHouses"
+    },
+    {
+      "id": 5,
+      "name": "Archbishop",
+      "requirements": { "wealthMin": 100000, "populationMin": 10000, "cathedral": true }
+    },
+    {
+      "id": 6,
+      "name": "King",
+      "requirements": { "wealthMin": 150000, "populationMin": 15000, "palaceStages": 15 }
+    },
+    {
+      "id": 7,
+      "name": "Kaiser",
+      "requirements": { "wealthMin": 200000, "populationMin": 20000, "palaceStages": 16, "cathedral": true },
+      "description": "Emperor of the Holy Roman Empire — Victory!"
+    }
+  ]
+}
