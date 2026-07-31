@@ -40,22 +40,9 @@ const ASSET_SPECS: Record<string, Record<string, string>> = {
   buildings: {
     market: `Stone marketplace with a covered arcade, barrels and crates stacked outside. Tiled roof, wooden shutters. Prosperous, busy appearance despite being empty of people.`,
     mill: `Stone watermill with a large wooden wheel on one side, stream below. Thatched or tiled roof. Gears visible inside the open side. Sturdy, functional design.`,
-    palace_1: `Excavated plot with a few stone blocks, simple wooden scaffold. Bare earth around. Foundation of a great building.`,
-    palace_2: `Ground floor complete, one story of walls, wooden framing for floors above.`,
-    palace_3: `Two stories, windows installed, roof frame visible.`,
-    palace_4: `Three stories, ornamental stonework beginning, towers starting to rise.`,
-    palace_5: `Three and a half stories, decorative arches visible, corner tower rising.`,
-    palace_6: `Four stories, windows ornate with stone frames, towers prominent.`,
-    palace_7: `Four stories with decorative crenellations, central tower rising higher.`,
-    palace_8: `Four stories nearly complete, crenellations full, two towers visible.`,
-    palace_9: `Four stories with two full corner towers, heraldic shields on facade.`,
-    palace_10: `Four stories, two corner towers complete, central spire beginning.`,
-    palace_11: `Four stories, two towers with crenellations, spire rising.`,
-    palace_12: `Four stories, four towers (one at each corner), spire halfway complete.`,
-    palace_13: `Four and a half stories, all four towers prominent, spire three-quarters complete.`,
-    palace_14: `Four and a half stories, elaborate stonework, spire nearly complete.`,
-    palace_15: `Five stories, four towers with flags, spire complete but gardens unfinished.`,
-    palace_16: `Full five-story grand palace with four corner towers, central spire with flag, heraldic banners, manicured courtyard and gardens, ornate gates. Seat of power, complete.`,
+    palace_stage_1: `Excavated plot with a few stone blocks, simple wooden scaffold. Bare earth around. Foundation of a great building.`,
+    palace_stage_2: `Ground floor complete, one story of walls, wooden framing for floors above.`,
+    palace_stage_16: `Full five-story grand palace with four corner towers, central spire with flag, heraldic banners, manicured courtyard and gardens, ornate gates. Seat of power, complete.`,
     cathedral: `Grand Gothic cathedral with a high central spire, flying buttresses, rose window visible. Lighter stone (pale gray/cream). Intricate masonry. Sacred, imposing, complete.`,
     hospital: `Stone building with a red cross banner, large windows (suggesting light, cleanliness), herb garden boxes outside. Smaller than palace, clearly civic/care-oriented.`,
     well: `Circular stone well with a wooden pulley mechanism and rope. Bucket nearby. Simple, functional, rustic appearance.`,
@@ -87,6 +74,14 @@ const ASSET_SPECS: Record<string, Record<string, string>> = {
   }
 }
 
+const RESOLUTIONS: Record<string, [number, number]> = {
+  buildings: [128, 96],
+  portraits: [256, 256],
+  eventIcons: [96, 96],
+  terrain: [128, 96],
+  scenes: [1280, 720]
+}
+
 function buildPrompt(assetId: string, category: string): string {
   const preamble = SHARED_PREAMBLES[category] ?? ''
   const spec = ASSET_SPECS[category]?.[assetId] ?? ''
@@ -104,19 +99,125 @@ async function generateAsset(job: AssetJob, dryRun: boolean): Promise<{ ok: bool
     return { ok: true, file: job.outputPath }
   }
 
-  // TODO: dispatch to ComfyUI via MCP mcp__comfyui__generate_image
-  // This is a placeholder; the actual integration uses the ComfyUI MCP connection.
-  console.log(`[TODO] Generate ${job.id} (${job.category}): ${job.outputPath}`)
-  console.log(`  Prompt: ${job.prompt}`)
+  const comfyUIUrl = 'http://localhost:8188'
+  const [width, height] = RESOLUTIONS[job.category] ?? [128, 96]
 
-  // Simulated delay (in real impl, this is ComfyUI queue time + generation)
-  await new Promise(r => setTimeout(r, 100))
+  try {
+    // Minimal ComfyUI txt2img workflow - test if basic structure works
+    const seed = Math.abs(job.id.charCodeAt(0) * 1000 + Math.random() * 10000)
+    const workflow: Record<string, any> = {
+      '1': {
+        inputs: { ckpt_name: 'sd_xl_base_1.0.safetensors' },
+        class_type: 'CheckpointLoaderSimple'
+      },
+      '2': {
+        inputs: { text: job.prompt, clip: ['1', 1] },
+        class_type: 'CLIPTextEncode'
+      },
+      '3': {
+        inputs: { text: '', clip: ['1', 1] },
+        class_type: 'CLIPTextEncode'
+      },
+      '4': {
+        inputs: { width, height, batch_size: 1 },
+        class_type: 'EmptyLatentImage'
+      },
+      '5': {
+        inputs: {
+          seed: seed,
+          steps: 10,
+          cfg: 7.0,
+          sampler_name: 'euler',
+          scheduler: 'normal',
+          denoise: 1.0,
+          model: ['1', 0],
+          positive: ['2', 0],
+          negative: ['3', 0],
+          latent_image: ['4', 0]
+        },
+        class_type: 'KSampler'
+      },
+      '6': {
+        inputs: { samples: ['5', 0], vae: ['1', 2] },
+        class_type: 'VAEDecode'
+      },
+      '7': {
+        inputs: { filename_prefix: job.id, images: ['6', 0] },
+        class_type: 'SaveImage'
+      }
+    }
 
-  // For now, create a placeholder file so we can verify the rest of the pipeline
-  const dir = path.dirname(job.outputPath)
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(job.outputPath, Buffer.alloc(1)) // 1-byte placeholder
-  return { ok: true, file: job.outputPath }
+    // POST to ComfyUI
+    const response = await fetch(`${comfyUIUrl}/prompt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: workflow })
+    })
+
+    if (!response.ok) {
+      return { ok: false, file: job.outputPath, error: `ComfyUI HTTP ${response.status}` }
+    }
+
+    const result = await response.json() as { prompt_id: string }
+    const promptId = result.prompt_id
+
+    // Poll for completion (timeout 5 min)
+    let completed = false
+    for (let attempt = 0; attempt < 300; attempt++) {
+      await new Promise(r => setTimeout(r, 1000))
+
+      try {
+        const histRes = await fetch(`${comfyUIUrl}/history/${promptId}`)
+        if (histRes.ok) {
+          const hist = await histRes.json() as Record<string, any>
+          if (hist[promptId]?.outputs) {
+            completed = true
+            break
+          }
+        }
+      } catch {
+        // Keep polling
+      }
+    }
+
+    if (!completed) {
+      return { ok: false, file: job.outputPath, error: 'Generation timeout (5 min)' }
+    }
+
+    // Fetch history to get image filename
+    const histRes = await fetch(`${comfyUIUrl}/history/${promptId}`)
+    if (!histRes.ok) {
+      return { ok: false, file: job.outputPath, error: 'History fetch failed' }
+    }
+
+    const hist = await histRes.json() as Record<string, any>
+    const outputs = hist[promptId]?.outputs
+    const images = outputs?.['7']?.images ?? []
+
+    if (!images.length) {
+      return { ok: false, file: job.outputPath, error: 'No output images' }
+    }
+
+    const imageFilename = images[0].filename
+    const imageUrl = `${comfyUIUrl}/view?filename=${encodeURIComponent(imageFilename)}&type=output`
+
+    // Download image
+    const imgRes = await fetch(imageUrl)
+    if (!imgRes.ok) {
+      return { ok: false, file: job.outputPath, error: `Image download ${imgRes.status}` }
+    }
+
+    const buffer = await imgRes.arrayBuffer()
+
+    // Save to disk
+    const dir = path.dirname(job.outputPath)
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(job.outputPath, Buffer.from(buffer))
+
+    return { ok: true, file: job.outputPath }
+  } catch (err) {
+    return { ok: false, file: job.outputPath, error: String(err).slice(0, 50) }
+  }
 }
 
 async function main() {
