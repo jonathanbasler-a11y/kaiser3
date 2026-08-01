@@ -9,6 +9,7 @@ import { GameState, Decision, GrainDecision, TaxDecision, EspionageDecision } fr
 import { runGame } from '../src/engine/gameLoop.ts'
 import { getRankName } from '../src/engine/ranks.ts'
 import { annualGrainRequirement, storageCapacity, grainBuybackPrice } from '../src/engine/economy.ts'
+import { eventLossMagnitudeText } from '../src/engine/events/events.ts'
 import { getPersonalities } from '../src/ai/personalities.ts'
 import { planYear } from '../src/ai/planner.ts'
 
@@ -96,6 +97,7 @@ async function getHumanDecisions(state: GameState, humanId: string): Promise<Dec
   const hospitalBuild = await askNumber('Hospitals to build', 0)
   const granaryBuild = await askNumber('Granaries to build', 0)
   const garrisonBuild = await askNumber('Garrisons to build', 0)
+  const dikeBuild = await askNumber('Dikes to build (flood mitigation)', 0)
 
   // Secret service. The same EspionageDecision the AI emits — Decision parity
   // means the player has exactly the tools its rivals do.
@@ -122,7 +124,7 @@ async function getHumanDecisions(state: GameState, humanId: string): Promise<Dec
     grainDecision,
     { type: 'land_trade', farmlanbuy, buildingLandBuy, partnerPlayerId: 'kaiser' },
     taxDecision,
-    { type: 'construction', marketBuild, millBuild, palaceStages, cathedralBuild, wellBuild, hospitalBuild, granaryBuild, garrisonBuild, tradingHouseBuild: 0 },
+    { type: 'construction', marketBuild, millBuild, palaceStages, cathedralBuild, wellBuild, hospitalBuild, granaryBuild, garrisonBuild, dikeBuild, tradingHouseBuild: 0 },
     espionage
   ]
 }
@@ -171,12 +173,7 @@ async function main() {
       // Always surface the telegraph text — a hard event must read as a
       // consequence the player can learn from, never as an unexplained loss.
       for (const event of report.events) {
-        const magnitude = event.lossType === 'gold'
-          ? `${event.loss.toFixed(0)} Taler lost`
-          : event.lossType === 'population'
-            ? `${event.loss.toFixed(0)} peasants lost`
-            : `${event.loss.toFixed(0)} buildings destroyed`
-        console.log(`\n  ! ${event.telegraphText} (${magnitude})`)
+        console.log(`\n  ! ${event.telegraphText} (${eventLossMagnitudeText(event)})`)
       }
 
       // Espionage is cross-player, so it lives on the chronicle rather than in

@@ -175,6 +175,24 @@ export function grainBuybackPrice(marketPrice: number): number {
   return marketPrice * PRICES.cornBuybackMarkup
 }
 
+// Drifts the Kaiser's corn price toward scarcity: a field-wide poor harvest
+// pushes next year's price up (grain is worth more when it's short), a
+// glut pushes it down — clamped to cornPriceBands so it can never run away in
+// either direction. `cornPriceBands` was previously unreferenced dead data
+// (BACKLOG.md precursor to F2): the min/max existed but the price never
+// actually moved from its starting value for an entire match.
+//
+// This is the Hanse-style "price + weather" uncertainty docs/kaiser-research.md
+// calls for (§ Comparable Games — Hanse), and it makes selling grain a genuine
+// TIMING decision rather than arithmetic against a fixed number: a reserve
+// held through a bad year is worth more to sell than one dumped in a glut
+// year, on top of the existing spoilage/storage tradeoff.
+export function driftCornPrice(currentPrice: number, averageWeatherMultiplier: number): number {
+  const shortfall = 1 - averageWeatherMultiplier   // positive = a lean year across the field, negative = a bountiful one
+  const drift = 1 + shortfall * PRICES.cornPriceDriftSensitivity
+  return Math.min(PRICES.cornPriceBands.max, Math.max(PRICES.cornPriceBands.min, currentPrice * drift))
+}
+
 export function applyGrainTrade(
   grainStock: number,
   taler: number,

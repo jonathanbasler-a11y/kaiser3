@@ -62,6 +62,10 @@ export function applyConstruction(
   newBuildings.well += buildCapped(decision.wellBuild, MITIGATION.well.cost, Math.max(0, 1 - newBuildings.well))
   newBuildings.granary += buildCapped(decision.granaryBuild, MITIGATION.granary.cost, Math.max(0, 1 - newBuildings.granary))
   newBuildings.garrison += buildCapped(decision.garrisonBuild, MITIGATION.garrison.cost, Math.max(0, 1 - newBuildings.garrison))
+  // F6: dike (flood mitigation). Same affordability-gated, one-of-each shape
+  // as the other mitigation buildings above.
+  newBuildings.dike = (newBuildings.dike ?? 0)
+    + buildCapped(decision.dikeBuild ?? 0, MITIGATION.dike.cost, Math.max(0, 1 - (newBuildings.dike ?? 0)))
 
   // Palace: requires enough land to begin, then up to 16 stages, 5,000 Taler each.
   if (totalLand >= PRESTIGE.palace.landRequirement) {
@@ -123,6 +127,7 @@ export function calculateUpkeep(buildings: BuildingState, tradingHouses: number,
   upkeep += buildings.well * MITIGATION.well.upkeepPerYear
   upkeep += buildings.granary * MITIGATION.granary.upkeepPerYear
   upkeep += buildings.garrison * MITIGATION.garrison.upkeepPerYear
+  upkeep += (buildings.dike ?? 0) * MITIGATION.dike.upkeepPerYear
   upkeep += tradingHouses > 0 ? taler * UPKEEP.tradingHouseTributePercentage : 0
   return upkeep
 }

@@ -37,6 +37,12 @@ export interface BuildingState {
   well: number                     // Event mitigation (fire/drought reduction)
   granary: number                  // Event mitigation (famine reduction)
   garrison: number                 // Optional: guards quarters (upkeep cost, scales with risk)
+  // F6: flood mitigation. Optional (rather than required like the rest) so the
+  // ~15 existing BuildingState literals across tests/scripts don't all need a
+  // mechanical edit for one new building; every read site treats it as `?? 0`,
+  // and clonePlayerState() below normalizes it to a real 0 on every clone, so
+  // it can never silently drop out of a saved/cloned state once set.
+  dike?: number
 }
 
 export interface GameState {
@@ -112,6 +118,8 @@ export interface PlayerChronicle {
   eventGoldLoss: number
   eventPopulationLoss: number
   eventBuildingsDestroyed: number
+  eventGrainLoss: number           // F6: drought scorching stored/standing grain
+  eventFarmlandLoss: number        // F6: flood washing out hectares
   unrestGain: number
   events: PlayerEvent[]
   rankPromoted: boolean
@@ -124,12 +132,17 @@ export interface PlayerChronicle {
   extinct: boolean
 }
 
-// The events shipped in data/events.json. Flood/drought are plausible future
-// additions but are NOT listed here until they actually exist — a union member
-// with no implementation behind it is a trap for exhaustive switches.
-export type EventId = 'plague' | 'fire' | 'famine' | 'revolt' | 'banditry'
+// The events shipped in data/events.json. Flood and drought (F6) are
+// agriculture-linked: driven by the same weather roll that decides the
+// harvest, so they compound a bad year rather than rolling independently.
+export type EventId = 'plague' | 'fire' | 'famine' | 'revolt' | 'banditry' | 'drought' | 'flood'
 
-export type EventLossType = 'population' | 'gold' | 'buildings'
+// 'grain' (drought — the standing crop and stores scorch) and 'farmland'
+// (flood — hectares washed out) are F6 additions. Every switch over
+// EventLossType MUST be exhaustive (never fall through to an `else`/default
+// branch) — see src/ai/evaluator.ts, src/ui/app.ts, scripts/play.ts, which a
+// non-exhaustive switch would silently price/report these at zero.
+export type EventLossType = 'population' | 'gold' | 'buildings' | 'grain' | 'farmland'
 
 export interface PlayerEvent {
   type: EventId
@@ -198,6 +211,7 @@ export interface ConstructionDecision {
   granaryBuild: number
   garrisonBuild: number
   tradingHouseBuild: number        // Rank-gated (Margrave+) — see data/buildings.json commerce.tradingHouse
+  dikeBuild?: number               // F6: flood mitigation. Optional — see BuildingState.dike
 }
 
 // Two distinct ways to strike a rival, so the aggressive archetypes are not
@@ -221,6 +235,57 @@ export interface WarDecision {
   declare: boolean                 // Declare war on target?
   targetPlayerId?: string
   alliesRequested?: string[]       // Whom to ask for military support
+}
+
+// Hand-written structural clone, replacing JSON.parse(JSON.stringify(state))
+// at the top of advanceYear() — measured at ~20% of planYear's total cost,
+// since the AI planner calls advanceYear roughly 2,000-3,000 times per
+// planning pass. Deliberately field-by-field rather than a generic deep-clone
+// utility: GameState has no cyclic references, no Dates/Maps/functions, and a
+// small closed shape, so hand-copying is both faster than JSON round-tripping
+// and (unlike a generic clone) fails loudly at compile time if a new field is
+// ever added to PlayerState/GameState without also being copied here.
+export function clonePlayerState(player: PlayerState): PlayerState {
+  return {
+    id: player.id,
+    name: player.name,
+    taler: player.taler,
+    land: { farmland: player.land.farmland, buildingLand: player.land.buildingLand },
+    grainStock: player.grainStock,
+    population: { peasants: player.population.peasants, unrest: player.population.unrest },
+    buildings: {
+      markets: player.buildings.markets,
+      mills: player.buildings.mills,
+      palace: player.buildings.palace,
+      cathedral: player.buildings.cathedral,
+      hospital: player.buildings.hospital,
+      well: player.buildings.well,
+      granary: player.buildings.granary,
+      garrison: player.buildings.garrison,
+      dike: player.buildings.dike ?? 0
+    },
+    rank: player.rank,
+    guards: player.guards,
+    saboteurs: player.saboteurs,
+    tradingHouses: player.tradingHouses,
+    score: player.score,
+    reignYears: player.reignYears,
+    dead: player.dead,
+    heir: player.heir
+  }
+}
+
+export function cloneGameState(state: GameState): GameState {
+  const players: Record<string, PlayerState> = {}
+  for (const id of Object.keys(state.players)) {
+    players[id] = clonePlayerState(state.players[id])
+  }
+  return {
+    year: state.year,
+    players,
+    activePlayerIds: [...state.activePlayerIds],
+    kaizerTradePrices: { ...state.kaizerTradePrices }
+  }
 }
 
 // Serialization helpers (for save/load, determinism tests)

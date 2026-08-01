@@ -55,7 +55,8 @@
       "cost": 1500,
       "upkeepPerYear": 150,
       "mitigates": [
-        "fire"
+        "fire",
+        "drought"
       ]
     },
     "granary": {
@@ -72,6 +73,14 @@
         "banditry",
         "revolt"
       ]
+    },
+    "dike": {
+      "cost": 1800,
+      "upkeepPerYear": 160,
+      "mitigates": [
+        "flood"
+      ],
+      "_note": "F6: flood's dedicated mitigation building — deliberately NOT shared with well/drought, so a ruler on flood-prone (wet-weather) exposure faces a real, separate investment rather than one building covering both ends of the weather distribution for free."
     }
   }
 }

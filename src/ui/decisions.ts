@@ -26,6 +26,7 @@ export interface DecisionDraft {
   hospitalBuild: number
   granaryBuild: number
   garrisonBuild: number
+  dikeBuild: number
   tradingHouseBuild: number
   guardHire: number
   saboteurHire: number
@@ -60,6 +61,7 @@ export function defaultDraft(player: PlayerState): DecisionDraft {
     hospitalBuild: 0,
     granaryBuild: 0,
     garrisonBuild: 0,
+    dikeBuild: 0,
     tradingHouseBuild: 0,
     guardHire: 0,
     saboteurHire: 0,
@@ -104,6 +106,7 @@ export function draftToDecisions(draft: DecisionDraft): Decision[] {
       hospitalBuild: draft.hospitalBuild,
       granaryBuild: draft.granaryBuild,
       garrisonBuild: draft.garrisonBuild,
+      dikeBuild: draft.dikeBuild,
       tradingHouseBuild: draft.tradingHouseBuild
     },
     {

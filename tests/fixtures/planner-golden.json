@@ -1,0 +1,416 @@
+{
+  "year1": {
+    "builder": [
+      {
+        "type": "grain",
+        "feedLevel": "required",
+        "sellGrain": 11000
+      },
+      {
+        "type": "land_trade",
+        "farmlanbuy": 0,
+        "buildingLandBuy": 0,
+        "partnerPlayerId": "kaiser"
+      },
+      {
+        "type": "tax",
+        "vat": 60,
+        "incomeTax": 60,
+        "tariff": 20,
+        "justiceGraft": 0
+      },
+      {
+        "type": "construction",
+        "marketBuild": 4,
+        "millBuild": 3,
+        "palaceStages": 0,
+        "cathedralBuild": false,
+        "wellBuild": 0,
+        "hospitalBuild": 0,
+        "granaryBuild": 0,
+        "garrisonBuild": 0,
+        "tradingHouseBuild": 0
+      },
+      {
+        "type": "espionage",
+        "guardHire": 0,
+        "saboteurHire": 0
+      },
+      {
+        "type": "war",
+        "declare": false
+      }
+    ],
+    "expansionist": [
+      {
+        "type": "grain",
+        "feedLevel": "required",
+        "sellGrain": 11000
+      },
+      {
+        "type": "land_trade",
+        "farmlanbuy": 0,
+        "buildingLandBuy": 0,
+        "partnerPlayerId": "kaiser"
+      },
+      {
+        "type": "tax",
+        "vat": 45,
+        "incomeTax": 45,
+        "tariff": 15,
+        "justiceGraft": 0
+      },
+      {
+        "type": "construction",
+        "marketBuild": 4,
+        "millBuild": 3,
+        "palaceStages": 0,
+        "cathedralBuild": false,
+        "wellBuild": 0,
+        "hospitalBuild": 0,
+        "granaryBuild": 0,
+        "garrisonBuild": 0,
+        "tradingHouseBuild": 0
+      },
+      {
+        "type": "espionage",
+        "guardHire": 0,
+        "saboteurHire": 0
+      },
+      {
+        "type": "war",
+        "declare": false
+      }
+    ],
+    "merchant": [
+      {
+        "type": "grain",
+        "feedLevel": "required",
+        "sellGrain": 11000
+      },
+      {
+        "type": "land_trade",
+        "farmlanbuy": 0,
+        "buildingLandBuy": 0,
+        "partnerPlayerId": "kaiser"
+      },
+      {
+        "type": "tax",
+        "vat": 60,
+        "incomeTax": 60,
+        "tariff": 20,
+        "justiceGraft": 0
+      },
+      {
+        "type": "construction",
+        "marketBuild": 4,
+        "millBuild": 3,
+        "palaceStages": 0,
+        "cathedralBuild": false,
+        "wellBuild": 0,
+        "hospitalBuild": 0,
+        "granaryBuild": 0,
+        "garrisonBuild": 0,
+        "tradingHouseBuild": 0
+      },
+      {
+        "type": "espionage",
+        "guardHire": 0,
+        "saboteurHire": 0
+      },
+      {
+        "type": "war",
+        "declare": false
+      }
+    ],
+    "schemer": [
+      {
+        "type": "grain",
+        "feedLevel": "required",
+        "sellGrain": 11000
+      },
+      {
+        "type": "land_trade",
+        "farmlanbuy": 0,
+        "buildingLandBuy": 0,
+        "partnerPlayerId": "kaiser"
+      },
+      {
+        "type": "tax",
+        "vat": 60,
+        "incomeTax": 60,
+        "tariff": 20,
+        "justiceGraft": 0
+      },
+      {
+        "type": "construction",
+        "marketBuild": 4,
+        "millBuild": 3,
+        "palaceStages": 0,
+        "cathedralBuild": false,
+        "wellBuild": 0,
+        "hospitalBuild": 0,
+        "granaryBuild": 0,
+        "garrisonBuild": 0,
+        "tradingHouseBuild": 0
+      },
+      {
+        "type": "espionage",
+        "guardHire": 0,
+        "saboteurHire": 0
+      },
+      {
+        "type": "war",
+        "declare": false
+      }
+    ],
+    "raider": [
+      {
+        "type": "grain",
+        "feedLevel": "required",
+        "sellGrain": 11000
+      },
+      {
+        "type": "land_trade",
+        "farmlanbuy": 0,
+        "buildingLandBuy": 0,
+        "partnerPlayerId": "kaiser"
+      },
+      {
+        "type": "tax",
+        "vat": 60,
+        "incomeTax": 60,
+        "tariff": 20,
+        "justiceGraft": 0
+      },
+      {
+        "type": "construction",
+        "marketBuild": 4,
+        "millBuild": 3,
+        "palaceStages": 0,
+        "cathedralBuild": false,
+        "wellBuild": 0,
+        "hospitalBuild": 0,
+        "granaryBuild": 0,
+        "garrisonBuild": 0,
+        "tradingHouseBuild": 0
+      },
+      {
+        "type": "espionage",
+        "guardHire": 0,
+        "saboteurHire": 0
+      },
+      {
+        "type": "war",
+        "declare": false
+      }
+    ]
+  },
+  "year20": {
+    "builder": [
+      {
+        "type": "grain",
+        "feedLevel": "required",
+        "sellGrain": 5674
+      },
+      {
+        "type": "land_trade",
+        "farmlanbuy": 0,
+        "buildingLandBuy": 0,
+        "partnerPlayerId": "kaiser"
+      },
+      {
+        "type": "tax",
+        "vat": 60,
+        "incomeTax": 60,
+        "tariff": 20,
+        "justiceGraft": 0
+      },
+      {
+        "type": "construction",
+        "marketBuild": 0,
+        "millBuild": 0,
+        "palaceStages": 0,
+        "cathedralBuild": false,
+        "wellBuild": 0,
+        "hospitalBuild": 0,
+        "granaryBuild": 0,
+        "garrisonBuild": 0,
+        "tradingHouseBuild": 0
+      },
+      {
+        "type": "espionage",
+        "guardHire": 0,
+        "saboteurHire": 0
+      },
+      {
+        "type": "war",
+        "declare": false
+      }
+    ],
+    "expansionist": [
+      {
+        "type": "grain",
+        "feedLevel": "required",
+        "sellGrain": 5941
+      },
+      {
+        "type": "land_trade",
+        "farmlanbuy": 624.5792195166359,
+        "buildingLandBuy": 0,
+        "partnerPlayerId": "kaiser"
+      },
+      {
+        "type": "tax",
+        "vat": 60,
+        "incomeTax": 60,
+        "tariff": 20,
+        "justiceGraft": 0
+      },
+      {
+        "type": "construction",
+        "marketBuild": 0,
+        "millBuild": 0,
+        "palaceStages": 0,
+        "cathedralBuild": false,
+        "wellBuild": 0,
+        "hospitalBuild": 0,
+        "granaryBuild": 0,
+        "garrisonBuild": 0,
+        "tradingHouseBuild": 0
+      },
+      {
+        "type": "espionage",
+        "guardHire": 0,
+        "saboteurHire": 0
+      },
+      {
+        "type": "war",
+        "declare": false
+      }
+    ],
+    "merchant": [
+      {
+        "type": "grain",
+        "feedLevel": "required",
+        "sellGrain": 0
+      },
+      {
+        "type": "land_trade",
+        "farmlanbuy": 0,
+        "buildingLandBuy": 0,
+        "partnerPlayerId": "kaiser"
+      },
+      {
+        "type": "tax",
+        "vat": 60,
+        "incomeTax": 60,
+        "tariff": 20,
+        "justiceGraft": 0
+      },
+      {
+        "type": "construction",
+        "marketBuild": 0,
+        "millBuild": 0,
+        "palaceStages": 0,
+        "cathedralBuild": false,
+        "wellBuild": 0,
+        "hospitalBuild": 0,
+        "granaryBuild": 0,
+        "garrisonBuild": 0,
+        "tradingHouseBuild": 0
+      },
+      {
+        "type": "espionage",
+        "guardHire": 0,
+        "saboteurHire": 0
+      },
+      {
+        "type": "war",
+        "declare": false
+      }
+    ],
+    "schemer": [
+      {
+        "type": "grain",
+        "feedLevel": "required",
+        "sellGrain": 3993
+      },
+      {
+        "type": "land_trade",
+        "farmlanbuy": 994,
+        "buildingLandBuy": 0,
+        "partnerPlayerId": "kaiser"
+      },
+      {
+        "type": "tax",
+        "vat": 60,
+        "incomeTax": 60,
+        "tariff": 20,
+        "justiceGraft": 0
+      },
+      {
+        "type": "construction",
+        "marketBuild": 0,
+        "millBuild": 0,
+        "palaceStages": 3,
+        "cathedralBuild": false,
+        "wellBuild": 0,
+        "hospitalBuild": 0,
+        "granaryBuild": 0,
+        "garrisonBuild": 0,
+        "tradingHouseBuild": 0
+      },
+      {
+        "type": "espionage",
+        "guardHire": 0,
+        "saboteurHire": 0
+      },
+      {
+        "type": "war",
+        "declare": false
+      }
+    ],
+    "raider": [
+      {
+        "type": "grain",
+        "feedLevel": "required",
+        "sellGrain": 0
+      },
+      {
+        "type": "land_trade",
+        "farmlanbuy": 0,
+        "buildingLandBuy": 0,
+        "partnerPlayerId": "kaiser"
+      },
+      {
+        "type": "tax",
+        "vat": 60,
+        "incomeTax": 60,
+        "tariff": 20,
+        "justiceGraft": 0
+      },
+      {
+        "type": "construction",
+        "marketBuild": 0,
+        "millBuild": 0,
+        "palaceStages": 0,
+        "cathedralBuild": false,
+        "wellBuild": 0,
+        "hospitalBuild": 0,
+        "granaryBuild": 0,
+        "garrisonBuild": 0,
+        "tradingHouseBuild": 0
+      },
+      {
+        "type": "espionage",
+        "guardHire": 0,
+        "saboteurHire": 0
+      },
+      {
+        "type": "war",
+        "declare": false
+      }
+    ]
+  }
+}

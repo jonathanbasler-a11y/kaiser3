@@ -62,6 +62,7 @@
       "min": 1.6,
       "max": 6
     },
+    "cornPriceDriftSensitivity": 0.15,
     "farmlandBasePrice": 30,
     "buildingLandBasePrice": 50,
     "cornBuybackMarkup": 1.45
