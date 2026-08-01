@@ -137,11 +137,16 @@ Merchant and Raider stay visibly leaner (palace 13–14 vs 16, population ~1,900
 ~2,350). The distinctness test asserts only that narrower claim.
 
 The fix is not more weight-tweaking — it is genuinely different **routes** to rank,
-which means F2 (inter-ruler trade) and F4 (warfare). F4 landed in Phase 11; F2 is
-still out of scope. **Not yet re-measured** — `npm run ai-bench` (the archetype
-distinctness benchmark) was not re-run this phase, only the balance harness (a
-different measurement). Re-check before assuming warfare actually diversified the
-archetypes rather than just adding uniform pressure to all of them equally.
+which means F2 (inter-ruler trade) and F4 (warfare). F2 is still out of scope.
+
+F4 shipped in Phase 11 but did **nothing** for this until Phase 11.5: measured, war
+fired once in 1,200 match-years, and even when it fired it moved land and coin —
+neither of which is the binding constraint — so it opened no route to anything. It
+now transfers population with territory and fires ~2.2 times per match, which is the
+first version of F4 that could plausibly affect archetype distinctness.
+
+**Still not re-measured:** `npm run ai-bench` has not been run since. Whether war
+actually diversifies the archetypes is an open question, not a claim.
 
 ### D5. The balance gate is one-sided
 It guards against snowballing but not against a death spiral: strongly negative
@@ -151,19 +156,22 @@ plausibly the leader-focused aggression working as designed (the "leader" each y
 is by definition whoever is being targeted) but is not currently distinguishable from
 a game that is simply grinding everyone down. Add a floor as well as a ceiling.
 
-**Phase 11 (warfare, F4) made this sharper, not just theoretically live.** Post-war
-balance re-run (60 matches × 60 years, 5 rulers): the gate still **passes** every
-criterion, but loss-persistence jumped from Phase 6's baseline **27–51%/decade to
-78–96%/decade**, and margin-flatness now runs **negative** from decade 4 onward
-(−0.06% to −0.90%). War is now clearly the dominant aggression channel — a
-leader-focused AI declaring war on whoever's ahead hits far more often and far
-harder than espionage alone did. Not fixed here: the gate's own one-sidedness (this
-same entry) means "still passes" cannot distinguish "checked hard" from "ground
-down," and this is exactly the scenario that ambiguity was already flagged against.
-Worth a dedicated look before treating war's current tuning as final — likely
-candidates if it turns out to be too punishing: lower `warfare.casualtyFractionLoser`
-in `data/economy.json`, or raise `MIN_WIN_PROBABILITY` in
-`src/ai/warAggression.ts` so AI rulers commit to fewer, more clearly-favorable wars.
+**A diagnostic now exists (Phase 11.5).** `npm run balance` prints a DIAGNOSTICS
+block that is explicitly not part of the gate: leader return vs **non-leader**
+return side by side, field-wide population/holdings/rank trajectory, and the
+extinction rate. The leader/non-leader pair is the discriminator this entry asked
+for — the design *intends* the leader to have a hard time, so a negative leader
+return beside a healthy non-leader return is the anti-snowball lever working,
+whereas both negative is a spiral. Field growth and extinction rate settle it
+either way. The gate itself is unchanged; only the reader's ability to interpret
+"PASS" honestly has improved. **A numeric floor on the criteria themselves is still
+not implemented** — that remains open.
+
+**The Phase 11 entry that stood here was wrong and has been removed.** It claimed
+war had made loss-persistence leap to 78–96%/decade with margin flatness running
+negative from decade 4. Both figures were instrument error, not game behaviour —
+see PLAN.md Phase 11.5. Corrected, leader return is **positive in every decade**,
+decaying 5.48% → 0.79%, which is the intended anti-snowball shape.
 
 ### D3. Land beyond labour capacity is inert
 Farmland is labour-gated at 5 ha per peasant, so a realm starts with **twice the land

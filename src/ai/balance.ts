@@ -28,7 +28,7 @@
 
 import buildingsData from '../../data/buildings.json'
 import economyData from '../../data/economy.json'
-import { GameState, Chronicle } from '../engine/state.ts'
+import { GameState, Chronicle, WarRecord } from '../engine/state.ts'
 import { Competitor, runMatch, compareStanding } from './sim.ts'
 
 const LAND_PRICE = economyData.prices.farmlandBasePrice
@@ -77,6 +77,24 @@ function holdingsValue(state: GameState, playerId: string): number {
     + p.buildings.palace * PALACE_STAGE_COST
 }
 
+// What one war cost a given ruler. Both sides always take casualties; only the
+// loser pays reparations and cedes land.
+function warTollFor(war: WarRecord, playerId: string): { gold: number; population: number } {
+  const loserId = war.attackerWon ? war.defenderId : war.attackerId
+  const isAttacker = war.attackerId === playerId
+  const isDefender = war.defenderId === playerId
+  if (!isAttacker && !isDefender) return { gold: 0, population: 0 }
+
+  const casualties = isAttacker ? war.attackerCasualties : war.defenderCasualties
+  return {
+    gold: playerId === loserId ? war.reparationsPaid : 0,
+    // The loser also forfeits the peasants who came with the ceded territory —
+    // for them that is a loss on top of the casualties, and the single most
+    // damaging thing a war can do given population gates every senior rank.
+    population: casualties + (playerId === loserId ? war.populationTransferred : 0)
+  }
+}
+
 export function snapshotYear(state: GameState, chronicle: Chronicle): YearSnapshot {
   const players: Record<string, PlayerYearRecord> = {}
 
@@ -84,22 +102,51 @@ export function snapshotYear(state: GameState, chronicle: Chronicle): YearSnapsh
     const report = chronicle.playerReports[playerId]
     if (!report) continue
 
-    const grossIncome = report.marketIncome + report.millIncome
-      + report.taxIncome + report.tariffIncome + report.tributeIncome
-    const netIncome = grossIncome - report.upkeepCost - report.eventGoldLoss
-
     // Coin and grain taken by rivals this year, on top of natural disaster.
     const plundered = chronicle.strikes
       .filter((strike) => strike.defenderId === playerId && strike.succeeded)
       .reduce((total, strike) => total + strike.talerStolen, 0)
 
+    // War tolls (F4). Omitting these was a genuine measurement bug, and a
+    // self-inflicted one: war already shrank `state.players[].taler` and
+    // `.population`, which are the DENOMINATORS below, while contributing
+    // nothing to the numerators — so every war silently inflated the measured
+    // loss share of whatever else happened that year. That is the same class of
+    // error as the two documented below, and it is why the Phase 11 run appeared
+    // to show setback rates leaping from ~27-51% to ~78-96% per decade.
+    const warToll = chronicle.wars.reduce(
+      (total, war) => {
+        const toll = warTollFor(war, playerId)
+        return { gold: total.gold + toll.gold, population: total.population + toll.population }
+      },
+      { gold: 0, population: 0 }
+    )
+
+    // grainTradeIncome is NET of grain bought, and may legitimately be negative.
+    // Its omission predates Phase 11 — the grain market arrived in Phase 8 and was
+    // never wired in here, even though economy.json describes it as "an income
+    // source before any market or mill exists". That single gap is why every
+    // measured return went negative from decade 3 while actual holdings almost
+    // TRIPLED over the same span: rulers were earning real money the instrument
+    // could not see. A criterion that reports a ruler getting poorer while their
+    // wealth compounds is not measuring return at all.
+    const grossIncome = report.marketIncome + report.millIncome + report.tradingHouseIncome
+      + report.grainTradeIncome
+      + report.taxIncome + report.tariffIncome + report.tributeIncome
+    // Coin lost to rivals is as real an outflow as coin lost to a fire. Criterion 2
+    // has always counted plunder as adversity; criterion 1 previously did not
+    // subtract it, so the two disagreed about what a loss was and the leader's
+    // measured return was flattered by exactly the raids its lead attracted.
+    const netIncome = grossIncome - report.upkeepCost - report.eventGoldLoss - plundered - warToll.gold
+
     // Losses are already deducted from the live state, so the pre-blow figure is
     // recovered by adding them back.
-    const goldLost = report.eventGoldLoss + plundered
+    const goldLost = report.eventGoldLoss + plundered + warToll.gold
+    const populationLost = report.eventPopulationLoss + warToll.population
     const talerBefore = state.players[playerId].taler + goldLost
-    const populationBefore = state.players[playerId].population.peasants + report.eventPopulationLoss
+    const populationBefore = state.players[playerId].population.peasants + populationLost
     const goldShare = talerBefore > 0 ? goldLost / talerBefore : 0
-    const populationShare = populationBefore > 0 ? report.eventPopulationLoss / populationBefore : 0
+    const populationShare = populationBefore > 0 ? populationLost / populationBefore : 0
 
     players[playerId] = {
       taler: state.players[playerId].taler,
@@ -176,6 +223,26 @@ export interface BalanceReport {
   // 3. Lead volatility
   lateLeadChangeRate: number
   earlyLeaderWinRate: number
+
+  // --- DIAGNOSTICS (not gate criteria) -------------------------------------
+  // BACKLOG.md D5: the three criteria above are one-sided. They catch a game
+  // going soft, but a game grinding everyone into the dirt passes all of them
+  // trivially — a strongly negative return trend satisfies "margin flatness"
+  // better than a flat one does, and universal misery satisfies "loss
+  // persistence" perfectly. These do not gate anything; they exist so that
+  // "PASS" can be read honestly rather than taken at face value.
+  //
+  // The discriminator is the pair of return series: the anti-snowball design
+  // INTENDS the leader to have a hard time (pulling ahead should attract
+  // aggression). It does not intend everyone to. A negative leader return
+  // alongside a healthy non-leader return is the lever working as designed;
+  // both negative is a death spiral.
+  nonLeaderReturnByDecade: number[]
+  fieldPopulationByDecade: number[]
+  fieldHoldingsByDecade: number[]
+  meanRankByDecade: number[]
+  // Share of matches in which at least one ruler's population collapsed entirely.
+  extinctionRate: number
 }
 
 export interface BalanceConfig {
@@ -202,6 +269,16 @@ export function analyseBalance(config: BalanceConfig): BalanceReport {
   const returnCounts = new Array(decades).fill(0)
   const setbackMatches = new Array(decades).fill(0)
   const decadeObserved = new Array(decades).fill(0)
+
+  // Diagnostics (see BalanceReport) — computed from the same timelines, so they
+  // cost nothing extra and cannot drift from what the gate saw.
+  const nonLeaderReturnSums = new Array(decades).fill(0)
+  const nonLeaderReturnCounts = new Array(decades).fill(0)
+  const populationSums = new Array(decades).fill(0)
+  const holdingsSums = new Array(decades).fill(0)
+  const rankSums = new Array(decades).fill(0)
+  const playerYearCounts = new Array(decades).fill(0)
+  let matchesWithExtinction = 0
 
   let lateLeadChanges = 0
   let earlyLeaderWins = 0
@@ -255,6 +332,29 @@ export function analyseBalance(config: BalanceConfig): BalanceReport {
       if (setbackSeenThisMatch[d]) setbackMatches[d] += 1
     }
 
+    // --- Diagnostics: the whole field, not just whoever is ahead.
+    for (const snapshot of snapshots) {
+      const d = decadeIndex(snapshot.year)
+      if (d < 0 || d >= decades) continue
+
+      for (const [playerId, record] of Object.entries(snapshot.players)) {
+        populationSums[d] += record.population
+        holdingsSums[d] += record.holdings
+        rankSums[d] += record.rank
+        playerYearCounts[d] += 1
+
+        if (playerId !== snapshot.leaderId && record.holdings > 0) {
+          nonLeaderReturnSums[d] += record.netIncome / record.holdings
+          nonLeaderReturnCounts[d] += 1
+        }
+      }
+    }
+
+    // A ruler dropping out of activePlayerIds means its population collapsed.
+    const firstCount = snapshots.length > 0 ? Object.keys(snapshots[0].players).length : 0
+    const lastCount = snapshots.length > 0 ? Object.keys(snapshots[snapshots.length - 1].players).length : 0
+    if (lastCount < firstCount) matchesWithExtinction += 1
+
     // --- 3. Lead volatility.
     const lateSnapshots = snapshots.filter((s) => s.year >= lateGameStartYear)
     const lateLeaders = new Set(lateSnapshots.map((s) => s.leaderId).filter(Boolean))
@@ -270,6 +370,9 @@ export function analyseBalance(config: BalanceConfig): BalanceReport {
   const leaderReturnByDecade = returnSums.map((sum, d) => (returnCounts[d] > 0 ? sum / returnCounts[d] : 0))
   const setbackRateByDecade = setbackMatches.map((count, d) => (decadeObserved[d] > 0 ? count / decadeObserved[d] : 0))
 
+  const perPlayerYear = (sums: number[]) =>
+    sums.map((sum, d) => (playerYearCounts[d] > 0 ? sum / playerYearCounts[d] : 0))
+
   return {
     matches: config.matches,
     decades,
@@ -277,6 +380,14 @@ export function analyseBalance(config: BalanceConfig): BalanceReport {
     returnTrendSlope: trendSlope(leaderReturnByDecade),
     setbackRateByDecade,
     lateLeadChangeRate: config.matches > 0 ? lateLeadChanges / config.matches : 0,
-    earlyLeaderWinRate: matchesWithEarlyLeader > 0 ? earlyLeaderWins / matchesWithEarlyLeader : 0
+    earlyLeaderWinRate: matchesWithEarlyLeader > 0 ? earlyLeaderWins / matchesWithEarlyLeader : 0,
+
+    nonLeaderReturnByDecade: nonLeaderReturnSums.map((sum, d) =>
+      nonLeaderReturnCounts[d] > 0 ? sum / nonLeaderReturnCounts[d] : 0
+    ),
+    fieldPopulationByDecade: perPlayerYear(populationSums),
+    fieldHoldingsByDecade: perPlayerYear(holdingsSums),
+    meanRankByDecade: perPlayerYear(rankSums),
+    extinctionRate: config.matches > 0 ? matchesWithExtinction / config.matches : 0
   }
 }

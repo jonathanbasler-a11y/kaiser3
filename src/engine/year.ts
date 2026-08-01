@@ -287,6 +287,7 @@ export function advanceYear(
       attackerCasualties: outcome.attackerCasualties,
       defenderCasualties: outcome.defenderCasualties,
       landTransferred: outcome.landTransferred,
+      populationTransferred: outcome.populationTransferred,
       reparationsPaid: outcome.reparationsPaid,
       garrisonDestroyed: outcome.garrisonDestroyed
     })

@@ -26,9 +26,18 @@ const WARFARE = economyData.warfare
 // materially bigger risk than a sabotage raid, so the bar is well above
 // "aggression > 0".
 const MIN_AGGRESSION_TO_CONSIDER_WAR = 0.5
-// Never declare unless clearly favored — war is not a coin flip an AI should
-// choose to make.
-const MIN_WIN_PROBABILITY = 0.62
+
+// A sanity floor, NOT the risk calculation — that is what expectedValue() below
+// is for. This was 0.62 and was doing all the risk management on its own, which
+// made it the single reason war never happened: measured across 1,200 aggressive
+// ruler-years, the best available win probability had a median of 0.481 and a
+// maximum of 0.629, so a 0.62 bar cleared in 0.1% of ruler-years and war fired
+// once in 1,200 match-years. warStrength is dominated by the population levy and
+// every ruler grows population similarly (mean strength ratio 1.07), so the large
+// asymmetries a high bar demands simply never occur between competent rulers.
+// 0.55 admits roughly 3% of ruler-years — a handful of genuine opportunities per
+// match — and the real go/no-go is now a proper expected value.
+const MIN_WIN_PROBABILITY = 0.55
 
 function estimatedWinProbability(self: PlayerState, target: PlayerState): number {
   const selfStrength = warStrength(self)
@@ -59,14 +68,37 @@ export function planWar(
     const winProbability = estimatedWinProbability(self, rival)
     if (winProbability < MIN_WIN_PROBABILITY) continue
 
-    const isAhead = compareStanding(rival, self) > 0
-    // Value of winning: the land/taler resolveWar() would transfer, priced
-    // through this archetype's own weights so a Merchant cares about the taler
-    // and a Builder cares more about the land.
-    const landGain = (rival.land.farmland + rival.land.buildingLand) * WARFARE.landTransferFraction
-    const talerGain = rival.taler * WARFARE.reparationsFraction
-    const expectedValue = winProbability * (landGain * weights.land + talerGain * weights.wealth)
-      * (1 + (isAhead ? profile.leaderFocus : 0))
+    // A genuine expected value: p x (what winning gains) MINUS (1-p) x (what
+    // losing costs). The previous version computed only `p * gain` while calling
+    // itself an expected value, which meant the downside of a war never entered
+    // the decision at all and the probability floor above was silently carrying
+    // the entire risk calculation.
+    //
+    // Everything is priced through this archetype's own weights, so a Merchant
+    // weighs the treasury, a Builder the land, and every archetype weighs the
+    // peasants — who are the binding constraint on all the senior ranks and now
+    // change hands with the territory.
+    const landAtStake = (rival.land.farmland + rival.land.buildingLand) * WARFARE.landTransferFraction
+    const ownLandAtStake = (self.land.farmland + self.land.buildingLand) * WARFARE.landTransferFraction
+    const talerAtStake = rival.taler * WARFARE.reparationsFraction
+    const ownTalerAtStake = self.taler * WARFARE.reparationsFraction
+    const peopleAtStake = rival.population.peasants * WARFARE.populationTransferFraction
+    const ownPeopleAtStake = self.population.peasants * WARFARE.populationTransferFraction
+
+    const gain =
+      landAtStake * weights.land +
+      talerAtStake * weights.wealth +
+      peopleAtStake * weights.population -
+      self.population.peasants * WARFARE.casualtyFractionWinner * weights.population
+
+    const loss =
+      ownLandAtStake * weights.land +
+      ownTalerAtStake * weights.wealth +
+      ownPeopleAtStake * weights.population +
+      self.population.peasants * WARFARE.casualtyFractionLoser * weights.population
+
+    const expectedValue = (winProbability * gain - (1 - winProbability) * loss)
+      * (1 + (compareStanding(rival, self) > 0 ? profile.leaderFocus : 0))
 
     if (expectedValue > bestScore) {
       bestScore = expectedValue

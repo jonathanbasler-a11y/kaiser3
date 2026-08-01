@@ -71,6 +71,7 @@
     "tradingHouseTributePercentage": 0.1
   },
   "_warfareNote": "F4: military strength is derived from existing stats (garrison, guards, population) rather than a new unit system — consistent with the rest of the game being data-driven stats, not a simulated army. Both sides always take SOME casualty (war has a real cost even in victory), and mitigation is impossible to buy down to zero risk, matching every other risk mechanic in this game (events.ts's own rule: mitigation caps risk, never eliminates it). Land transfer is the closest thing to the research doc's 'geography-gated' territorial consequence available without an actual map.",
+  "_warfareTuningNote": "Measured after the first implementation: war fired ONCE in 1,200 match-years — dead content. Two causes, both design rather than numbers. (1) warStrength is dominated by the population levy and every ruler grows population similarly, so the best available win probability across 1,200 ruler-years had a median of 0.481 and a MAXIMUM of 0.629; a 0.62 declaration threshold sat in the extreme tail. Nearly every ruler also builds a garrison (mean 0.91 held), so the garrison differentiates nobody. (2) More fundamentally, war traded away the binding resource to gain an inert one: population gates every senior rank (see _populationNote and ranks.json _populationNote), while land is already held at roughly twice what the labour force can work (BACKLOG D3). Winning was close to worthless and losing cost the one thing that mattered. populationTransferFraction fixes the incoherence — conquered territory carries the peasants who work it, which is both historically apt and what makes war a genuine alternative ROUTE to the population-gated ranks that BACKLOG D2 identifies as the whole purpose of F4. Casualties were cut alongside it so the total population swing stays proportionate rather than doubling.",
   "warfare": {
     "garrisonStrengthWeight": 15,
     "guardStrengthWeight": 3,
@@ -79,10 +80,11 @@
     "allianceContributionFraction": 0.4,
     "allianceJoinBaseChance": 0.25,
     "allianceJoinStrongerTargetBonus": 0.35,
-    "casualtyFractionLoser": 0.03,
+    "casualtyFractionLoser": 0.02,
     "casualtyFractionWinner": 0.008,
     "landTransferFraction": 0.08,
     "maxLandTransferShare": 0.5,
+    "populationTransferFraction": 0.05,
     "reparationsFraction": 0.15,
     "garrisonDestructionChanceLoser": 0.5
   },
