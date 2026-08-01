@@ -268,11 +268,48 @@ export interface BalanceConfig {
   earlyLeaderYear?: number
 }
 
-export function analyseBalance(config: BalanceConfig): BalanceReport {
+// The seed a given match index uses — the ONE thing that must stay identical
+// between the serial and the parallel path (Phase 13, D4) for their outputs
+// to be comparable at all. Exported so scripts/balance-worker.ts computes the
+// exact same seed for a match index a worker is assigned, never re-deriving
+// the formula independently where it could drift out of sync.
+export function seedForMatch(config: Pick<BalanceConfig, 'seedBase'>, matchIndex: number): number {
+  return (config.seedBase ?? 1) + matchIndex * 7717
+}
+
+// The expensive step: simulate every match and produce its timeline. Runs
+// `config.matches` full seeded games by default — this is what Phase 13's
+// worker parallelisation splits across threads. `startIndex`/`count` let a
+// caller (scripts/balance-worker.ts) request just an assigned SLICE of the
+// original match indices, using the exact same seedForMatch() formula the
+// serial path uses, so a worker's matches are byte-identical to what the
+// serial path would have produced for those same indices. The main thread
+// concatenates workers' slices back in ascending match-index order before
+// handing the result to aggregateTimelines(), so the parallel path sums in
+// the exact same order the serial path would have, not just an equivalent one.
+export function generateTimelines(
+  config: BalanceConfig,
+  startIndex: number = 0,
+  count: number = config.matches
+): MatchTimeline[] {
+  const timelines: MatchTimeline[] = []
+  for (let i = 0; i < count; i++) {
+    const m = startIndex + i
+    timelines.push(runInstrumentedMatch(config.competitors, seedForMatch(config, m), config.maxYears))
+  }
+  return timelines
+}
+
+// The cheap step: turn a set of match timelines into the report. Pure
+// aggregation, no simulation — deliberately separated from generateTimelines
+// so the exact same aggregation logic serves both the serial path
+// (analyseBalance below) and the parallel path (scripts/balance.ts), which is
+// what makes "assert identical output vs. the serial path" a real guarantee
+// rather than a hope that two independently-written aggregations agree.
+export function aggregateTimelines(config: BalanceConfig, timelines: MatchTimeline[]): BalanceReport {
   const setbackThreshold = config.setbackThreshold ?? 0.15
   const lateGameStartYear = config.lateGameStartYear ?? 30
   const earlyLeaderYear = config.earlyLeaderYear ?? 20
-  const seedBase = config.seedBase ?? 1
   const decades = Math.ceil(config.maxYears / DECADE)
 
   const returnSums = new Array(decades).fill(0)
@@ -294,8 +331,8 @@ export function analyseBalance(config: BalanceConfig): BalanceReport {
   let earlyLeaderWins = 0
   let matchesWithEarlyLeader = 0
 
-  for (let m = 0; m < config.matches; m++) {
-    const timeline = runInstrumentedMatch(config.competitors, seedBase + m * 7717, config.maxYears)
+  for (let m = 0; m < timelines.length; m++) {
+    const timeline = timelines[m]
     const { snapshots } = timeline
 
     // --- 1. Margin flatness: the LEADER's return on holdings, by decade.
@@ -400,4 +437,13 @@ export function analyseBalance(config: BalanceConfig): BalanceReport {
     meanRankByDecade: perPlayerYear(rankSums),
     extinctionRate: config.matches > 0 ? matchesWithExtinction / config.matches : 0
   }
+}
+
+// The original single-threaded entry point — unchanged in behavior (every
+// existing caller: tests/balance.test.ts, tests/balanceCriteria.test.ts,
+// scripts/balance.ts's non-parallel fallback). Now just generate-then-
+// aggregate, so it and the worker-parallel path in scripts/balance.ts share
+// one aggregation implementation instead of two that could drift apart.
+export function analyseBalance(config: BalanceConfig): BalanceReport {
+  return aggregateTimelines(config, generateTimelines(config))
 }

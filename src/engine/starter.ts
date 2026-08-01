@@ -31,6 +31,22 @@ export function createStarterPlayer(id: string, name: string): PlayerState {
   }
 }
 
+// Difficulty presets (Phase 13, src/ai/difficulty.ts) apply a head-start or
+// handicap to RIVALS only, never the human — the research doc's baseline
+// (15,000 Taler, 10,000 ha) is the fixed human starting point every preset is
+// measured relative to. Deliberately a separate step from createStarterPlayer
+// rather than a parameter on it: every other caller (tests, ai-bench, the
+// balance harness, the golden fixture) must keep constructing the exact same
+// starter player with zero new arguments, or their committed baselines drift
+// for reasons that have nothing to do with what they're testing.
+export function applyStartingMultiplier(player: PlayerState, multiplier: { taler: number; farmland: number }): PlayerState {
+  return {
+    ...player,
+    taler: player.taler * multiplier.taler,
+    land: { ...player.land, farmland: player.land.farmland * multiplier.farmland }
+  }
+}
+
 export function createStarterState(playerIds: Array<{ id: string; name: string }>): GameState {
   const players: Record<string, PlayerState> = {}
   for (const { id, name } of playerIds) {

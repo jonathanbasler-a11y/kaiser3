@@ -6,6 +6,7 @@
 import economyData from '../../data/economy.json'
 import { SeededRng } from './rng.ts'
 import { GrainDecision, LandHolding, PopulationState } from './state.ts'
+import { finiteOr } from './sanitize.ts'
 
 const HARVEST = economyData.harvest
 const STORAGE = economyData.storage
@@ -127,7 +128,11 @@ export function resolveFeeding(
       grainOffered = grainStockBeforeFeeding * 0.8
       break
     case 'custom': {
-      const pct = Math.min(80, Math.max(20, decision.customPercentage ?? 50))
+      // `?? 50` alone only catches undefined/null, not NaN (sanitize.ts) — a
+      // NaN customPercentage would otherwise clamp to NaN (Math.max/min do
+      // not self-heal it) and poison grainOffered, then feedAdequacy,
+      // population dynamics, and the treasury for the whole year.
+      const pct = Math.min(80, Math.max(20, finiteOr(decision.customPercentage, 50)))
       grainOffered = grainStockBeforeFeeding * (pct / 100)
       break
     }
@@ -201,8 +206,15 @@ export function applyGrainTrade(
   marketPrice: number,
   capacity: number
 ): GrainTradeResult {
+  // Sanitized at the boundary (sanitize.ts): year.ts calls this with
+  // `grainDecision.sellGrain ?? 0`/`buyGrain ?? 0`, which only catches
+  // undefined, not NaN — grainStock/taler are running totals, so an
+  // unsanitized NaN order here would poison them for every year after.
+  const safeSellUnits = finiteOr(sellUnits, 0)
+  const safeBuyUnits = finiteOr(buyUnits, 0)
+
   // Selling is clamped to what is actually in the barn.
-  const sold = Math.max(0, Math.min(sellUnits, grainStock))
+  const sold = Math.max(0, Math.min(safeSellUnits, grainStock))
   const earned = sold * marketPrice
 
   // Buying is clamped by affordability AND by remaining storage — there is no
@@ -210,7 +222,7 @@ export function applyGrainTrade(
   const budget = taler + earned
   const room = Math.max(0, capacity - (grainStock - sold))
   const price = grainBuybackPrice(marketPrice)
-  const bought = Math.max(0, Math.min(buyUnits, room, price > 0 ? Math.floor(budget / price) : 0))
+  const bought = Math.max(0, Math.min(safeBuyUnits, room, price > 0 ? Math.floor(budget / price) : 0))
   const spent = bought * price
 
   return {

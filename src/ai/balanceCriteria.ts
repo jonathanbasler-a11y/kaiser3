@@ -25,7 +25,35 @@ export const BALANCE_THRESHOLDS = {
 
   // 3. LEAD VOLATILITY. The game must not be decided early.
   minLateLeadChangeRate: 0.2,
-  maxEarlyLeaderWinRate: 0.85
+  maxEarlyLeaderWinRate: 0.85,
+
+  // 4. NO DEATH SPIRAL (Phase 13, BACKLOG D5). Criteria 1-3 are one-sided: a
+  // strongly negative return trend satisfies "margin flatness" even better
+  // than a flat one, and universal misery satisfies "loss persistence"
+  // perfectly. The Phase 11.5 DIAGNOSTICS block made a spiral visible to a
+  // reader; these floors make one FAIL the gate instead. Thresholds are
+  // deliberately loose relative to every measured healthy run (Phase 12's
+  // two re-runs: field holdings 404k->1.05M, population 1069->2097, mean
+  // rank 0.03->3.27, non-leader return -0.6% at its very worst decade,
+  // extinction 0.0%) — the floor exists to catch something qualitatively
+  // different from that, not to add noise-sensitivity to a passing gate.
+
+  // Field holdings must show NET growth across the match (late-game mean
+  // above early-game mean) — the field as a whole getting poorer over time,
+  // not just the leader, is the spiral signature.
+  minFieldHoldingsGrowthRatio: 1.0,
+  // Field population must not have collapsed on average — some shrinkage
+  // from a bad decade is normal, halving is not.
+  minFieldPopulationRetentionRatio: 0.5,
+  // The discriminator D5 itself names: the design INTENDS the leader to
+  // suffer (that's criteria 1-2 working). It does not intend the FIELD to.
+  // A non-leader late-game return below this floor means adversity is
+  // grinding down rulers who are not even the one being targeted.
+  minNonLeaderLateReturn: -0.03,
+  // Share of matches ending in at least one ruler's total population
+  // collapse. However balanced the survivors look, an anti-snowball design
+  // is not supposed to be an extinction event for whoever falls behind.
+  maxExtinctionRate: 0.15
 } as const
 
 export interface CriterionResult {
@@ -83,6 +111,31 @@ export function evaluateCriteria(report: BalanceReport): { passed: boolean; resu
     name: 'no early runaway',
     passed: report.earlyLeaderWinRate <= BALANCE_THRESHOLDS.maxEarlyLeaderWinRate,
     detail: `yr-20 leader wins ${(report.earlyLeaderWinRate * 100).toFixed(1)}% of the time (ceiling ${BALANCE_THRESHOLDS.maxEarlyLeaderWinRate * 100}%)`
+  })
+
+  // 4. No death spiral (BACKLOG D5) — see BALANCE_THRESHOLDS' comment. Uses
+  // the same DIAGNOSTICS fields the Phase 11.5 report block already prints;
+  // this is the first time they gate rather than merely inform.
+  const holdingsGrowthRatio = firstThirdMean(report.fieldHoldingsByDecade) > 0
+    ? lastThirdMean(report.fieldHoldingsByDecade) / firstThirdMean(report.fieldHoldingsByDecade)
+    : 0
+  const populationRetentionRatio = firstThirdMean(report.fieldPopulationByDecade) > 0
+    ? lastThirdMean(report.fieldPopulationByDecade) / firstThirdMean(report.fieldPopulationByDecade)
+    : 0
+  const lateNonLeaderReturn = lastThirdMean(report.nonLeaderReturnByDecade)
+
+  const holdingsGrew = holdingsGrowthRatio >= BALANCE_THRESHOLDS.minFieldHoldingsGrowthRatio
+  const populationHeld = populationRetentionRatio >= BALANCE_THRESHOLDS.minFieldPopulationRetentionRatio
+  const nonLeaderHealthy = lateNonLeaderReturn >= BALANCE_THRESHOLDS.minNonLeaderLateReturn
+  const extinctionAcceptable = report.extinctionRate <= BALANCE_THRESHOLDS.maxExtinctionRate
+
+  results.push({
+    name: 'no death spiral',
+    passed: holdingsGrew && populationHeld && nonLeaderHealthy && extinctionAcceptable,
+    detail: `field holdings growth ratio ${holdingsGrowthRatio.toFixed(2)} (floor ${BALANCE_THRESHOLDS.minFieldHoldingsGrowthRatio}), ` +
+      `population retention ${populationRetentionRatio.toFixed(2)} (floor ${BALANCE_THRESHOLDS.minFieldPopulationRetentionRatio}), ` +
+      `late non-leader return ${(lateNonLeaderReturn * 100).toFixed(2)}% (floor ${BALANCE_THRESHOLDS.minNonLeaderLateReturn * 100}%), ` +
+      `extinction rate ${(report.extinctionRate * 100).toFixed(1)}% (ceiling ${BALANCE_THRESHOLDS.maxExtinctionRate * 100}%)`
   })
 
   return { passed: results.every((r) => r.passed), results }

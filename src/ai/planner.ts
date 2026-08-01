@@ -250,7 +250,15 @@ export function planYear(
   state: GameState,
   playerId: string,
   personality: Personality,
-  seed: number
+  seed: number,
+  // Difficulty presets (Phase 13, src/ai/difficulty.ts) override how many
+  // independent futures a candidate is averaged over — fewer seeds means this
+  // ruler's own plan is judged on noisier information and plays less
+  // robustly, never that a rule bends for it. Optional and defaulting to the
+  // module constant below, so every existing caller (tests, ai-bench, the
+  // balance harness, the golden fixture) keeps getting byte-identical
+  // decisions with zero changes on their end.
+  evaluationSeedCount: number = EVALUATION_SEEDS
 ): Decision[] {
   const player = state.players[playerId]
   const candidates = generateCandidates(player, state.kaizerTradePrices)
@@ -274,7 +282,7 @@ export function planYear(
   // Fixed per-turn evaluation seeds: every candidate this turn sees identical
   // weather and identical event rolls, so differences in score come from the
   // decisions rather than from luck.
-  const evaluationSeeds = Array.from({ length: EVALUATION_SEEDS }, (_, i) => seed + i * 7919)
+  const evaluationSeeds = Array.from({ length: evaluationSeedCount }, (_, i) => seed + i * 7919)
 
   const isolated = isolate(state, playerId)
 

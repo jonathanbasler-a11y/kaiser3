@@ -19,7 +19,8 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **10** | Sonnet/Haiku | Low–Medium | ComfyUI art pass (portraits, buildings, event icons, coronation tableau) | Tileset manifest loads, art deletable → procedural fallback works |
 | **11** | Sonnet | High | Trading houses, succession, warfare (BACKLOG B2-B4, F4, F5) | Tests green, balance gate re-passes with the new income/loss channels |
 | **11.5** | Opus | Max | Balance instrumentation + make warfare a live mechanic | Harness sees every income/loss channel; war fires at a deliberate cadence; gate re-passes |
-| **12** | Sonnet | High | QA/hardening, regression, difficulty presets | All prior gates re-pass, difficulty presets validate via harness |
+| **12** | Sonnet | High | `planYear` performance, flood/drought (F6), corn price drift precursor | ~4× perf with byte-identical decisions (golden test), balance gate re-passes twice |
+| **13** | Opus/Sonnet | High | D2 design spike (rank-gate shape), difficulty presets, hardening sweep (D1/D3/D4/D5) | D2 decision documented; presets separate measurably in the harness; D5 gate floor actually fails a spiralled config; all prior gates re-pass |
 
 ## Phase 0: Scaffold & Ground Rules ✓
 
@@ -773,3 +774,150 @@ design question (not a benchmark to re-run).
 ---
 
 **Last updated:** Phase 12 complete — `planYear` ~4× faster with byte-identical decisions, flood/drought (F6) shipped as real agriculture-linked events, corn price drift wired in. Balance gate re-passes. Ready for Phase 13 (hardening).
+
+## Phase 13: D2 Design Spike, Difficulty Presets, Hardening Sweep ✓
+
+**Status:** Complete. Scoped by a plan-mode research pass answering "what is
+left" — the feature list was done (F1/F3/F4/F5/F6 shipped, F2/F7 deferred by
+recorded decision); what remained was bookkeeping, one open design question
+(D2), and the hardening phase PLAN.md had promised since Phase 0 but never
+delivered. Sequenced **D2 spike before hardening** (user's explicit choice):
+difficulty presets and any gate-threshold work are calibrated against the
+victory condition, so deciding the rank-gate shape first avoids re-deriving
+both after a later redesign.
+
+### Step 0: Bookkeeping
+Corrected PLAN.md's own phase-overview table (row 12 had drifted from what
+Phase 12 actually shipped). Rewrote BACKLOG B5 — its "5,000 population"
+figure was stale; re-verified against current data it found a real, milder,
+live inconsistency instead (cathedral gate 2,800 vs. Archbishop's own
+threshold of 2,600 — recorded, not fixed, since the choice of which number
+moves is a balance call). Deleted `deserializeGameState()`
+(`src/engine/state.ts`), referenced nowhere — the same dead-data class
+`cornPriceBands` was before Phase 12 wired it in; re-add only alongside an
+actual save/load feature.
+
+### Step 1: D2 design spike — decision only, no implementation
+`docs/d2-rank-gate-design.md`. Confirmed at the data level: every
+`data/ranks.json` entry gates on the same `populationMin`+`palaceStages`
+pair — one path, and F4 (a second *economic* channel) proved a second
+channel feeding the same single gate can't diversify anything. Recommended
+shape: **alternative requirement SETS per rank** (a rank qualifies via any
+one path in full — Prestige/palace, Commerce/trading-houses, etc.), with
+`rankProgress()` generalized to `max` across paths so it stays continuous
+(no cliff — the same lesson `evaluator.ts`'s 540,000-utility-cliff comment
+already recorded). Flagged the real blocker for implementation: trading
+houses are themselves rank-gated at Margrave, which is only reachable via
+the palace path today, so a naive Commerce path can't help until mid-game —
+the doc recommends a separate Land/Population path for ranks 0-4 instead.
+Two alternatives (a points/weighted system; per-archetype rank ladders) were
+considered and rejected, with reasons. Implementation is deliberately its
+own future phase.
+
+### Step 2: Difficulty presets
+`data/difficulty.json` + `src/ai/difficulty.ts`, three presets (Easy/
+Standard/Hard). Two knobs, neither touching a game rule: **rival evaluation-
+seed count** (`planYear()` gained an optional 5th parameter, defaulting to
+the existing module constant so every pre-existing caller — tests,
+ai-bench, the balance harness, the golden fixture — is byte-identical with
+zero changes on their end) and **rival starting taler/farmland multiplier**
+(`applyStartingMultiplier()`, `src/engine/starter.ts`, applied to rivals
+only — the human always starts at the research doc's fixed baseline).
+Surfaced in the setup screen as a segmented control. Verified the knobs
+actually separate outcomes (`tests/difficulty.test.ts`): the starting
+multiplier's effect is measured over a 15-year horizon rather than the full
+40, because by year 40 same-personality matches often both hit the palace's
+hard 16-stage ceiling, which erases the asymmetry under whatever noise is
+left — a real finding about *when* the lever matters, not a test-tuning
+workaround. The evaluation-seed knob's effect was measured directly at its
+mechanism (how much a chosen decision moves across different planning seeds
+at the same state) rather than a downstream 40-year score, after an earlier
+version tried the downstream approach and found the signal too noisy to be
+reliable at that distance — recorded in the test's own comment.
+
+### Step 3: Hardening sweep
+- **D5 gate floor** (`src/ai/balanceCriteria.ts`): a fourth criterion, "no
+  death spiral," built from the DIAGNOSTICS fields Phase 11.5 already
+  computed but never gated on (`nonLeaderReturnByDecade`,
+  `fieldPopulationByDecade`, `fieldHoldingsByDecade`, `extinctionRate`).
+  Verified against **hand-constructed** `BalanceReport` objects
+  (`tests/balanceCriteria.test.ts`), not just real matches: a synthetic
+  spiral-shaped report that would satisfy criteria 1-3 (a falling return
+  trend "passes" margin flatness; a high setback rate "passes" loss
+  persistence) is confirmed to fail criterion 4, and the actual Phase 12
+  measured shape — including its worst-decade non-leader return of −0.61% —
+  is confirmed to still pass.
+- **D4 parallelisation** (`src/ai/balanceParallel.ts`,
+  `scripts/balance-worker.ts`): worker threads split matches across cores.
+  `generateTimelines()` (the expensive simulation step) and
+  `aggregateTimelines()` (the cheap statistics step) were split out of
+  `analyseBalance()` so the parallel and serial paths share one aggregation
+  implementation, and a contiguous, ascending-order match-index split
+  (`planSlices()`) means the parallel report is **byte-identical** to the
+  serial one for the same config, not merely similar — proven directly
+  (`tests/balanceParallel.test.ts`, real worker threads, not mocked).
+  200-match gate run: ~180s serial → **39.4s parallel**, same result to the
+  decimal place.
+- **D3 affordance**: the Land tab now shows worked vs. idle hectares
+  directly (`laborGatedFarmland()`, the same function the harvest itself
+  uses, so it can never disagree with what happens at harvest time).
+  Verified in-browser.
+- **D1 re-measurement** (`scripts/rank-timing.ts`): the original figures
+  predated Phase 8 and were already contradicted by Phase 12's ai-bench.
+  Re-measured in solo play (20 seeds × 5 archetypes): Duke ~29y, Count
+  ~62y, Margrave ~80y, **Kaiser reached in 58% of runs** by a mean year of
+  126.6 within a 300-year window. "Out of reach" retired as a finding.
+- **Malformed-input sweep**: audited every engine function reading a raw
+  `Decision` number the way `resolveFeeding()`'s default branch already
+  modeled, and found the same gap repeatedly — `Math.max`/`Math.min` do
+  **not** self-heal `NaN`, so a malformed tax rate, land order, construction
+  count, espionage count, custom feed percentage, or grain-trade order could
+  poison a `PlayerState` running total permanently. Fixed with a shared
+  `src/engine/sanitize.ts` applied at each entry point (`tax.ts`, `land.ts`,
+  `buildings.ts`'s single `buildCapped` closure, `espionage.ts`, and two
+  remaining gaps in `economy.ts` itself). Verified end-to-end through
+  `advanceYear()`, including a clean second year after a fully-malformed
+  sheet (`tests/malformedInput.test.ts`) — recorded as BACKLOG B6.
+
+### Verification
+- 224/224 tests, `tsc` clean, production build succeeds.
+- `tests/golden.test.ts` stayed green throughout Steps 0-3 with **zero
+  fixture regenerations** — direct proof none of this phase's changes moved
+  a single AI decision. (The `ai-bench` numbers differ from the committed
+  `tests/fixtures/ai-bench-baseline.json` — but that fixture predates
+  Phase 12's F6/corn-price-drift and was never meant as a rolling
+  regression baseline, only a D4 pre-optimization snapshot; its own comment
+  says so. The golden fixture is the rolling guard, and it held.)
+- Full 200-match balance gate: **PASSED all four criteria**, byte-identical
+  to the pre-hardening-sweep run — leader return positive through decade 5,
+  field population/holdings/rank growing every decade (1069→2097 /
+  404k→1.05M / 0.03→3.27), 0.0% extinctions.
+- Browser: Easy/Standard/Hard all render and select correctly; a Hard-
+  difficulty rival started at 17,250 Taler (exactly 15,000 × 1.15); the
+  worked/idle hectare split showed 5,000/5,000 on a starter realm (exactly
+  right for 1,000 peasants × 5 ha/peasant labor capacity); zero console
+  errors throughout.
+
+### Acceptance Criteria
+- ✓ D2 decision documented with rejected alternatives and an implementation
+  path; no gameplay code changed by the spike itself
+- ✓ Difficulty presets separate outcomes measurably, touch no game rule
+- ✓ D5 floor demonstrably fails a spiral and passes the measured-healthy shape
+- ✓ D4 parallel path is byte-identical to serial, ~4.6× faster wall-clock
+- ✓ D3 affordance verified in-browser; D1 re-measured and corrected
+- ✓ Malformed input degrades safely at every audited entry point
+- ✓ All prior gates re-pass; golden fixture untouched
+
+### Next Phase
+Not yet scoped. Candidates recorded across BACKLOG.md: D2 implementation
+(its own phase, per the spike's own recommendation), F2/F7 (deferred,
+reasons recorded), a real save/load feature (would revive
+`deserializeGameState`), B5 (cathedral/Archbishop gate reconciliation).
+
+---
+
+**Last updated:** Phase 13 complete — D2 rank-gate redesign documented (not
+implemented), difficulty presets shipped and verified to separate outcomes,
+full hardening sweep (D1/D3/D4/D5 + malformed-input audit). Balance gate
+re-passes, golden fixture unmoved. Ready for Phase 14 (D2 implementation or
+user-directed next feature).
