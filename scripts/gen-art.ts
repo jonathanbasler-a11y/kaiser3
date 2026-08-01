@@ -74,12 +74,40 @@ const ASSET_SPECS: Record<string, Record<string, string>> = {
   }
 }
 
+// Final in-game asset sizes.
 const RESOLUTIONS: Record<string, [number, number]> = {
   buildings: [128, 96],
   portraits: [256, 256],
   eventIcons: [96, 96],
   terrain: [128, 96],
   scenes: [1280, 720]
+}
+
+// SDXL is trained at ~1024²; sampling straight to a 96×96 latent yields noise, not
+// a small picture. Generate at the nearest native bucket, then downscale in-graph.
+const GEN_SIZES: Record<string, [number, number]> = {
+  buildings: [1152, 896],
+  portraits: [1024, 1024],
+  eventIcons: [1024, 1024],
+  terrain: [1152, 896],
+  scenes: [1344, 768]
+}
+
+const COMFYUI_URL = process.env.COMFYUI_URL ?? 'http://127.0.0.1:8188'
+const CHECKPOINT = process.env.COMFYUI_CKPT ?? 'sd_xl_base_1.0.safetensors'
+const NEGATIVE_PROMPT =
+  'text, watermark, signature, logo, caption, letters, ui, frame, border, ' +
+  'photograph, 3d render, cgi, anime, blurry, low quality, deformed, collage, multiple subjects'
+
+// Deterministic per-asset seed so reruns reproduce and --seed-offset actually varies output.
+function seedFor(category: string, assetId: string, offset: number): number {
+  let h = 2166136261
+  const key = `${category}/${assetId}`
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return (Math.abs(h) % 1_000_000_000) + offset
 }
 
 function buildPrompt(assetId: string, category: string): string {
@@ -92,22 +120,21 @@ function buildPrompt(assetId: string, category: string): string {
   return `${preamble} ${spec}. Style: painterly, semi-isometric, natural medieval palette, fine detail, no text, no modern elements.`
 }
 
-async function generateAsset(job: AssetJob, dryRun: boolean): Promise<{ ok: boolean; file: string; error?: string }> {
+async function generateAsset(job: AssetJob, dryRun: boolean, seedOffset: number): Promise<{ ok: boolean; file: string; error?: string }> {
   if (dryRun) {
     console.log(`[dry-run] Would generate: ${job.id}`)
     console.log(`  Prompt: ${job.prompt.slice(0, 100)}...`)
     return { ok: true, file: job.outputPath }
   }
 
-  const comfyUIUrl = 'http://localhost:8188'
-  const [width, height] = RESOLUTIONS[job.category] ?? [128, 96]
+  const comfyUIUrl = COMFYUI_URL
+  const [targetW, targetH] = RESOLUTIONS[job.category] ?? [128, 96]
+  const [genW, genH] = GEN_SIZES[job.category] ?? [1024, 1024]
 
   try {
-    // Minimal ComfyUI txt2img workflow - test if basic structure works
-    const seed = Math.abs(job.id.charCodeAt(0) * 1000 + Math.random() * 10000)
     const workflow: Record<string, any> = {
       '1': {
-        inputs: { ckpt_name: 'sd_xl_base_1.0.safetensors' },
+        inputs: { ckpt_name: CHECKPOINT },
         class_type: 'CheckpointLoaderSimple'
       },
       '2': {
@@ -115,20 +142,20 @@ async function generateAsset(job: AssetJob, dryRun: boolean): Promise<{ ok: bool
         class_type: 'CLIPTextEncode'
       },
       '3': {
-        inputs: { text: '', clip: ['1', 1] },
+        inputs: { text: NEGATIVE_PROMPT, clip: ['1', 1] },
         class_type: 'CLIPTextEncode'
       },
       '4': {
-        inputs: { width, height, batch_size: 1 },
+        inputs: { width: genW, height: genH, batch_size: 1 },
         class_type: 'EmptyLatentImage'
       },
       '5': {
         inputs: {
-          seed: seed,
-          steps: 10,
+          seed: seedFor(job.category, job.id, seedOffset),
+          steps: 28,
           cfg: 7.0,
-          sampler_name: 'euler',
-          scheduler: 'normal',
+          sampler_name: 'dpmpp_2m',
+          scheduler: 'karras',
           denoise: 1.0,
           model: ['1', 0],
           positive: ['2', 0],
@@ -141,8 +168,19 @@ async function generateAsset(job: AssetJob, dryRun: boolean): Promise<{ ok: bool
         inputs: { samples: ['5', 0], vae: ['1', 2] },
         class_type: 'VAEDecode'
       },
+      // Downscale the native-resolution render to the in-game asset size.
       '7': {
-        inputs: { filename_prefix: job.id, images: ['6', 0] },
+        inputs: {
+          image: ['6', 0],
+          upscale_method: 'lanczos',
+          width: targetW,
+          height: targetH,
+          crop: 'center'
+        },
+        class_type: 'ImageScale'
+      },
+      '8': {
+        inputs: { filename_prefix: `kaiser3/${job.category}/${job.id}`, images: ['7', 0] },
         class_type: 'SaveImage'
       }
     }
@@ -155,51 +193,58 @@ async function generateAsset(job: AssetJob, dryRun: boolean): Promise<{ ok: bool
     })
 
     if (!response.ok) {
-      return { ok: false, file: job.outputPath, error: `ComfyUI HTTP ${response.status}` }
+      const body = await response.text().catch(() => '')
+      return { ok: false, file: job.outputPath, error: `HTTP ${response.status}: ${body.slice(0, 300)}` }
     }
 
     const result = await response.json() as { prompt_id: string }
     const promptId = result.prompt_id
 
-    // Poll for completion (timeout 5 min)
-    let completed = false
-    for (let attempt = 0; attempt < 300; attempt++) {
+    // Poll for completion (timeout 10 min per asset)
+    let entry: any = null
+    for (let attempt = 0; attempt < 600; attempt++) {
       await new Promise(r => setTimeout(r, 1000))
 
       try {
         const histRes = await fetch(`${comfyUIUrl}/history/${promptId}`)
         if (histRes.ok) {
           const hist = await histRes.json() as Record<string, any>
-          if (hist[promptId]?.outputs) {
-            completed = true
+          const e = hist[promptId]
+          if (e?.status?.completed || e?.status?.status_str === 'error') {
+            entry = e
             break
           }
         }
       } catch {
-        // Keep polling
+        // Server busy mid-sample; keep polling.
       }
     }
 
-    if (!completed) {
-      return { ok: false, file: job.outputPath, error: 'Generation timeout (5 min)' }
+    if (!entry) {
+      return { ok: false, file: job.outputPath, error: 'Generation timeout (10 min)' }
     }
 
-    // Fetch history to get image filename
-    const histRes = await fetch(`${comfyUIUrl}/history/${promptId}`)
-    if (!histRes.ok) {
-      return { ok: false, file: job.outputPath, error: 'History fetch failed' }
+    if (entry.status?.status_str === 'error') {
+      const errMsg = (entry.status.messages ?? [])
+        .filter((m: any) => m[0] === 'execution_error')
+        .map((m: any) => m[1]?.exception_message)[0] ?? 'unknown execution error'
+      return { ok: false, file: job.outputPath, error: String(errMsg).slice(0, 200) }
     }
 
-    const hist = await histRes.json() as Record<string, any>
-    const outputs = hist[promptId]?.outputs
-    const images = outputs?.['7']?.images ?? []
+    const images = entry.outputs?.['8']?.images ?? []
 
     if (!images.length) {
       return { ok: false, file: job.outputPath, error: 'No output images' }
     }
 
-    const imageFilename = images[0].filename
-    const imageUrl = `${comfyUIUrl}/view?filename=${encodeURIComponent(imageFilename)}&type=output`
+    // filename_prefix puts outputs in a subfolder; /view needs it as its own param.
+    const img = images[0]
+    const query = new URLSearchParams({
+      filename: img.filename,
+      subfolder: img.subfolder ?? '',
+      type: img.type ?? 'output'
+    })
+    const imageUrl = `${comfyUIUrl}/view?${query.toString()}`
 
     // Download image
     const imgRes = await fetch(imageUrl)
@@ -257,7 +302,7 @@ async function main() {
 
   for (const job of jobs) {
     process.stdout.write(`[${generated + failed + 1}/${jobs.length}] ${job.id}...`)
-    const result = await generateAsset(job, dryRun)
+    const result = await generateAsset(job, dryRun, seedOffset)
     if (result.ok) {
       console.log(' ✓')
       generated++
