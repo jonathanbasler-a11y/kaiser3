@@ -88,7 +88,10 @@ scripts/
 `npm install` · `npm run dev` · `npm run test` · `npm run sim` · `npm run balance` · `npm run build`
 
 ## Art sourcing
-Phase 10 onward: ComfyUI-generated original raster art checked into `public/art/`, loaded via Canvas 2D `drawImage`, falling back to procedural vector rendering in `render.ts` when art is missing (404-safe invariant: delete `public/art/` → fully playable game). Same legal discipline as the sister project (historyline): 100% originally generated, never derived from or traced against Kaiser/Ariolasoft or any copyrighted reference material.
+Phase 10 onward: ComfyUI-generated original raster art checked into `public/art/`, loaded via Canvas 2D `drawImage`, falling back to procedural vector rendering in `render.ts` when art is missing (404-safe invariant: delete `public/art/` → fully playable game). 100% originally generated, never derived from or traced against Kaiser/Ariolasoft or any copyrighted reference material.
+
+## Independence from other projects
+Kaiser 3 is a fully separate project — its own repo, own remote, own history. It shares no code, data, or dependencies with `historyline` (Great War Tactics) or any other repo on this machine. **Design decisions never carry over automatically.** Conventions, mechanics, architecture choices, art style, or workflow habits established in another project have zero default authority here — even if they were the right call there. The only thing that may cross over is a genuinely reusable *skill or technique* (e.g. "seeded PRNG for determinism" as a general pattern, not "how historyline balances combat"), and even then it must be proposed and confirmed with the owner before being applied — never assumed.
 
 ## Effort strategy (phase-by-phase)
 Per the plan table in `PLAN.md`: Haiku/Low for scaffolding (Phase 0), Sonnet/Medium baseline for most work (Phases 1–3, 8–9, 11), **Opus/High for judgment-dense stretches** (Phase 4: event fairness design, Phase 5: AI evaluator contract, Phase 7: aggressive archetype balance), **Opus/Max for Phase 6** (balance harness — the numeric proof of "stays hard throughout"). Phase 10 (art) scales multi-agent via `Workflow` for asset parallelism. Escalate with `ultrathink` or `/effort` for a stretch, then drop back to Sonnet/Medium.
