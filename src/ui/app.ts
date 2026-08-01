@@ -5,13 +5,14 @@
 
 import { GameState, Decision, Chronicle, PlayerState, EspionageMode } from '../engine/state.ts'
 import { eventLossMagnitudeText } from '../engine/events/events.ts'
-import { createStarterState } from '../engine/starter.ts'
+import { createStarterState, applyStartingMultiplier } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
 import { getRankName, isFeatureUnlocked } from '../engine/ranks.ts'
 import { getPersonalities, Personality } from '../ai/personalities.ts'
+import { getDifficultyPresets, getDifficultyPreset, DEFAULT_DIFFICULTY_ID, DifficultyPreset } from '../ai/difficulty.ts'
 import { planYear } from '../ai/planner.ts'
 import { compareStanding } from '../ai/sim.ts'
-import { annualGrainRequirement, storageCapacity, grainBuybackPrice } from '../engine/economy.ts'
+import { annualGrainRequirement, storageCapacity, grainBuybackPrice, laborGatedFarmland } from '../engine/economy.ts'
 import { el, clear, stepper, sliderField, segmented, statTile } from './dom.ts'
 import { DecisionDraft, defaultDraft, draftToDecisions, rivalOptions, affordableHectares, maxSellableGrain, maxAffordableGrainBuy, yearsOfFoodLabel } from './decisions.ts'
 import { drawBanner } from './render.ts'
@@ -39,6 +40,7 @@ interface Session {
   state: GameState
   rivals: Map<string, Personality>
   maxYears: number
+  difficulty: DifficultyPreset
   draft: DecisionDraft
   activeTab: Tab
   yearReport: { entries: HTMLElement[]; outcome: Outcome | null } | null
@@ -144,9 +146,26 @@ function mountBugReport(): void {
 function renderSetup(): void {
   clear(root)
   const personalities = getPersonalities()
+  const difficulties = getDifficultyPresets()
 
   let opponentCount = 2
   let maxYears = 60
+  let difficultyId = DEFAULT_DIFFICULTY_ID
+
+  const difficultyHost = el('div', {})
+  const difficultyDescription = el('p', { class: 'help-text' }, getDifficultyPreset(difficultyId).description)
+  const rerenderDifficulty = () => {
+    clear(difficultyHost as HTMLElement)
+    difficultyHost.appendChild(segmented({
+      options: difficulties.map((d) => ({ value: d.id, label: d.name })),
+      value: difficultyId,
+      onChange: (v) => {
+        difficultyId = v
+        difficultyDescription.textContent = getDifficultyPreset(v).description
+      }
+    }))
+  }
+  rerenderDifficulty()
 
   const rivalList = el('div', { class: 'card' },
     el('h2', {}, 'Rival rulers'),
@@ -178,21 +197,23 @@ function renderSetup(): void {
   rerenderSteppers()
 
   const startBtn = el('button', { class: 'primary full', textContent: 'Begin Your Reign' })
-  startBtn.addEventListener('click', () => startGame(opponentCount, maxYears))
+  startBtn.addEventListener('click', () => startGame(opponentCount, maxYears, difficultyId))
 
   root.append(
     el('div', { class: 'screen' },
       el('h1', {}, 'Kaiser 3'),
       el('p', { class: 'subtitle' }, 'Rule a principality. Outlast your rivals. Be crowned Kaiser.'),
-      el('div', { class: 'card' }, opponentStepperHost, yearsStepperHost),
+      el('div', { class: 'card' }, opponentStepperHost, yearsStepperHost,
+        el('h3', {}, 'Difficulty'), difficultyHost, difficultyDescription),
       rivalList,
       el('div', { class: 'sticky-footer' }, startBtn)
     )
   )
 }
 
-function startGame(opponentCount: number, maxYears: number): void {
+function startGame(opponentCount: number, maxYears: number, difficultyId: string): void {
   const personalities = getPersonalities()
+  const difficulty = getDifficultyPreset(difficultyId)
   const rivalIds = Array.from({ length: opponentCount }, (_, i) => `rival${i + 1}`)
   const rivals = new Map<string, Personality>()
   rivalIds.forEach((id, i) => rivals.set(id, personalities[i % personalities.length]))
@@ -203,10 +224,18 @@ function startGame(opponentCount: number, maxYears: number): void {
   ]
   const state = createStarterState(playerIds)
 
+  // Difficulty's starting asymmetry applies to rivals only — the human always
+  // starts from the research doc's fixed baseline (see starter.ts's own
+  // comment on applyStartingMultiplier).
+  for (const rivalId of rivalIds) {
+    state.players[rivalId] = applyStartingMultiplier(state.players[rivalId], difficulty.rivalStartingMultiplier)
+  }
+
   session = {
     state,
     rivals,
     maxYears,
+    difficulty,
     draft: defaultDraft(state.players[HUMAN_ID]),
     activeTab: 'overview',
     yearReport: null
@@ -328,7 +357,7 @@ function renderOverviewTab(): HTMLElement {
         )
       })
     ),
-    el('p', { class: 'help-text' }, `Year ${state.year} of up to ${session!.maxYears}. Corn: ${state.kaizerTradePrices.corn.toFixed(2)}/unit · Farmland: ${state.kaizerTradePrices.farmland.toFixed(0)}/ha`)
+    el('p', { class: 'help-text' }, `Year ${state.year} of up to ${session!.maxYears} · ${session!.difficulty.name} difficulty. Corn: ${state.kaizerTradePrices.corn.toFixed(2)}/unit · Farmland: ${state.kaizerTradePrices.farmland.toFixed(0)}/ha`)
   )
 }
 
@@ -377,8 +406,25 @@ function renderLandTab(player: GameState['players'][string], state: GameState): 
   const maxFarmBuy = affordableHectares(player.taler, state.kaizerTradePrices.farmland)
   const maxBuildBuy = affordableHectares(player.taler, state.kaizerTradePrices.buildingLand)
 
+  // D3 (BACKLOG.md): farmland beyond what the current population can work
+  // produces nothing (economy.ts's laborGatedFarmland — the same function
+  // the harvest itself uses, so this can never disagree with what actually
+  // happens at harvest time). Buying past that line was a trap with nothing
+  // in the UI explaining it; showing the real worked/idle split makes the
+  // tradeoff visible instead of only findable by reading the source.
+  const workedFarmland = laborGatedFarmland(player.land, player.population)
+  const idleFarmland = player.land.farmland - workedFarmland
+  const idleTone = idleFarmland > player.land.farmland * 0.15 ? 'bad' : undefined
+
   return el('div', {},
-    el('p', { class: 'help-text' }, `Farmland ${player.land.farmland.toFixed(0)} ha · Building land ${player.land.buildingLand.toFixed(0)} ha. Farmland beyond ~5 ha per peasant sits idle.`),
+    el('div', { class: 'stat-grid' },
+      statTile('Farmland worked', `${workedFarmland.toFixed(0)} ha`),
+      statTile('Farmland idle', `${idleFarmland.toFixed(0)} ha`, idleTone),
+      statTile('Building land', `${player.land.buildingLand.toFixed(0)} ha`)
+    ),
+    el('p', { class: 'help-text' },
+      `Farmland is worked at ~5 ha per peasant — buying beyond that leaves hectares idle until your population grows into them.`
+    ),
     stepper({
       label: `Farmland (buy up to ${maxFarmBuy}, or sell what you hold)`,
       value: draft.farmlanbuy, min: -player.land.farmland, max: maxFarmBuy, step: 100,
@@ -595,7 +641,7 @@ function runYear(): void {
 
 function resolveYear(): void {
   if (!session) return
-  const { state, rivals, draft } = session
+  const { state, rivals, draft, difficulty } = session
 
   const decisions: Record<string, Decision[]> = {
     [HUMAN_ID]: draftToDecisions(draft)
@@ -604,7 +650,7 @@ function resolveYear(): void {
   for (const [id, personality] of rivals) {
     if (!state.activePlayerIds.includes(id)) continue
     const seed = 5000 + year * 104729 + id.length
-    decisions[id] = planYear(state, id, personality, seed)
+    decisions[id] = planYear(state, id, personality, seed, difficulty.rivalEvaluationSeeds)
   }
 
   const seed = 1 + year * 1000

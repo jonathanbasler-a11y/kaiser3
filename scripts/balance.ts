@@ -1,9 +1,20 @@
 // The Phase 6 anti-snowball gate. Run with `npm run balance [matches] [years]`.
 //
-// Prints the three flatness criteria and exits non-zero if any fails, so this can
-// gate a build as well as inform tuning.
+// Prints the four criteria (Phase 13 added #4, the death-spiral floor — see
+// BACKLOG D5) and exits non-zero if any fails, so this can gate a build as
+// well as inform tuning.
+//
+// Phase 13 (BACKLOG D4): matches are now generated in parallel across worker
+// threads, one per available CPU core (minus one, so the machine stays
+// responsive) — each match is an independent seeded simulation, so this is
+// pure scheduling, not a determinism risk. Falls back to the original serial
+// path (analyseBalance) if worker spawning fails for any reason, so the gate
+// itself never depends on the parallelisation working.
 
-import { analyseBalance, BalanceReport } from '../src/ai/balance.ts'
+import { fileURLToPath } from 'node:url'
+import { cpus } from 'node:os'
+import { analyseBalance, BalanceConfig, BalanceReport } from '../src/ai/balance.ts'
+import { analyseBalanceParallel } from '../src/ai/balanceParallel.ts'
 import { aiCompetitor, Competitor } from '../src/ai/sim.ts'
 import { getPersonalities } from '../src/ai/personalities.ts'
 import { BALANCE_THRESHOLDS, evaluateCriteria } from '../src/ai/balanceCriteria.ts'
@@ -13,11 +24,29 @@ const maxYears = Number(process.argv[3] ?? 60)
 
 const competitors: Competitor[] = getPersonalities().map((p) => aiCompetitor(p.id, p.id))
 
+const WORKER_PATH = fileURLToPath(new URL('./balance-worker.ts', import.meta.url))
+
+async function run(): Promise<BalanceReport> {
+  const config: BalanceConfig = { competitors, matches, maxYears }
+  const workerCount = Math.max(1, cpus().length - 1)
+
+  if (workerCount <= 1 || matches < workerCount) {
+    return analyseBalance(config)
+  }
+
+  try {
+    return await analyseBalanceParallel(WORKER_PATH, config, workerCount)
+  } catch (err) {
+    console.error(`Worker parallelisation failed (${(err as Error).message}), falling back to serial.`)
+    return analyseBalance(config)
+  }
+}
+
 console.log(`Kaiser 3 — balance harness`)
 console.log(`${matches} seeded matches x ${maxYears} years, ${competitors.length} AI rulers\n`)
 
 const started = Date.now()
-const report: BalanceReport = analyseBalance({ competitors, matches, maxYears })
+const report: BalanceReport = await run()
 const elapsed = ((Date.now() - started) / 1000).toFixed(1)
 
 const pct = (x: number) => (x * 100).toFixed(1).padStart(6) + '%'
@@ -37,14 +66,14 @@ console.log('\n--- 3. Lead volatility ---')
 console.log(`  leader changes after yr 30: ${pct(report.lateLeadChangeRate)} of matches (must be >= ${BALANCE_THRESHOLDS.minLateLeadChangeRate * 100}%)`)
 console.log(`  yr-20 leader goes on to win: ${pct(report.earlyLeaderWinRate)} of matches (must be <= ${BALANCE_THRESHOLDS.maxEarlyLeaderWinRate * 100}%)`)
 
-// Not gate criteria. BACKLOG.md D5: the three criteria above are one-sided —
-// they catch a game going soft, but a game grinding every ruler into the dirt
-// passes all three trivially. These exist so "PASS" can be read honestly.
-console.log('\n--- DIAGNOSTICS (not gate criteria — see BACKLOG D5) ---')
+// DIAGNOSTICS are still printed even though criterion 4 (below) now gates on
+// the same fields — the raw per-decade numbers remain useful for reading
+// *why* a FAIL happened, not just that one did.
+console.log('\n--- 4. No death spiral (BACKLOG D5) ---')
 console.log('  Leader vs non-leader return by decade. The design INTENDS the leader')
 console.log('  to suffer; it does not intend everyone to. Leader negative while')
 console.log('  non-leader is healthy = the anti-snowball lever working. Both')
-console.log('  negative = a death spiral the gate cannot see.')
+console.log('  negative = a death spiral.')
 report.leaderReturnByDecade.forEach((leaderValue, i) => {
   const others = report.nonLeaderReturnByDecade[i]
   console.log(

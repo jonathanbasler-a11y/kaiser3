@@ -2,6 +2,7 @@
 // Player-to-player trading (with per-ruler pricing) is a Phase 7 extension (TradeDecision).
 
 import { LandHolding, LandTradeDecision } from './state.ts'
+import { finiteOr } from './sanitize.ts'
 
 export interface LandTradeResult {
   newLand: LandHolding
@@ -17,12 +18,14 @@ export function applyLandTrade(
   decision: LandTradeDecision,
   kaizerPrices: { farmland: number; buildingLand: number }
 ): LandTradeResult {
-  // Clamp sells to available holdings — can't sell land you don't have.
-  let farmlandDelta = decision.farmlanbuy
+  // Sanitized at the boundary (sanitize.ts): a NaN order must degrade to "do
+  // nothing" (0), not silently poison land.farmland/buildingLand — both are
+  // running totals mutated year over year, so one bad write never recovers.
+  let farmlandDelta = finiteOr(decision.farmlanbuy, 0)
   if (farmlandDelta < 0) {
     farmlandDelta = -Math.min(-farmlandDelta, land.farmland)
   }
-  let buildingLandDelta = decision.buildingLandBuy
+  let buildingLandDelta = finiteOr(decision.buildingLandBuy, 0)
   if (buildingLandDelta < 0) {
     buildingLandDelta = -Math.min(-buildingLandDelta, land.buildingLand)
   }

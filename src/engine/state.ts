@@ -288,11 +288,12 @@ export function cloneGameState(state: GameState): GameState {
   }
 }
 
-// Serialization helpers (for save/load, determinism tests)
+// Serialization helper (determinism tests compare two runs by serialized
+// equality — tests/determinism.test.ts). A matching deserializeGameState()
+// existed here unreferenced by anything (no save/load feature is in scope —
+// see PLAN.md's phase list) until Phase 13's bookkeeping pass removed it,
+// same dead-data class as cornPriceBands was before Phase 12 wired it in.
+// Re-add only alongside an actual save/load feature, not speculatively.
 export function serializeGameState(state: GameState): string {
   return JSON.stringify(state, null, 2)
-}
-
-export function deserializeGameState(json: string): GameState {
-  return JSON.parse(json) as GameState
 }

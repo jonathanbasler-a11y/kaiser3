@@ -8,6 +8,7 @@
 import buildingsData from '../../data/buildings.json'
 import economyData from '../../data/economy.json'
 import { BuildingState, ConstructionDecision, LandHolding, PopulationState } from './state.ts'
+import { finiteOr } from './sanitize.ts'
 
 const PRODUCTION = buildingsData.production
 const PRESTIGE = buildingsData.prestige
@@ -38,9 +39,15 @@ export function applyConstruction(
   let remainingTaler = taler
   const newBuildings: BuildingState = { ...buildings }
 
+  // Every construction count in this function funnels through here, so
+  // sanitizing `requested` once (sanitize.ts) covers markets/mills/mitigation
+  // buildings/palace stages/cathedral/trading houses in one place — a NaN
+  // build order degrades to "build nothing" rather than poisoning
+  // newBuildings/remainingTaler (both running totals) for every year after.
   const buildCapped = (requested: number, cost: number, capRemaining: number): number => {
-    const affordable = cost > 0 ? Math.floor(remainingTaler / cost) : requested
-    const count = Math.max(0, Math.min(requested, capRemaining, affordable))
+    const safeRequested = finiteOr(requested, 0)
+    const affordable = cost > 0 ? Math.floor(remainingTaler / cost) : safeRequested
+    const count = Math.max(0, Math.min(safeRequested, capRemaining, affordable))
     remainingTaler -= count * cost
     return count
   }

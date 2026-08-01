@@ -45,10 +45,44 @@ human. `TradeDecision` (inter-ruler trade, F2) is still out of scope — removed
 the `Decision` union entirely per this entry's own prescribed remedy, rather than
 left validated-but-inert. Re-add only alongside the phase that implements F2.
 
-### B5. Cathedral population gate is inconsistent with the ranks that need it
-Beyond B1: the cathedral needs 5,000 population while **Archbishop asks 3,000, King
-3,500 and Kaiser 4,200**. Even after B1 is fixed, the building requirement should be
-stated in terms of the ranks it gates rather than drifting independently.
+### B5. Cathedral's own population gate is ABOVE the first rank that requires it
+Re-verified against current data (the "5,000" and "Archbishop asks 3,000" figures
+in the original entry were both stale — corrected below). `data/buildings.json`
+gates the cathedral at **`requiresMinPopulation: 2800`**. `data/ranks.json`'s
+**Archbishop** (the first rank requiring `cathedral: true`) only asks
+`populationMin: 2600`. So a ruler can satisfy every OTHER Archbishop requirement
+at population 2600 and still be unable to build the one building the rank needs,
+for another 200 population — the promotion table understates what Archbishop
+actually costs. Milder than B1 (2800 is well below the measured ~4,600 ceiling, so
+this does not make the rank unreachable, just later than `ranks.json` implies), but
+the same class of bug: the cathedral's gate is an independent number in
+`buildings.json` rather than derived from the ranks that need it (Archbishop 2600,
+King 2800, Kaiser 3200), so it can silently drift out of step with any one of them.
+Two legitimate fixes, either acceptable: lower the cathedral gate to ≤2600 (matches
+the stated Archbishop threshold), or raise Archbishop's `populationMin` to 2800
+(matches the real cost). Either way, express the cathedral's requirement in terms
+of the ranks it gates rather than as an independently-tuned constant.
+
+### ~~B6. Malformed Decision fields could poison PlayerState to NaN permanently~~ ✅ FIXED (Phase 13)
+`advanceYear()` does NOT call `validateDecisions()` (`src/engine/decisions.ts`)
+itself — that check happens at the UI/AI boundary, by convention. `resolveFeeding()`
+(`src/engine/economy.ts`) already established the right response to a malformed
+field reaching the engine anyway (degrade to the safe choice, documented as
+load-bearing, not defensive padding), but it was the only place that rule was
+applied. Audited every other Decision-consuming engine function and found the same
+gap repeatedly: `Math.max`/`Math.min`/`Math.floor` do **not** self-heal `NaN`
+(`Math.max(0, NaN)` is `NaN`, not `0`), so a NaN tax rate, land order, construction
+count, espionage hire/strike count, custom feed percentage, or grain trade order
+would poison a `PlayerState` field that is a running total mutated year over year —
+one bad number, once, corrupts every year after it for that ruler. Fixed with a
+shared `src/engine/sanitize.ts` (`finiteOr`, `sanitizeRate`) applied at the entry of
+`tax.ts`, `land.ts`, `buildings.ts` (all construction counts funnel through one
+`buildCapped` closure, sanitized once), `espionage.ts` (recruitment and strike), and
+the two remaining gaps in `economy.ts` itself (custom feed `?? 50` only caught
+`undefined`, not `NaN`; the grain-market sell/buy path had no guard at all).
+Verified end-to-end via `advanceYear()` (`tests/malformedInput.test.ts`), not just
+unit-by-unit: every numeric field NaN in one sheet, and a clean second year
+afterward, both stay fully finite.
 
 ---
 
@@ -151,10 +185,33 @@ would predictably regress the gate, not just add a feature.
 
 ## Balance and design findings
 
-### D1. Kaiser is out of reach in a normal-length game
-Even setting B1 aside, progression measures **Duke ~60y, Count ~120y, Margrave ~300y**.
-Whether that is "hard" or simply unwinnable is a judgment call for Phase 11's
-difficulty presets. Recorded rather than quietly tuned away.
+### ~~D1. Kaiser is out of reach in a normal-length game~~ ✅ STALE, RE-MEASURED (Phase 13)
+The original figures ("Duke ~60y, Count ~120y, Margrave ~300y") predated Phase 8's
+food-scarcity rework and B1's cathedral fix, and had already been contradicted by
+Phase 12's ai-bench (mean rank 3.27, i.e. past Count, at year 60 in a competitive
+5-ruler match — the two could not both be true).
+
+Re-measured directly (`scripts/rank-timing.ts`, 20 seeds x 5 archetypes, **solo
+play** — deliberately without rivals competing for the same land/titles, to answer
+D1's original "how hard is progression" question on its own terms rather than
+conflated with competitive pressure, which BACKLOG D2 covers separately):
+
+| Rank | Mean year reached | Reached within 300y |
+|---|---|---|
+| Duke | 28.8 | 100% |
+| Prince | 45.4 | 100% |
+| Count | 61.6 | 100% |
+| Margrave | 79.5 | 99% |
+| Archbishop | 111.4 | 63% |
+| King | 111.4 | 63% |
+| Kaiser | 126.6 | 58% |
+
+Kaiser — the win condition — is reached in the majority of solo runs, at a mean
+year well inside a normal-length game (`maxYears` defaults to 60 in the UI, but a
+player can set up to 300). **Not unwinnable.** Whether the pacing (Duke by ~29,
+Kaiser only reachable past ~127 on average) is the right shape for difficulty
+presets (Phase 13's `data/difficulty.json`) to tune around is a live, separate
+question — but "out of reach" is retired as a finding.
 
 ### D2. Archetypes converge — and it is a victory-condition problem, not a missing-mechanics one ⚠️
 Noted in Phase 5, partly helped by Phase 7's aggression, and then **regressed** by
@@ -188,8 +245,18 @@ shortage of mechanics feeding into it.
 proposed as the fix on the theory that a second route to rank would diversify play —
 that theory is now falsified by the F4 measurement above, since F4 *was* a second
 route and changed nothing. A real fix needs a different **victory condition or
-rank-gate shape**, not another economic channel feeding the same gate. Recorded as a
-design question for the hardening phase, not a benchmark to re-run.
+rank-gate shape**, not another economic channel feeding the same gate.
+
+**Design decision made (Phase 13 spike, not yet implemented):**
+`docs/d2-rank-gate-design.md`. Recommended shape: alternative requirement SETS per
+rank (a rank qualifies via any one path in full — Prestige/palace, Commerce/trading
+houses, etc.), with `rankProgress()` generalized to `max` across paths so it stays
+continuous. Flags one real blocker for whoever implements: `tradingHouse` is itself
+rank-gated at Margrave, which is currently only reachable via the palace path, so a
+naive Commerce path can't help until mid-game — the doc recommends scoping ranks
+0-4 a Land/Population path instead, gated on nothing downstream of itself.
+Implementation (schema, `ranks.ts`, `evaluator.ts`'s `palaceLandEnablement()`
+generalization, re-run `ai-bench`/balance gate) is its own future phase.
 
 ### D5. The balance gate is one-sided
 It guards against snowballing but not against a death spiral: strongly negative
@@ -207,8 +274,20 @@ for — the design *intends* the leader to have a hard time, so a negative leade
 return beside a healthy non-leader return is the anti-snowball lever working,
 whereas both negative is a spiral. Field growth and extinction rate settle it
 either way. The gate itself is unchanged; only the reader's ability to interpret
-"PASS" honestly has improved. **A numeric floor on the criteria themselves is still
-not implemented** — that remains open.
+"PASS" honestly has improved.
+
+### ~~D5 numeric floor~~ ✅ DONE (Phase 13)
+`src/ai/balanceCriteria.ts` gained a fourth criterion, "no death spiral," built
+from the exact same DIAGNOSTICS fields the Phase 11.5 block already computed
+(`nonLeaderReturnByDecade`, `fieldPopulationByDecade`, `fieldHoldingsByDecade`,
+`extinctionRate`) — a reader no longer has to interpret them, a spiral shape now
+fails the gate outright. Verified against hand-constructed report objects
+(`tests/balanceCriteria.test.ts`), not just real matches: a synthetic spiral-shaped
+report that would satisfy criteria 1-3 (a falling return trend "passes" margin
+flatness; a high setback rate "passes" loss persistence) is confirmed to fail
+criterion 4, and the actual Phase 12 measured shape (including its worst-decade
+non-leader return, −0.61%) is confirmed to still pass — the floor catches a real
+spiral without being tight enough to fail on ordinary noise.
 
 **The Phase 11 entry that stood here was wrong and has been removed.** It claimed
 war had made loss-persistence leap to 78–96%/decade with margin flatness running
@@ -216,12 +295,16 @@ negative from decade 4. Both figures were instrument error, not game behaviour �
 see PLAN.md Phase 11.5. Corrected, leader return is **positive in every decade**,
 decaying 5.48% → 0.79%, which is the intended anti-snowball shape.
 
-### D3. Land beyond labour capacity is inert
+### ~~D3. Land beyond labour capacity is inert~~ ✅ DONE (Phase 13)
 Farmland is labour-gated at 5 ha per peasant, so a realm starts with **twice the land
 it can work**. This is realistic and it is what makes population the true constraint,
-but it makes "buy land" a trap for a new player with nothing in the UI to explain it.
-A UI affordance is needed (worked vs. idle hectares), not a mechanics change.
+but it made "buy land" a trap for a new player with nothing in the UI to explain it.
 
+The Land tab (`src/ui/app.ts`'s `renderLandTab`) now shows worked vs. idle hectares
+directly, computed via `laborGatedFarmland()` (`src/engine/economy.ts`) — the SAME
+function the harvest itself uses, so the displayed split can never disagree with
+what actually happens at harvest time. Verified in-browser: a starter realm (10,000
+ha, 1,000 peasants) correctly shows 5,000 ha worked / 5,000 ha idle.
 ### D4. The balance gate's five-ruler configuration is slow ⚠️ partially addressed (Phase 12)
 Roughly 4× the per-match cost of three rulers; a 200-match run exceeds practical
 runtime. Current results are reported at 60 matches. Consider parallelising the

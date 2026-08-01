@@ -15,6 +15,7 @@
 import economyData from '../../data/economy.json'
 import { SeededRng } from './rng.ts'
 import { PlayerState, EspionageMode } from './state.ts'
+import { finiteOr } from './sanitize.ts'
 
 const ESPIONAGE = economyData.espionage
 
@@ -61,7 +62,11 @@ export function resolveStrike(
   mode: EspionageMode,
   rng: SeededRng
 ): StrikeOutcome {
-  const committed = Math.max(0, Math.min(Math.floor(saboteursCommitted), attacker.saboteurs))
+  // Sanitized at the boundary (sanitize.ts): Math.max/min do NOT self-heal
+  // NaN (Math.max(0, NaN) is NaN, not 0), and `committed` becomes
+  // attacker.saboteurs — a running total — so an unsanitized NaN order would
+  // poison it permanently instead of degrading to "commit nothing."
+  const committed = Math.max(0, Math.min(Math.floor(finiteOr(saboteursCommitted, 0)), attacker.saboteurs))
 
   const outcome: StrikeOutcome = {
     attackerId: attacker.id,
@@ -131,14 +136,20 @@ export function applyRecruitment(
   let remaining = player.taler
   const result: RecruitmentResult = { guardsHired: 0, saboteursHired: 0, spent: 0 }
 
+  // Sanitized at the boundary (sanitize.ts) — same reasoning as resolveStrike
+  // above: player.guards/saboteurs are running totals, so a NaN hire order
+  // must degrade to "hire none," not poison the standing force forever.
+  const safeGuardHire = finiteOr(guardHire, 0)
+  const safeSaboteurHire = finiteOr(saboteurHire, 0)
+
   const guardRoom = Math.max(0, ESPIONAGE.maxGuards - player.guards)
   const affordableGuards = Math.floor(remaining / ESPIONAGE.guardCost)
-  result.guardsHired = Math.max(0, Math.min(Math.floor(guardHire), guardRoom, affordableGuards))
+  result.guardsHired = Math.max(0, Math.min(Math.floor(safeGuardHire), guardRoom, affordableGuards))
   remaining -= result.guardsHired * ESPIONAGE.guardCost
 
   const saboteurRoom = Math.max(0, ESPIONAGE.maxSaboteurs - player.saboteurs)
   const affordableSaboteurs = Math.floor(remaining / ESPIONAGE.saboteurCost)
-  result.saboteursHired = Math.max(0, Math.min(Math.floor(saboteurHire), saboteurRoom, affordableSaboteurs))
+  result.saboteursHired = Math.max(0, Math.min(Math.floor(safeSaboteurHire), saboteurRoom, affordableSaboteurs))
   remaining -= result.saboteursHired * ESPIONAGE.saboteurCost
 
   player.guards += result.guardsHired
