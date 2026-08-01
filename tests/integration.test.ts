@@ -60,7 +60,10 @@ describe('20-year integration run', () => {
   })
 
   it('a player who already holds enough land can build a palace and reach Duke rank within a few years', () => {
-    // Duke requires wealthMin 20000, populationMin 2000, palaceStages 4 (data/ranks.json).
+    // Duke's Prestige path requires wealthMin 20000, populationMin 1300, palaceStages 4
+    // (data/ranks.json). Population is pinned below the alt Land/Population path's
+    // populationMin (1900, since D2 — docs/d2-rank-gate-design.md) so this player can
+    // only qualify by actually building the palace, which is what this test exercises.
     // Start with palace-eligible land (13,000 ha) and enough treasury to fund 2 stages/year.
     const wellFundedPlayer = () => ({
       id: 'player1',
@@ -68,7 +71,7 @@ describe('20-year integration run', () => {
       taler: 50000,
       land: { farmland: 13000, buildingLand: 0 },
       grainStock: 5000,
-      population: { peasants: 3000, unrest: 0 },
+      population: { peasants: 1600, unrest: 0 },
       buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 0 },
       rank: 0, guards: 0, saboteurs: 0, tradingHouses: 0, score: 0, reignYears: 0, dead: false
     })

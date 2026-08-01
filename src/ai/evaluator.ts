@@ -25,7 +25,7 @@ import buildingsData from '../../data/buildings.json'
 import { PlayerState, clonePlayerState } from '../engine/state.ts'
 import { getEventCatalog, calculateEventProbability } from '../engine/events/events.ts'
 import { ExposureContext } from '../engine/scarcity.ts'
-import { rankProgress, getNextRank } from '../engine/ranks.ts'
+import { rankProgress, getNextRank, groupProgress } from '../engine/ranks.ts'
 
 const POP_ECONOMY = economyData.population
 const HARVEST = economyData.harvest
@@ -183,18 +183,32 @@ export function intrinsicUtility(player: PlayerState, weights: PersonalityWeight
 }
 
 // Readiness (0-1) to build the palace at all, measured in land held. Applies
-// whenever the next rank has a palace requirement.
+// whenever the next rank has a palace-path requirement group AND that group is
+// (weakly) the ruler's most promising path — D2 (docs/d2-rank-gate-design.md)
+// added non-palace alternative paths per rank, so this term must not keep nudging
+// a ruler who is already ahead on a Commerce/Land path toward palace-gate land
+// they don't need.
 //
-// Deliberately NOT gated on "palace stages still outstanding". An earlier version
-// switched the term off once the ruler held the stages the next rank needed, which
-// put a ~540,000-utility cliff at exactly 4 stages: building the 4th was a
-// catastrophic loss, so the AI refused to, and the Builder's palace stalled at an
-// average of 2.8 stages instead of the 16 it had been completing. Any term that
-// vanishes on meeting a requirement will bribe the planner not to meet it — this
-// one varies only with land, and so stays smooth.
+// Deliberately NOT gated on "palace stages still outstanding" for the palace path
+// itself. An earlier version switched the term off once the ruler held the stages
+// the next rank needed, which put a ~540,000-utility cliff at exactly 4 stages:
+// building the 4th was a catastrophic loss, so the AI refused to, and the
+// Builder's palace stalled at an average of 2.8 stages instead of the 16 it had
+// been completing. Any term that vanishes on meeting a requirement will bribe the
+// planner not to meet it — this one varies only with land, and so stays smooth.
 function palaceLandEnablement(player: PlayerState): number {
   const next = getNextRank(player.rank)
-  if (next?.requirements.palaceStages === undefined) return 0
+  if (!next) return 0
+
+  const palaceGroups = next.requirements.filter((req) => req.palaceStages !== undefined)
+  if (palaceGroups.length === 0) return 0
+
+  const palacePathProgress = Math.max(...palaceGroups.map((req) => groupProgress(player, req)))
+  const altGroups = next.requirements.filter((req) => req.palaceStages === undefined)
+  const altPathProgress = altGroups.length > 0
+    ? Math.max(...altGroups.map((req) => groupProgress(player, req)))
+    : 0
+  if (altPathProgress > palacePathProgress) return 0
 
   const totalLand = player.land.farmland + player.land.buildingLand
   return Math.min(1, totalLand / PALACE.landRequirement)
