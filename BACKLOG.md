@@ -305,7 +305,6 @@ directly, computed via `laborGatedFarmland()` (`src/engine/economy.ts`) — the 
 function the harvest itself uses, so the displayed split can never disagree with
 what actually happens at harvest time. Verified in-browser: a starter realm (10,000
 ha, 1,000 peasants) correctly shows 5,000 ha worked / 5,000 ha idle.
-
 ### D4. The balance gate's five-ruler configuration is slow ⚠️ partially addressed (Phase 12)
 Roughly 4× the per-match cost of three rulers; a 200-match run exceeds practical
 runtime. Current results are reported at 60 matches. Consider parallelising the
