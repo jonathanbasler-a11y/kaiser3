@@ -22,52 +22,52 @@ interface AssetJob {
 }
 
 const SHARED_PREAMBLES: Record<string, string> = {
-  portraits: `Medieval Holy Roman Empire, oil painting style, late 15th century. Character portrait, three-quarter view, rich clothing and regalia befitting their rank. Natural lighting, slight warm tone. Painterly brushwork, fine detail in faces. No text, no modern elements.`,
-  buildings: `Medieval architecture, isometric three-quarter view, semi-transparent shadow beneath. Painterly texture, earth tones (ochre, sienna, grays). Slight depth of field. Single building per image, no people, no text. Roof and facing visible, shading suggests 3D form.`,
-  eventIcons: `Medieval icon style, symbolic rather than realistic. Bold, clear silhouette. Warm or dark background to suggest the event's tone. Oil painting texture, gold leaf accents where appropriate. Fits in a square, centered. No text.`,
+  portraits: `Medieval Holy Roman Empire, oil painting style, late 15th century. Solo character portrait of exactly ONE person, alone in frame, three-quarter view, rich clothing and regalia befitting their rank. Natural lighting, slight warm tone. Painterly brushwork, fine detail in faces. No text, no modern elements.`,
+  buildings: `Medieval architecture, isometric three-quarter view, semi-transparent shadow beneath. Painterly texture, earth tones (ochre, sienna, grays). A single isolated building standing alone on plain ground with no town, village, or skyline behind it — just the one structure and open grass/earth around it. No people, no text. Roof and facing visible, shading suggests 3D form.`,
+  eventIcons: `Medieval icon style, symbolic rather than realistic. Bold, clear silhouette of the literal described object/symbol, not a portrait of a person. Warm or dark background to suggest the event's tone. Oil painting texture, gold leaf accents where appropriate. Fits in a square, centered. No text, no human figures unless explicitly described.`,
   scenes: `Medieval illustration, oil painting style, rich detail, warm lighting.`,
-  terrain: `Medieval landscape hexagon, isometric three-quarter view, semi-transparent shadow beneath. Painterly, textured. Natural palette. No people, no buildings (those overlay). Shows land fertility/state via color/pattern.`
+  terrain: `Top-down/isometric single farmland plot tile, close overhead view of soil and crops filling the frame — not a wide landscape, not a distant town or castle. Semi-transparent shadow beneath. Painterly, textured. Natural palette. No people, no buildings. Shows land fertility/state via color/pattern.`
 }
 
 const ASSET_SPECS: Record<string, Record<string, string>> = {
   portraits: {
     builder: `Stern, disciplined, middle-aged merchant-prince in fur-trimmed coat. Hands show calluses. Books and architectural plans in background blur. Serious, methodical expression.`,
     expansionist: `Young, confident, bright-eyed noble in velvet doublet. Golden jewels catch light. Maps and banners visible behind. Expansive gesture, optimistic bearing.`,
-    merchant: `Shrewd, weathered trader in fine silk and saffron tones. Scales, coins, spice jars on nearby table. Sharp eyes, knowing smile. Prosperous but cautious.`,
-    schemer: `Shadowed, calculating face in dark silks. Single candle illuminates one side. Dagger hilt visible. Knowing, almost amused expression. Murky background.`,
+    merchant: `Solo portrait of one shrewd, weathered trader in fine silk and saffron tones, alone at his table. Scales, coins, spice jars nearby. Sharp eyes, knowing smile. Prosperous but cautious. Only this one man in the painting.`,
+    schemer: `Solo portrait of one shadowed, calculating figure in dark silks, alone in the frame. Single candle illuminates one side of his face. Dagger hilt visible at his belt. Knowing, almost amused expression. Murky background with no other people.`,
     raider: `Wild-eyed, scarred, muscular warrior in leather and iron. Wind-blown hair, weapon nearby. Fierce, predatory expression. Stormy sky behind.`
   },
   buildings: {
-    market: `Stone marketplace with a covered arcade, barrels and crates stacked outside. Tiled roof, wooden shutters. Prosperous, busy appearance despite being empty of people.`,
-    mill: `Stone watermill with a large wooden wheel on one side, stream below. Thatched or tiled roof. Gears visible inside the open side. Sturdy, functional design.`,
-    palace_stage_1: `Excavated plot with a few stone blocks, simple wooden scaffold. Bare earth around. Foundation of a great building.`,
-    palace_stage_2: `Ground floor complete, one story of walls, wooden framing for floors above.`,
+    market: `A single stone marketplace building with a covered arcade out front, barrels and crates stacked beside its entrance. Tiled roof, wooden shutters. One building only, standing alone, nothing else in the background.`,
+    mill: `A single stone watermill building with one large wooden wheel on its side, a small stream passing beneath it. Thatched roof. Gears visible through the open side. One isolated building, nothing else around it.`,
+    palace_stage_1: `A raw construction site on bare dirt: loose piles of cut stone blocks scattered on the ground, wooden scaffold poles standing upright, string lines marking a foundation outline. Absolutely NO walls exist yet, no roof, no finished structure of any kind — this must NOT look like a completed building, cottage, or village. Just building materials on an empty dirt lot.`,
+    palace_stage_2: `A half-built ruin-like construction site: four low stone wall stubs forming a rectangle outline, each wall only about waist-to-shoulder height, with jagged uneven tops where the masonry simply stops — like a building that was never finished. Completely open to the sky, no roof structure of any kind, no towers, no spires, no flags. Wooden scaffold poles and a ladder lean against the walls. Loose stone blocks and rubble scattered inside the unfinished rectangle. Must look like a stalled construction site, never a complete or nearly-complete building.`,
     palace_stage_16: `Full five-story grand palace with four corner towers, central spire with flag, heraldic banners, manicured courtyard and gardens, ornate gates. Seat of power, complete.`,
     cathedral: `Grand Gothic cathedral with a high central spire, flying buttresses, rose window visible. Lighter stone (pale gray/cream). Intricate masonry. Sacred, imposing, complete.`,
-    hospital: `Stone building with a red cross banner, large windows (suggesting light, cleanliness), herb garden boxes outside. Smaller than palace, clearly civic/care-oriented.`,
-    well: `Circular stone well with a wooden pulley mechanism and rope. Bucket nearby. Simple, functional, rustic appearance.`,
-    granary: `Large timber-frame building with sloped roof, multiple small windows for ventilation, external stairs. Grain sacks stacked outside. Clearly a storage building.`,
-    garrison: `Fortified stone structure, narrower windows (defensive), guard tower on corner, small catapult or cannon visible. Flags with shields. Martial, defensive appearance.`,
-    trading_house: `Ornate merchant's house with imported luxuries evident: fancy tiles, silk banners, exotic goods in display. Smaller than palace but ostentatiously wealthy.`
+    hospital: `A single simple rectangular building with ONE gabled roof (not a castle, not towers, not battlements), plain stone walls, a red cross flag mounted above its single front door, a few large windows. Small herb garden boxes at its base. Nothing else in the frame — just this one plain civic building alone on grass.`,
+    well: `A tiny prop-scale object study of a village wishing-well: a short circular ring of stacked round stones no taller than knee-height, topped by two thin wooden posts holding up a small peaked wood shingle roof no bigger than an umbrella, with a rope and wooden bucket hanging beneath it. The whole object is small and simple like a garden ornament — it has no walls, no door, no windows, no floor, no interior, nothing a person could stand inside. Sitting alone on plain grass.`,
+    granary: `A single large timber-frame building with a sloped roof, small ventilation windows along its side, an external staircase, and grain sacks stacked at its door. One isolated storage building, nothing else in the background.`,
+    garrison: `A single fortified stone structure with narrow defensive windows, one guard tower on its corner, and a small catapult beside it. One isolated martial building standing alone, nothing else in the background.`,
+    trading_house: `A single ornate merchant's house with fancy tiled walls, silk banners hanging from its front, and imported goods displayed at its entrance. One isolated, ostentatiously wealthy building standing alone, nothing else in the background.`
   },
   eventIcons: {
     plague_flag: `Quarantine flag with skull/crossbones, sickly green mist wisps around it. Dark background. Ominous, diseased tone.`,
     fire_smoke: `Flames and thick orange/red smoke rising from a building silhouette. Yellow and orange tones. Urgent, destructive energy.`,
-    famine_sign: `Empty bread loaf, wilted wheat sheaf, bare earth. Brown and gray tones. Desperate, starving feeling.`,
-    revolt_banner: `Raised fist or pitchfork, torn banner, angry red and black tones. Chaotic energy. Revolutionary tone.`,
+    famine_sign: `An icon of an empty broken bread loaf beside a wilted, drooping wheat sheaf, lying on cracked bare earth. No people. Brown and gray tones. Desperate, starving feeling.`,
+    revolt_banner: `An icon of a raised fist gripping a pitchfork, crossed with a torn tattered banner behind it. No faces, just the fist/pitchfork/banner symbols. Angry red and black tones. Chaotic, revolutionary energy.`,
     bandit_skull: `Skull with crossed swords or daggers behind it. Dark tones with metallic glint. Dangerous, plunder-focused.`,
     flood_wave: `Large blue/gray wave crashing, swallowing buildings/land in silhouette. Churning, destructive. Cool, overwhelming tone.`,
-    drought_sun: `Harsh, oversized sun beating down on cracked earth and wilted plants. Yellows and browns, parched feeling. Relentless heat.`
+    drought_sun: `A daytime icon showing one large, blazing bright-yellow sun high in a pale hot sky, radiating heat lines down onto a close-up field of deeply cracked, bone-dry earth with a few wilted brown plants. Bright daylight scene, NOT nighttime, no moon, no stars, no dark sky, no buildings, no houses, no castles. Yellows and browns, parched and relentless heat.`
   },
   scenes: {
     coronation_tableau: `Grand coronation scene in a cathedral: a crowned figure kneeling or standing before an altar, surrounded by bishops and nobles in ceremonial dress. Golden light streaming through stained glass. Opulent, triumphant, ceremonial tone.`,
     battlefield_backdrop: `Aerial view of a medieval battlefield: rolling hills, fortified town in the distance, cavalry and foot soldiers positioned across fields. Tents, banners, smoke from siege weapons. Strategic, tactical feeling. Early morning or late afternoon light.`,
-    chronicle_parchment: `Aged parchment or vellum texture with faded wax seal, torn edges, calligraphic script (illegible but decorative). Warm beige/cream tones, slight age staining.`
+    chronicle_parchment: `Extreme close-up macro photograph-style texture of blank old paper, like the empty page of an ancient diary. The ENTIRE image must be filled edge-to-edge with paper texture only — fibrous grain, water stains, small creases, one small wax seal blob in a corner, a thin decorative line border near the edges. There must be NO castle, NO building, NO landscape, NO scenery, NO horizon, NO illustration of any object or place — this is purely a flat background material texture, like fabric or wood-grain reference photography, not a picture of a scene.`
   },
   terrain: {
-    farmland_fallow: `Bare earth, turned soil, some rocks. Brown, gray tones. Ready but not planted.`,
+    farmland_fallow: `Close overhead view of bare turned soil filling the frame, furrow rows, a few scattered rocks. No town, no castle, no buildings. Brown, gray tones. Ready but not planted.`,
     farmland_planted: `Rows of young green shoots, fresh soil. Hopeful green and brown. Early growth.`,
-    farmland_ripe: `Golden wheat or grain at full height, ready for harvest. Rich golden-brown. Abundant, prosperous.`,
+    farmland_ripe: `Close overhead view of golden wheat at full height filling the frame, ready for harvest. No town, no castle, no distant valley. Rich golden-brown. Abundant, prosperous.`,
     farmland_blighted: `Diseased or drought-affected crops: yellowed, withered, sparse. Dull khaki and brown. Desperate, poor yield.`,
     forest: `Dense trees, dark green canopy, tree trunks visible beneath. Cool, shadowed tones. Wild, untamed.`,
     river: `Flowing water, blue-gray tones, banks on either side. Slight current suggested by water flow. Splits/divides hexagons on a map.`
@@ -98,6 +98,27 @@ const CHECKPOINT = process.env.COMFYUI_CKPT ?? 'sd_xl_base_1.0.safetensors'
 const NEGATIVE_PROMPT =
   'text, watermark, signature, logo, caption, letters, ui, frame, border, ' +
   'photograph, 3d render, cgi, anime, blurry, low quality, deformed, collage, multiple subjects'
+
+// Extra negative terms layered on for categories/assets where the base negative isn't enough
+// (buildings/terrain need "no surrounding village"; portraits need "no group shots").
+const EXTRA_NEGATIVE: Record<string, string> = {
+  portraits: 'multiple people, group portrait, crowd, several figures, two people, three people, four people',
+  buildings: 'village, town, city, skyline, many buildings, rooftops, distant buildings, multiple structures',
+  terrain: 'village, town, city, castle, wide landscape, valley view, distant buildings, horizon'
+}
+
+// Per-asset negative overrides for cases the category-level rule doesn't fit
+// (e.g. chronicle_parchment is a "scenes" asset but, unlike its siblings, must
+// have NO scenery at all).
+const EXTRA_NEGATIVE_BY_ASSET: Record<string, string> = {
+  chronicle_parchment: 'castle, building, house, tower, landscape, scenery, horizon, illustration, painting of a place, river, hills, trees',
+  drought_sun: 'night, moon, stars, dark sky, house, building, castle',
+  well: 'house, cottage, building, walls, roof, door, windows, silo, tower, structure, hut, cabin, large roof, thatched roof covering, farmhouse',
+  hospital: 'castle, towers, battlements, fortress, multiple towers',
+  palace_stage_1: 'finished building, complete building, roof, walls, cottage, chapel, village',
+  palace_stage_2: 'finished building, complete roof, chapel, cottage, village, castle, towers, spires, flags, battlements, complete walls, tall walls',
+  farmland_fallow: 'house, shed, building, hut, structure'
+}
 
 // Deterministic per-asset seed so reruns reproduce and --seed-offset actually varies output.
 function seedFor(category: string, assetId: string, offset: number): number {
@@ -142,7 +163,10 @@ async function generateAsset(job: AssetJob, dryRun: boolean, seedOffset: number)
         class_type: 'CLIPTextEncode'
       },
       '3': {
-        inputs: { text: NEGATIVE_PROMPT, clip: ['1', 1] },
+        inputs: {
+          text: [NEGATIVE_PROMPT, EXTRA_NEGATIVE[job.category], EXTRA_NEGATIVE_BY_ASSET[job.id]].filter(Boolean).join(', '),
+          clip: ['1', 1]
+        },
         class_type: 'CLIPTextEncode'
       },
       '4': {
@@ -270,12 +294,15 @@ async function main() {
   const dryRun = args.includes('--dry-run')
   const filterIdx = args.indexOf('--filter')
   const filterCategory = filterIdx !== -1 ? args[filterIdx + 1] : null
+  const assetsIdx = args.indexOf('--assets')
+  const filterAssets = assetsIdx !== -1 ? args[assetsIdx + 1].split(',').map(s => s.trim()) : null
   const seedOffsetIdx = args.indexOf('--seed-offset')
   const seedOffset = seedOffsetIdx !== -1 ? parseInt(args[seedOffsetIdx + 1], 10) : 0
 
   console.log(`\n=== Kaiser 3 Art Generation ===\n`)
   console.log(`Dry run: ${dryRun}`)
   console.log(`Filter: ${filterCategory ?? 'all'}`)
+  console.log(`Assets: ${filterAssets ? filterAssets.join(', ') : 'all'}`)
   console.log(`Seed offset: ${seedOffset}\n`)
 
   const tileset: TilesetJson = JSON.parse(fs.readFileSync(tilesetPath, 'utf-8'))
@@ -286,6 +313,7 @@ async function main() {
     if (filterCategory && category !== filterCategory) continue
 
     for (const [assetId, filePath] of Object.entries(assets)) {
+      if (filterAssets && !filterAssets.includes(assetId)) continue
       const prompt = buildPrompt(assetId, category)
       if (!prompt) continue
 

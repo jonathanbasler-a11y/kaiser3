@@ -5,6 +5,9 @@
 //   sprite.drawOn(ctx, x, y)
 
 import { drawBuildingProcedural, drawPortraitProcedural, drawEventIconProcedural, drawTerrainProcedural } from './render.ts'
+import tilesetData from '../../data/tileset.json'
+
+const STATIC_TILESET = tilesetData as unknown as Record<string, Record<string, string>>
 
 let tilesetManifest: Record<string, Record<string, string>> | null = null
 
@@ -146,4 +149,34 @@ export async function preloadSprites(category: string, assetIds: string[]): Prom
 
 export function getCachedSprite(category: string, assetId: string): Sprite | undefined {
   return spriteCache.get(`${category}/${assetId}`)
+}
+
+// ---------------------------------------------------------------------------
+// DOM image helper — for plain <img> usage outside canvas (setup screen,
+// standings, build tab, event log). Uses the build-time-imported manifest
+// (synchronous, no fetch round-trip) since the paths never change at runtime.
+// If a file is missing or fails to load, the wrapper gets a `.sprite-fallback`
+// class instead of throwing — the game must stay playable either way.
+// ---------------------------------------------------------------------------
+
+export function spriteImg(category: string, assetId: string, alt: string, className?: string): HTMLElement {
+  const wrapper = document.createElement('div')
+  wrapper.className = `sprite-thumb${className ? ' ' + className : ''}`
+
+  const filePath = STATIC_TILESET[category]?.[assetId]
+  if (!filePath) {
+    wrapper.classList.add('sprite-fallback')
+    return wrapper
+  }
+
+  const img = document.createElement('img')
+  img.src = `/${filePath}`
+  img.alt = alt
+  img.loading = 'lazy'
+  img.onerror = () => {
+    wrapper.classList.add('sprite-fallback')
+    img.remove()
+  }
+  wrapper.appendChild(img)
+  return wrapper
 }

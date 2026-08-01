@@ -217,12 +217,71 @@ input[type="range"] {
 .rival-row {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 8px;
   font-size: 0.85rem;
   padding: 6px 10px;
   background: var(--bg-panel-raised);
   border-radius: 8px;
 }
+.rival-row .rival-name { display: flex; align-items: center; gap: 8px; }
 .rival-row .rival-rank { color: var(--accent); }
+
+/* Sprite thumbnails — art assets loaded via spriteImg(). Sized per context via
+   modifier classes. A missing/failed image just leaves an empty rounded box
+   rather than a broken-image glyph — cosmetic, never blocks play. */
+.sprite-thumb {
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border);
+}
+.sprite-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.sprite-thumb.sprite-fallback { background: var(--border); }
+
+.sprite-thumb.portrait-sm { width: 36px; height: 36px; border-radius: 50%; }
+.sprite-thumb.portrait-lg { width: 56px; height: 56px; border-radius: 50%; }
+.sprite-thumb.building-sm { width: 44px; height: 33px; }
+.sprite-thumb.event-sm { width: 28px; height: 28px; border-radius: 6px; }
+
+.archetype-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+.archetype-row p { margin: 0; }
+
+.build-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.build-row > .stepper-wrap { flex: 1; }
+
+.log-entry.with-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scene-banner {
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+}
+.scene-banner .sprite-thumb.scene-full {
+  width: 100%;
+  height: auto;
+  border: none;
+  border-radius: 0;
+  background: none;
+}
+.scene-banner .sprite-thumb.scene-full img { width: 100%; height: auto; object-fit: contain; }
 
 canvas#banner {
   width: 100%;

@@ -14,6 +14,16 @@ import { annualGrainRequirement, storageCapacity, grainBuybackPrice } from '../e
 import { el, clear, stepper, sliderField, segmented, statTile } from './dom.ts'
 import { DecisionDraft, defaultDraft, draftToDecisions, rivalOptions, affordableHectares, maxSellableGrain, maxAffordableGrainBuy, yearsOfFoodLabel } from './decisions.ts'
 import { drawBanner } from './render.ts'
+import { spriteImg } from './spriteLoader.ts'
+
+// EventId ('plague'/'fire'/'famine'/'revolt'/'banditry') -> tileset.json eventIcons asset id.
+const EVENT_ICON_ID: Record<string, string> = {
+  plague: 'plague_flag',
+  fire: 'fire_smoke',
+  famine: 'famine_sign',
+  revolt: 'revolt_banner',
+  banditry: 'bandit_skull'
+}
 
 const HUMAN_ID = 'human'
 const KAISER_RANK = 7
@@ -135,8 +145,11 @@ function renderSetup(): void {
 
   const rivalList = el('div', { class: 'card' },
     el('h2', {}, 'Rival rulers'),
-    ...personalities.map((p) => el('p', { class: 'help-text' },
-      el('strong', { style: 'color:var(--ink)' } as never, p.name), ' — ', p.description
+    ...personalities.map((p) => el('div', { class: 'archetype-row' },
+      spriteImg('portraits', p.id, p.name, 'portrait-lg'),
+      el('p', { class: 'help-text' },
+        el('strong', { style: 'color:var(--ink)' } as never, p.name), ' — ', p.description
+      )
     ))
   )
 
@@ -290,15 +303,19 @@ function renderTabContent(tab: Tab): HTMLElement {
 }
 
 function renderOverviewTab(): HTMLElement {
-  const { state } = session!
+  const { state, rivals: rivalPersonalities } = session!
   const rivals = rivalOptions(state, HUMAN_ID)
   return el('div', {},
     el('h2', {}, 'Rival standings'),
     el('div', { class: 'rival-list' },
       ...rivals.map(({ id, name }) => {
         const p = state.players[id]
+        const archetypeId = rivalPersonalities.get(id)?.id
         return el('div', { class: 'rival-row' },
-          el('span', {}, name),
+          el('span', { class: 'rival-name' },
+            archetypeId ? spriteImg('portraits', archetypeId, name, 'portrait-sm') : null,
+            name
+          ),
           el('span', { class: 'rival-rank' }, `${getRankName(p.rank)} · ${p.taler.toFixed(0)} Taler · ${p.population.peasants.toFixed(0)} pop`)
         )
       })
@@ -377,13 +394,24 @@ function renderTaxTab(draft: DecisionDraft): HTMLElement {
   )
 }
 
+function buildRow(assetId: string, label: string, control: HTMLElement): HTMLElement {
+  return el('div', { class: 'build-row' },
+    spriteImg('buildings', assetId, label, 'building-sm'),
+    el('div', { class: 'stepper-wrap' }, control)
+  )
+}
+
 function renderBuildTab(player: GameState['players'][string], draft: DecisionDraft): HTMLElement {
   const container = el('div', {},
     el('h3', {}, 'Production'),
-    stepper({ label: `Markets (${player.buildings.markets})`, value: draft.marketBuild, min: 0, max: 10, step: 1, onChange: (v) => { draft.marketBuild = v } }),
-    stepper({ label: `Mills (${player.buildings.mills})`, value: draft.millBuild, min: 0, max: 10, step: 1, onChange: (v) => { draft.millBuild = v } }),
+    buildRow('market', 'Market', stepper({ label: `Markets (${player.buildings.markets})`, value: draft.marketBuild, min: 0, max: 10, step: 1, onChange: (v) => { draft.marketBuild = v } })),
+    buildRow('mill', 'Mill', stepper({ label: `Mills (${player.buildings.mills})`, value: draft.millBuild, min: 0, max: 10, step: 1, onChange: (v) => { draft.millBuild = v } })),
     el('h3', {}, 'Rank path'),
-    stepper({ label: `Palace stages (${player.buildings.palace}/16)`, value: draft.palaceStages, min: 0, max: 16, step: 1, onChange: (v) => { draft.palaceStages = v } }),
+    buildRow(
+      player.buildings.palace >= 16 ? 'palace_stage_16' : player.buildings.palace >= 1 ? 'palace_stage_2' : 'palace_stage_1',
+      'Palace',
+      stepper({ label: `Palace stages (${player.buildings.palace}/16)`, value: draft.palaceStages, min: 0, max: 16, step: 1, onChange: (v) => { draft.palaceStages = v } })
+    ),
   )
 
   if (!player.buildings.cathedral) {
@@ -392,15 +420,15 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
       draft.cathedralBuild = !draft.cathedralBuild
       cathedralBtn.textContent = draft.cathedralBuild ? 'Cathedral: Building ✓' : 'Attempt Cathedral'
     })
-    container.appendChild(cathedralBtn)
+    container.appendChild(buildRow('cathedral', 'Cathedral', cathedralBtn))
   }
 
   container.append(
     el('h3', {}, 'Mitigation'),
-    stepper({ label: `Wells — fire (${player.buildings.well})`, value: draft.wellBuild, min: 0, max: 1, step: 1, onChange: (v) => { draft.wellBuild = v } }),
-    stepper({ label: `Hospitals — plague (${player.buildings.hospital})`, value: draft.hospitalBuild, min: 0, max: 1, step: 1, onChange: (v) => { draft.hospitalBuild = v } }),
-    stepper({ label: `Granaries — famine (${player.buildings.granary})`, value: draft.granaryBuild, min: 0, max: 1, step: 1, onChange: (v) => { draft.granaryBuild = v } }),
-    stepper({ label: `Garrisons — banditry/revolt (${player.buildings.garrison})`, value: draft.garrisonBuild, min: 0, max: 1, step: 1, onChange: (v) => { draft.garrisonBuild = v } })
+    buildRow('well', 'Well', stepper({ label: `Wells — fire (${player.buildings.well})`, value: draft.wellBuild, min: 0, max: 1, step: 1, onChange: (v) => { draft.wellBuild = v } })),
+    buildRow('hospital', 'Hospital', stepper({ label: `Hospitals — plague (${player.buildings.hospital})`, value: draft.hospitalBuild, min: 0, max: 1, step: 1, onChange: (v) => { draft.hospitalBuild = v } })),
+    buildRow('granary', 'Granary', stepper({ label: `Granaries — famine (${player.buildings.granary})`, value: draft.granaryBuild, min: 0, max: 1, step: 1, onChange: (v) => { draft.granaryBuild = v } })),
+    buildRow('garrison', 'Garrison', stepper({ label: `Garrisons — banditry/revolt (${player.buildings.garrison})`, value: draft.garrisonBuild, min: 0, max: 1, step: 1, onChange: (v) => { draft.garrisonBuild = v } }))
   )
 
   return container
@@ -529,7 +557,11 @@ function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement
     const magnitude = event.lossType === 'gold' ? `${event.loss.toFixed(0)} Taler lost`
       : event.lossType === 'population' ? `${event.loss.toFixed(0)} peasants lost`
       : `${event.loss.toFixed(0)} buildings destroyed`
-    entries.push(el('div', { class: 'log-entry bad' }, `${event.telegraphText} (${magnitude})`))
+    const iconId = EVENT_ICON_ID[event.type]
+    entries.push(el('div', { class: 'log-entry bad with-icon' },
+      iconId ? spriteImg('eventIcons', iconId, event.type, 'event-sm') : null,
+      el('span', {}, `${event.telegraphText} (${magnitude})`)
+    ))
   }
 
   for (const strike of chronicle.strikes) {
@@ -622,8 +654,13 @@ function renderGameOver(outcome: Outcome): void {
   const again = el('button', { class: 'primary full', textContent: 'Play Again' })
   again.addEventListener('click', () => { session = null; renderSetup() })
 
+  const sceneBanner = outcome.kind === 'victory'
+    ? el('div', { class: 'scene-banner' }, spriteImg('scenes', 'coronation_tableau', 'Coronation', 'scene-full'))
+    : null
+
   root.append(
     el('div', { class: 'screen' },
+      sceneBanner,
       el('h1', {}, headline),
       el('div', { class: 'card' }, el('h2', {}, 'Final standings'), el('div', { class: 'rival-list' }, ...rows)),
       el('div', { class: 'sticky-footer' }, again)
