@@ -292,6 +292,34 @@ canvas#banner {
 }
 
 .help-text { font-size: 0.8rem; color: var(--ink-dim); }
+.help-text.bad { color: var(--bad); }
+
+/* D2 rank-progress: one bar per alternative qualifying path toward the next
+   rank (docs/d2-rank-gate-design.md) — the leading path is highlighted so a
+   player can tell at a glance which route they're actually closest to. */
+.rank-progress-row { margin-bottom: 10px; }
+.rank-progress-row:last-child { margin-bottom: 0; }
+.rank-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: var(--ink-dim);
+  margin-bottom: 4px;
+}
+.rank-progress-row.leading .rank-progress-label { color: var(--accent-bright); font-weight: 600; }
+.progress-track {
+  height: 10px;
+  border-radius: 6px;
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--ink-dim);
+  border-radius: 6px;
+}
+.rank-progress-row.leading .progress-fill { background: var(--accent); }
 
 @media (min-width: 640px) {
   .screen { padding: 24px 20px; }
