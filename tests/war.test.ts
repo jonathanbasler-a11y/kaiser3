@@ -46,28 +46,57 @@ describe('resolveWar', () => {
     const rng = new SeededRng(7)
     const a = makePlayer({ id: 'a', buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 2 } })
     const b = makePlayer({ id: 'b' })
-    const startingA = a.population.peasants
-    const startingB = b.population.peasants
 
-    resolveWar(a, b, [], rng)
+    const outcome = resolveWar(a, b, [], rng)
 
-    expect(a.population.peasants).toBeLessThan(startingA)
-    expect(b.population.peasants).toBeLessThan(startingB)
+    // Asserted on the casualty figures rather than on net population, because the
+    // winner ALSO annexes the loser's subjects and so can finish a war with more
+    // peasants than it started with. The cost is still real and still paid.
+    expect(outcome.attackerCasualties).toBeGreaterThan(0)
+    expect(outcome.defenderCasualties).toBeGreaterThan(0)
   })
 
   it('the loser always takes a heavier casualty share than the winner', () => {
     const rng = new SeededRng(3)
     const strong = makePlayer({ id: 'strong', buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 5 }, guards: 25 })
     const weak = makePlayer({ id: 'weak' })
-    const startingWeak = weak.population.peasants
-    const startingStrong = strong.population.peasants
 
     const outcome = resolveWar(strong, weak, [], rng)
     expect(outcome.attackerWon).toBe(true)
+    expect(outcome.defenderCasualties).toBeGreaterThan(outcome.attackerCasualties)
+  })
 
-    const strongLossFraction = (startingStrong - strong.population.peasants) / startingStrong
-    const weakLossFraction = (startingWeak - weak.population.peasants) / startingWeak
-    expect(weakLossFraction).toBeGreaterThan(strongLossFraction)
+  it('conquered territory carries its people — the winner annexes subjects, the loser forfeits them', () => {
+    const rng = new SeededRng(3)
+    const strong = makePlayer({ id: 'strong', buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 5 }, guards: 25 })
+    const weak = makePlayer({ id: 'weak' })
+    const startingStrong = strong.population.peasants
+    const startingWeak = weak.population.peasants
+
+    const outcome = resolveWar(strong, weak, [], rng)
+    expect(outcome.attackerWon).toBe(true)
+    expect(outcome.populationTransferred).toBeGreaterThan(0)
+
+    // This is the point of the mechanic: population gates every senior rank, so a
+    // war that only moved land would trade the binding resource for an inert one
+    // (BACKLOG D3 — realms already hold ~2x the land they can work).
+    expect(strong.population.peasants).toBeGreaterThan(startingStrong)
+    expect(weak.population.peasants).toBeLessThan(startingWeak)
+  })
+
+  it('population is conserved across a war, net of casualties', () => {
+    const rng = new SeededRng(3)
+    const strong = makePlayer({ id: 'strong', buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 5 }, guards: 25 })
+    const weak = makePlayer({ id: 'weak' })
+    const before = strong.population.peasants + weak.population.peasants
+
+    const outcome = resolveWar(strong, weak, [], rng)
+    const after = strong.population.peasants + weak.population.peasants
+
+    // Annexation moves people; it must not create or destroy them. The only
+    // legitimate shortfall is the casualties both sides actually took.
+    const casualties = outcome.attackerCasualties + outcome.defenderCasualties
+    expect(after).toBeCloseTo(before - casualties, 6)
   })
 
   it('land transfer never exceeds maxLandTransferShare of the loser\'s holdings', () => {
@@ -80,18 +109,23 @@ describe('resolveWar', () => {
     expect(weak.land.farmland).toBeGreaterThanOrEqual(500 - 1e-6)
   })
 
-  it('allied strength contributes to the defender\'s side, making an alliance harder to beat', () => {
+  // Allies fight FOR the attacker: this is a coalition against a strong rival, not
+  // a defensive pact. An earlier version of this test asserted the opposite and so
+  // locked in a genuine bug — an AI requesting allies was arming its own target,
+  // and measured attacker win rate sat at 38.9% against a 55% declaration floor.
+  it('allied strength joins the attacker, improving the odds of a coalition war', () => {
     const attacker = makePlayer({ id: 'attacker', buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 2 }, guards: 5 })
     const defender = makePlayer({ id: 'defender' })
     const ally = makePlayer({ id: 'ally', buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 5 }, guards: 20 })
 
     const outcomeAlone = resolveWar(
-      { ...JSON.parse(JSON.stringify(attacker)) }, { ...JSON.parse(JSON.stringify(defender)) }, [], new SeededRng(5)
+      JSON.parse(JSON.stringify(attacker)), JSON.parse(JSON.stringify(defender)), [], new SeededRng(5)
     )
     const outcomeAllied = resolveWar(
-      { ...JSON.parse(JSON.stringify(attacker)) }, { ...JSON.parse(JSON.stringify(defender)) }, [ally], new SeededRng(5)
+      JSON.parse(JSON.stringify(attacker)), JSON.parse(JSON.stringify(defender)), [ally], new SeededRng(5)
     )
-    expect(outcomeAllied.defenderStrength).toBeGreaterThan(outcomeAlone.defenderStrength)
+    expect(outcomeAllied.attackerStrength).toBeGreaterThan(outcomeAlone.attackerStrength)
+    expect(outcomeAllied.defenderStrength).toBe(outcomeAlone.defenderStrength)
   })
 })
 

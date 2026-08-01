@@ -69,6 +69,7 @@ export interface WarRecord {
   attackerCasualties: number
   defenderCasualties: number
   landTransferred: number
+  populationTransferred: number
   reparationsPaid: number
   garrisonDestroyed: boolean
 }

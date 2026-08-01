@@ -18,6 +18,7 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **9** | Sonnet | Medium | Graphical UI v1 (procedural art, dashboard/battlefield/chronicle/coronation) | Human plays full game without CLI, all events visible on map |
 | **10** | Sonnet/Haiku | Low–Medium | ComfyUI art pass (portraits, buildings, event icons, coronation tableau) | Tileset manifest loads, art deletable → procedural fallback works |
 | **11** | Sonnet | High | Trading houses, succession, warfare (BACKLOG B2-B4, F4, F5) | Tests green, balance gate re-passes with the new income/loss channels |
+| **11.5** | Opus | Max | Balance instrumentation + make warfare a live mechanic | Harness sees every income/loss channel; war fires at a deliberate cadence; gate re-passes |
 | **12** | Sonnet | High | QA/hardening, regression, difficulty presets | All prior gates re-pass, difficulty presets validate via harness |
 
 ## Phase 0: Scaffold & Ground Rules ✓
@@ -572,11 +573,9 @@ Code *reads* these, never writes them. Balance tuning is JSON edits, not code re
 - **172/172 tests passing**, `tsc` clean, production build succeeds.
 
 ### Balance Re-Validation
-Per the project's own stated practice (any new income/loss channel requires a balance re-run), ran `npm run balance -- 60 60` (60 matches × 60 years, 5 rulers). **Gate PASSED** on all four criteria — but with a finding worth flagging rather than quietly accepting:
-- Loss-persistence rose sharply from Phase 6's baseline (27–51%/decade) to **78–96%/decade**.
-- Margin flatness now runs **negative** from decade 4 onward (−0.06% to −0.90%).
+Per the project's own stated practice (any new income/loss channel requires a balance re-run), ran `npm run balance -- 60 60`. **Gate PASSED** on all four criteria, and the run was reported as showing loss-persistence leaping to 78–96%/decade with margin flatness running negative from decade 4.
 
-War is clearly the dominant aggression channel now — a leader-focused AI declaring war on whoever's ahead hits far more often and harder than espionage alone did. The gate technically passes (it only checks for snowballing, not for a death spiral — see BACKLOG.md D5, itself a known limitation this only made more visible), so this is recorded as an open finding rather than silently tuned away. Candidates for a follow-up tuning pass, if the war mechanic proves too punishing in actual play: lower `warfare.casualtyFractionLoser` in `data/economy.json`, or raise `MIN_WIN_PROBABILITY` in `src/ai/warAggression.ts`.
+> ⚠️ **Both of those figures were wrong.** They were artifacts of a balance harness that could not see the mechanics this phase added, not properties of the game. Corrected in Phase 11.5 below, which also found that warfare — described here as "the dominant aggression channel" — fired **once in 1,200 match-years**. The claims are left visible rather than deleted because the lesson is the point: a passing gate said nothing useful while the instrument was blind.
 
 **Not re-measured this phase:** `npm run ai-bench` (archetype distinctness) — Phase 5/8's D2 finding predicted F4 might diversify the converged archetypes, but that specific claim needs its own benchmark run, not just the balance harness, before being treated as confirmed either way.
 
@@ -590,8 +589,57 @@ War is clearly the dominant aggression channel now — a leader-focused AI decla
 - ✓ Verified end-to-end in-browser: War tab target/ally selection, Build tab rank-gating, chronicle war/succession entries, zero console errors
 
 ### Next Phase
-**Phase 12 — QA/Hardening.** Full regression sweep, difficulty presets, and — given this phase's own findings — a closer look at whether war's current tuning is "hard but survivable" or drifting toward the death-spiral D5 already warned the gate can't distinguish. Re-run `npm run ai-bench` to check whether F4 actually diversified the converged archetypes (D2) before assuming it did.
+**Phase 11.5** — investigate the war-balance finding above before moving on.
 
 ---
 
-**Last updated:** Phase 11 complete — trading houses, succession, and warfare implemented and balance-revalidated. Ready for Phase 12.
+## Phase 11.5: Balance Instrumentation and Making War Real ✓
+
+**Status:** Complete. Began as "tune war down"; the measurement inverted the premise twice.
+
+### The premise was wrong: there was no balance problem
+Before touching a single game constant, the harness itself was audited — and it could not see the mechanics being judged. **Four gaps, three introduced in Phase 11, one inherited:**
+
+1. `grossIncome` omitted `tradingHouseIncome` entirely.
+2. War reparations/casualties never counted as adversity — **yet war still shrank `taler` and `population`, which are the denominators those loss shares divide by.** Every war silently inflated the measured severity of whatever else happened that year. This is most of the phantom 78–96% setback rate.
+3. Criterion 1 never subtracted espionage plunder while criterion 2 counted it, so the two disagreed about what a loss was.
+4. **`grainTradeIncome` had never been counted since Phase 8 added the grain market** — despite `economy.json` describing it as the early game's primary income source. This alone is why every measured return went negative from decade 3 while actual holdings **almost tripled**. A criterion reporting a ruler getting poorer while their wealth compounds is not measuring return at all.
+
+Corrected, on identical seeds: leader return is **positive in every decade**, decaying 5.48% → 0.79% — precisely the intended anti-snowball shape.
+
+| Decade | Leader return (before) | (after) |
+|---|---|---|
+| 1 | 1.41% | **5.48%** |
+| 3 | −0.78% | **1.70%** |
+| 6 | −2.29% | **+0.79%** |
+
+### A diagnostic for BACKLOG D5
+`npm run balance` now prints a block explicitly outside the gate: **leader vs non-leader return**, field-wide population/holdings/rank, and extinction rate. The design *intends* the leader to suffer; it does not intend everyone to, and that pair distinguishes the two. Verdict: no death spiral — field population 1053→2002, holdings 417k→1,125k, mean rank 0.04→3.07, **0.0% extinctions**.
+
+### The second inversion: war was dead content
+War fired **once in 1,200 match-years** (0.001/match-year). Phase 11's claim that it was "the dominant aggression channel" was the opposite of true. Two causes, both design rather than numbers:
+
+- **It could not fire.** `warStrength` is dominated by the population levy and every ruler grows population alike (mean strength ratio 1.07; nearly all build the one permitted garrison, so it differentiates nobody). Measured across 1,200 aggressive ruler-years the best available win probability had a **median of 0.481 and a maximum of 0.629** — against a 0.62 declaration threshold. It cleared in 0.1% of ruler-years.
+- **It was not worth firing.** War moved land and coin. Population gates every senior rank, while land is already held at ~2× what the labour force can work (D3). War traded the binding resource for an inert one: winning was near-worthless, losing cost the only thing that mattered.
+
+### Fixes
+- **Conquered territory carries its people** (`populationTransferFraction`). Historically apt, and it makes war a genuine alternative *route* to the population-gated ranks — which D2 names as the entire purpose of having F4. Casualties cut 0.03→0.02 so the total population swing stays proportionate.
+- **`planWar` computes a real expected value.** It previously calculated `p × gain` and never subtracted the downside, while being named `expectedValue`; the probability floor was silently carrying all risk management.
+- **`MIN_WIN_PROBABILITY` 0.62 → 0.55**, chosen from the measured distribution (~3% of ruler-years) rather than guessed.
+- **Allies fight for the attacker, not the defender.** Found only once war fired often enough to measure: attackers won **38.9%** against a 55% floor, because `planWar` had the attacker request allies while `resolveWar` added them to the *defender*. An AI asking for help was arming its own target. **A test asserted the buggy behaviour and had to be corrected too** — a test can enshrine a defect as easily as catch one.
+
+### Result
+War fires **2.2×/match** with a **72.7%** attacker win rate. Only aggressive archetypes declare (Schemer 1.20, Raider 1.00); economic ones never do.
+
+**Known characteristic, not fixed:** wars cluster in decade 1 (1.70/match) and are rare after. Early rulers start identical, so small absolute investments open large *relative* strength gaps; by mid-game everyone holds a garrison and similar population, and the gaps close. War is therefore currently an early-game lever. Recorded rather than tuned away.
+
+### Acceptance Criteria
+- ✓ Harness sees every income and loss channel; return no longer contradicts holdings
+- ✓ D5 diagnostic distinguishes "leader checked" from "field ground down"
+- ✓ War is a live mechanic at a deliberate cadence, not dead content
+- ✓ Population conserved across a war net of casualties (asserted by test)
+- ✓ Full suite green, `tsc` clean, gate re-passes
+
+---
+
+**Last updated:** Phase 11.5 complete — balance instrumentation corrected, war made real. Ready for Phase 12 (QA/hardening, difficulty presets, and `ai-bench` to test whether war actually diversifies archetypes).

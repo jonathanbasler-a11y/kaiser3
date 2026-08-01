@@ -37,6 +37,32 @@ console.log('\n--- 3. Lead volatility ---')
 console.log(`  leader changes after yr 30: ${pct(report.lateLeadChangeRate)} of matches (must be >= ${BALANCE_THRESHOLDS.minLateLeadChangeRate * 100}%)`)
 console.log(`  yr-20 leader goes on to win: ${pct(report.earlyLeaderWinRate)} of matches (must be <= ${BALANCE_THRESHOLDS.maxEarlyLeaderWinRate * 100}%)`)
 
+// Not gate criteria. BACKLOG.md D5: the three criteria above are one-sided —
+// they catch a game going soft, but a game grinding every ruler into the dirt
+// passes all three trivially. These exist so "PASS" can be read honestly.
+console.log('\n--- DIAGNOSTICS (not gate criteria — see BACKLOG D5) ---')
+console.log('  Leader vs non-leader return by decade. The design INTENDS the leader')
+console.log('  to suffer; it does not intend everyone to. Leader negative while')
+console.log('  non-leader is healthy = the anti-snowball lever working. Both')
+console.log('  negative = a death spiral the gate cannot see.')
+report.leaderReturnByDecade.forEach((leaderValue, i) => {
+  const others = report.nonLeaderReturnByDecade[i]
+  console.log(
+    `  decade ${i + 1}: leader ${(leaderValue * 100).toFixed(3).padStart(7)}%` +
+    `   non-leader ${(others * 100).toFixed(3).padStart(7)}%`
+  )
+})
+
+console.log('\n  Is the field growing or shrinking? (mean per ruler)')
+report.fieldPopulationByDecade.forEach((pop, i) => {
+  console.log(
+    `  decade ${i + 1}: population ${pop.toFixed(0).padStart(6)}` +
+    `   holdings ${report.fieldHoldingsByDecade[i].toFixed(0).padStart(9)}` +
+    `   mean rank ${report.meanRankByDecade[i].toFixed(2)}`
+  )
+})
+console.log(`\n  Matches where a ruler was wiped out entirely: ${pct(report.extinctionRate)}`)
+
 const criteria = evaluateCriteria(report)
 console.log('\n--- Verdict ---')
 for (const result of criteria.results) {

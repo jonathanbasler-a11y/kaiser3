@@ -686,8 +686,8 @@ function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement
       ? ` (${war.alliesJoined.map((id) => state.players[id]?.name ?? id).join(', ')} joined the fight)`
       : ''
     const consequence = humanWon
-      ? `${war.landTransferred.toFixed(0)} ha and ${war.reparationsPaid.toFixed(0)} Taler taken from ${rivalName}.`
-      : `Lost ${war.landTransferred.toFixed(0)} ha and paid ${war.reparationsPaid.toFixed(0)} Taler in reparations${war.garrisonDestroyed ? '; your garrison was destroyed' : ''}.`
+      ? `${war.landTransferred.toFixed(0)} ha and ${war.populationTransferred.toFixed(0)} subjects annexed, and ${war.reparationsPaid.toFixed(0)} Taler taken from ${rivalName}.`
+      : `Lost ${war.landTransferred.toFixed(0)} ha and ${war.populationTransferred.toFixed(0)} subjects to ${rivalName}, and paid ${war.reparationsPaid.toFixed(0)} Taler in reparations${war.garrisonDestroyed ? '; your garrison was destroyed' : ''}.`
     entries.push(el('div', { class: `log-entry with-icon ${humanWon ? 'good' : 'bad'}` },
       spriteImg('buildings', 'garrison', 'war', 'event-sm'),
       el('span', {},

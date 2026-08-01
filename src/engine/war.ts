@@ -72,6 +72,7 @@ export interface WarOutcome {
   attackerCasualties: number
   defenderCasualties: number
   landTransferred: number
+  populationTransferred: number
   reparationsPaid: number
   garrisonDestroyed: boolean
 }
@@ -86,9 +87,20 @@ export function resolveWar(
   joinedAllies: PlayerState[],
   rng: SeededRng
 ): WarOutcome {
-  const attackerStrength = warStrength(attacker)
-  const defenderStrength =
-    warStrength(defender) + joinedAllies.reduce((sum, ally) => sum + warStrength(ally) * WARFARE.allianceContributionFraction, 0)
+  // Allies fight for the ATTACKER — this is a coalition against a strong rival,
+  // not a defensive pact. That matches resolveAllianceRequests' own rule (a ruler
+  // is likelier to join when the *defender* outweighs it) and the decision shape
+  // (alliesRequested lives on the attacker's WarDecision), and it is the reading
+  // that serves the anti-snowball goal: pulling ahead should invite a coalition.
+  //
+  // This previously added allied strength to the DEFENDER while the attacker was
+  // the one recruiting them, so an AI requesting help was in effect arming its own
+  // target — measured attacker win rate was 38.9% against a 55% declaration floor.
+  const allyStrength = joinedAllies.reduce(
+    (sum, ally) => sum + warStrength(ally) * WARFARE.allianceContributionFraction, 0
+  )
+  const attackerStrength = warStrength(attacker) + allyStrength
+  const defenderStrength = warStrength(defender)
 
   const probability = attackerStrength / (attackerStrength + defenderStrength + WARFARE.baseDefenceConstant)
   const attackerWon = rng.next() < probability
@@ -121,6 +133,21 @@ export function resolveWar(
     winner.land.buildingLand += buildingLandTaken
   }
 
+  // Conquered territory carries the people who work it. Without this, war traded
+  // the binding resource for an inert one — population gates every senior rank
+  // while land is already held at roughly twice what the labour force can work
+  // (BACKLOG D3), so winning a war was close to worthless and losing one cost the
+  // only thing that mattered. Annexing subjects alongside their fields is both the
+  // historically apt reading and what makes war a genuine alternative ROUTE to the
+  // population-gated ranks, which BACKLOG D2 identifies as the entire purpose of
+  // having warfare at all.
+  //
+  // Applied AFTER casualties so the transferred share is measured against the
+  // population that actually survived the fighting.
+  const populationTransferred = loser.population.peasants * WARFARE.populationTransferFraction
+  loser.population.peasants = Math.max(0, loser.population.peasants - populationTransferred)
+  winner.population.peasants += populationTransferred
+
   // Reparations: coin changes hands too, same direction as the land.
   const reparationsPaid = loser.taler * WARFARE.reparationsFraction
   loser.taler = Math.max(0, loser.taler - reparationsPaid)
@@ -144,6 +171,7 @@ export function resolveWar(
     attackerCasualties: attackerWon ? winnerCasualties : loserCasualties,
     defenderCasualties: attackerWon ? loserCasualties : winnerCasualties,
     landTransferred,
+    populationTransferred,
     reparationsPaid,
     garrisonDestroyed
   }
