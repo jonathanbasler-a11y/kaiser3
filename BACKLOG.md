@@ -213,7 +213,7 @@ Kaiser only reachable past ~127 on average) is the right shape for difficulty
 presets (Phase 13's `data/difficulty.json`) to tune around is a live, separate
 question — but "out of reach" is retired as a finding.
 
-### D2. Archetypes converge — and it is a victory-condition problem, not a missing-mechanics one ⚠️
+### D2. Archetypes converge — and it is a victory-condition problem, not a missing-mechanics one ✓ (implemented Phase 14)
 Noted in Phase 5, partly helped by Phase 7's aggression, and then **regressed** by
 Phase 8: making food a real constraint turned population into the effective gate on
 every senior rank.
@@ -247,16 +247,39 @@ that theory is now falsified by the F4 measurement above, since F4 *was* a secon
 route and changed nothing. A real fix needs a different **victory condition or
 rank-gate shape**, not another economic channel feeding the same gate.
 
-**Design decision made (Phase 13 spike, not yet implemented):**
-`docs/d2-rank-gate-design.md`. Recommended shape: alternative requirement SETS per
-rank (a rank qualifies via any one path in full — Prestige/palace, Commerce/trading
-houses, etc.), with `rankProgress()` generalized to `max` across paths so it stays
-continuous. Flags one real blocker for whoever implements: `tradingHouse` is itself
-rank-gated at Margrave, which is currently only reachable via the palace path, so a
-naive Commerce path can't help until mid-game — the doc recommends scoping ranks
-0-4 a Land/Population path instead, gated on nothing downstream of itself.
-Implementation (schema, `ranks.ts`, `evaluator.ts`'s `palaceLandEnablement()`
-generalization, re-run `ai-bench`/balance gate) is its own future phase.
+**Design decision (Phase 13 spike): `docs/d2-rank-gate-design.md`. Implemented
+Phase 14.** Every rank now carries alternative requirement GROUPS — a ruler
+qualifies via any one group in full. Ranks 1-4 (Duke-Margrave) add a
+Land/Population alt path alongside the original Prestige/palace path, gated on
+nothing downstream of itself. Ranks 5-7 (Archbishop-Kaiser) add a Commerce alt
+path (wealth + `tradingHousesMin`) instead, since `tradingHouse` is itself
+rank-gated at Margrave and can't help earlier. `rankProgress()` takes `max` across
+groups (each group's own progress is `min` across its requirements), staying
+continuous. `evaluator.ts`'s `palaceLandEnablement()` is now path-aware: it only
+nudges toward palace-gate land when the Prestige path is at least as promising as
+every alt path for that ruler, so a Commerce-leaning ruler isn't bribed into land
+they don't need.
+
+**Re-measured** (`npm run ai-bench`, 12 solo matches/archetype, 40 years):
+
+| Archetype | Taler | Pop | Land | Mkt+Mill | Palace | Rank |
+|---|---|---|---|---|---|---|
+| Builder | 338,848 | 2538 | 13,358 | 23.8 | 13.3 | 5.17 |
+| Expansionist | 340,609 | 2515 | 12,266 | 22.2 | 13.3 | 5.58 |
+| Merchant | 582,947 | 1874 | 12,540 | 25.1 | 12.2 | 3.00 |
+| Schemer | 371,202 | 2266 | 12,939 | 24.6 | 16.0 | 4.92 |
+| Raider | 621,172 | 1894 | 12,626 | 25.0 | 13.3 | 2.83 |
+
+Merchant/Raider now bank roughly **60-80% more treasury** than Builder/Expansionist
+instead of merely underperforming them — a genuinely different strategy (accumulate
+wealth via the alt paths) rather than a worse version of the same one. Land is no
+longer a flat, identical ceiling across every archetype. Palace-stage separation is
+real but modest (Merchant 12.2 vs. Builder/Expansionist 13.3); the Commerce path's
+`tradingHousesMin` groups (ranks 5-7) see little use in this run because most
+archetypes plateau below Margrave before wealth-only paths matter — **flagged for a
+follow-up calibration pass, not blocking**, per the design doc's own dominant-path-
+risk and path-count-dilution warnings. Balance gate re-passes unchanged
+(margin flatness, loss persistence, lead volatility, no-death-spiral all PASS).
 
 ### D5. The balance gate is one-sided
 It guards against snowballing but not against a death spiral: strongly negative

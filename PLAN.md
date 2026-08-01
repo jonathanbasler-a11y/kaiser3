@@ -21,6 +21,7 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **11.5** | Opus | Max | Balance instrumentation + make warfare a live mechanic | Harness sees every income/loss channel; war fires at a deliberate cadence; gate re-passes |
 | **12** | Sonnet | High | `planYear` performance, flood/drought (F6), corn price drift precursor | ~4× perf with byte-identical decisions (golden test), balance gate re-passes twice |
 | **13** | Opus/Sonnet | High | D2 design spike (rank-gate shape), difficulty presets, hardening sweep (D1/D3/D4/D5) | D2 decision documented; presets separate measurably in the harness; D5 gate floor actually fails a spiralled config; all prior gates re-pass |
+| **14** | Sonnet | High | D2 rank-gate implementation (alternative requirement paths) | Schema/engine/evaluator generalized; every consumer updated; tests green with reviewed golden-fixture drift; balance gate re-passes; `ai-bench` shows real diversification |
 
 ## Phase 0: Scaffold & Ground Rules ✓
 
@@ -909,15 +910,61 @@ reliable at that distance — recorded in the test's own comment.
 - ✓ All prior gates re-pass; golden fixture untouched
 
 ### Next Phase
-Not yet scoped. Candidates recorded across BACKLOG.md: D2 implementation
-(its own phase, per the spike's own recommendation), F2/F7 (deferred,
-reasons recorded), a real save/load feature (would revive
-`deserializeGameState`), B5 (cathedral/Archbishop gate reconciliation).
+Phase 14: D2 implementation (below). After that: F2/F7 remain deferred
+(reasons recorded), a real save/load feature (would revive
+`deserializeGameState`), B5 (cathedral/Archbishop gate reconciliation), and a
+D2 calibration follow-up (Commerce-path numbers get little use before
+Margrave — see BACKLOG.md D2).
 
 ---
 
-**Last updated:** Phase 13 complete — D2 rank-gate redesign documented (not
-implemented), difficulty presets shipped and verified to separate outcomes,
-full hardening sweep (D1/D3/D4/D5 + malformed-input audit). Balance gate
-re-passes, golden fixture unmoved. Ready for Phase 14 (D2 implementation or
-user-directed next feature).
+## Phase 14: D2 Rank-Gate Implementation ✓
+
+Implemented the shape decided in Phase 13's spike (`docs/d2-rank-gate-design.md`):
+`data/ranks.json`'s `requirements` became an array of alternative requirement
+groups per rank — Duke through Margrave gained a Land/Population alt path, and
+Archbishop through Kaiser gained a Commerce alt path (`tradingHousesMin`), scoped
+that way to dodge the chicken-and-egg problem the spike flagged (`tradingHouse` is
+itself Margrave-gated). `src/engine/ranks.ts`'s `meetsRequirements` became
+"any group satisfied"; `rankProgress` became `max` across groups' own `min`-across-
+requirements progress, preserving continuity. `src/ai/evaluator.ts`'s
+`palaceLandEnablement()` was made path-aware — it now only nudges toward
+palace-gate land when the Prestige path is at least as promising as every
+alternative, so a Commerce-leaning ruler isn't bribed toward land it doesn't need.
+
+`npx tsc --noEmit` found every other consumer (the schema change from object to
+array breaks the type everywhere it's read) — no separate research agent needed.
+Golden fixture (`tests/fixtures/planner-golden.json`) was regenerated
+deliberately, since D2 was always going to shift planner decisions; three
+pre-existing tests encoded assumptions the new multi-path system falsifies (a
+"richer but behind" comparison whose "behind" player now trivially maxes the alt
+path's progress; a hard-coded palace-stage floor a test player now clears earlier
+via the alt path; a "Merchant runs lean" archetype-profile assertion that was
+literally the bug being fixed) and were rewritten to test the same underlying
+property against the new mechanics, not weakened. One more test failure
+(`f6-weather-events.test.ts`'s dike-mitigation cost comparison) turned out to be
+an unrelated latent issue the fix exposed rather than caused: the test's default
+player held far more farmland than population labor could work
+(`laborGatedFarmland`), so a flood's loss fell entirely on already-idle surplus
+land the AI correctly prices at ~zero — the dike's real benefit was being masked by
+an incidental land-enablement subsidy in the *old*, not-path-aware code, which the
+D2 fix correctly removed. Fixed by making that one test's player land-constrained,
+not by touching the pricing formula.
+
+See BACKLOG.md's D2 entry for the re-measured `ai-bench` table and full
+follow-up-calibration note.
+
+### Acceptance Criteria
+- ✓ Schema, engine, and evaluator generalized to alternative requirement paths
+- ✓ Every consumer updated (`tsc --noEmit` clean)
+- ✓ 225/225 tests pass; golden fixture regenerated deliberately, decision drift
+  reviewed and explained, not silently accepted
+- ✓ Balance gate re-passes unchanged
+- ✓ `ai-bench` shows real behavioral diversification (treasury strategy, not just
+  underperformance) — calibration follow-up flagged, not blocking
+
+---
+
+**Last updated:** Phase 14 complete — D2 rank-gate redesign implemented,
+verified, and merged. Balance gate and full test suite green. Next: user-directed
+feature work or the D2 calibration follow-up noted in BACKLOG.md.

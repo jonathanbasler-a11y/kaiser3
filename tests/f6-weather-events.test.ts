@@ -165,14 +165,27 @@ describe('the AI prices drought/flood risk (not silently at zero)', () => {
     }
     const bare = makePlayer()
     const withWell = makePlayer({ buildings: { ...makePlayer().buildings, well: 1 } })
-    const withDike = makePlayer({ buildings: { ...makePlayer().buildings, dike: 1 } })
 
     const bareCost = expectedAnnualEventCost(bare, context, WEIGHTS)
     const wellCost = expectedAnnualEventCost(withWell, context, WEIGHTS)
-    const dikeCost = expectedAnnualEventCost(withDike, context, WEIGHTS)
 
     expect(wellCost).toBeLessThan(bareCost)
-    expect(dikeCost).toBeLessThan(bareCost)
+
+    // Flood only destroys farmland the realm can actually work — economy.ts's
+    // laborGatedFarmland caps worked land at population*5ha/peasant, so a player
+    // holding more farmland than their labor can work (makePlayer()'s default:
+    // 10,000ha against 1,000 peasants = 5,000ha capacity) loses only idle surplus
+    // to a flood, which the AI correctly prices at ~zero. Pin farmland AT the
+    // labor ceiling so the loss is real and a dike's mitigation has something to
+    // save.
+    const landConstrained = () => makePlayer({ land: { farmland: 5000, buildingLand: 0 } })
+    const bareLandConstrained = landConstrained()
+    const withDike = { ...landConstrained(), buildings: { ...landConstrained().buildings, dike: 1 } }
+
+    const bareLandConstrainedCost = expectedAnnualEventCost(bareLandConstrained, context, WEIGHTS)
+    const dikeCost = expectedAnnualEventCost(withDike, context, WEIGHTS)
+
+    expect(dikeCost).toBeLessThan(bareLandConstrainedCost)
   })
 })
 

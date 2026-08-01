@@ -1,79 +1,69 @@
 {
-  "_comment": "8 ranks with thresholds (wealth, population, buildings) and unlocked powers. Filled in during Phase 2.",
+  "_comment": "8 ranks with thresholds (wealth, population, buildings) and unlocked powers. Filled in during Phase 2. D2 (Phase 14): each rank's requirements is now an ARRAY of alternative requirement-groups — a ruler qualifies by satisfying ANY ONE group in full. Group 0 is always the original Prestige (palace/cathedral) path, unchanged in shape from before D2. Duke-Margrave add a Land/Population alt path (no palace, no downstream-gated resources — usable from turn one). Archbishop-Kaiser add a Commerce alt path (wealth + tradingHousesMin, no palace/cathedral) instead, since trading houses only unlock at Margrave (commerce.tradingHouse.requiresRank in data/buildings.json) and so cannot be a genuine alternative any earlier — see docs/d2-rank-gate-design.md.",
   "ranks": [
     {
       "id": 0,
       "name": "Baron",
-      "requirements": {
-        "wealthMin": 15000,
-        "populationMin": 1000,
-        "palaceStages": 0
-      }
+      "requirements": [
+        { "wealthMin": 15000, "populationMin": 1000, "palaceStages": 0 }
+      ]
     },
     {
       "id": 1,
       "name": "Duke",
-      "requirements": {
-        "wealthMin": 20000,
-        "populationMin": 1300,
-        "palaceStages": 4
-      }
+      "requirements": [
+        { "wealthMin": 20000, "populationMin": 1300, "palaceStages": 4 },
+        { "wealthMin": 28000, "populationMin": 1900 }
+      ]
     },
     {
       "id": 2,
       "name": "Prince",
-      "requirements": {
-        "wealthMin": 30000,
-        "populationMin": 1700,
-        "palaceStages": 8
-      }
+      "requirements": [
+        { "wealthMin": 30000, "populationMin": 1700, "palaceStages": 8 },
+        { "wealthMin": 42000, "populationMin": 2300 }
+      ]
     },
     {
       "id": 3,
       "name": "Count",
-      "requirements": {
-        "wealthMin": 50000,
-        "populationMin": 2100,
-        "palaceStages": 12
-      }
+      "requirements": [
+        { "wealthMin": 50000, "populationMin": 2100, "palaceStages": 12 },
+        { "wealthMin": 65000, "populationMin": 2700 }
+      ]
     },
     {
       "id": 4,
       "name": "Margrave",
-      "requirements": {
-        "wealthMin": 75000,
-        "populationMin": 2400,
-        "palaceStages": 14
-      },
+      "requirements": [
+        { "wealthMin": 75000, "populationMin": 2400, "palaceStages": 14 },
+        { "wealthMin": 95000, "populationMin": 2900 }
+      ],
       "unlockedFeature": "tradingHouses"
     },
     {
       "id": 5,
       "name": "Archbishop",
-      "requirements": {
-        "wealthMin": 100000,
-        "populationMin": 2600,
-        "cathedral": true
-      }
+      "requirements": [
+        { "wealthMin": 100000, "populationMin": 2600, "cathedral": true },
+        { "wealthMin": 187000, "populationMin": 2400, "tradingHousesMin": 2 }
+      ]
     },
     {
       "id": 6,
       "name": "King",
-      "requirements": {
-        "wealthMin": 150000,
-        "populationMin": 2800,
-        "palaceStages": 15
-      }
+      "requirements": [
+        { "wealthMin": 150000, "populationMin": 2800, "palaceStages": 15 },
+        { "wealthMin": 280000, "populationMin": 2500, "tradingHousesMin": 3 }
+      ]
     },
     {
       "id": 7,
       "name": "Kaiser",
-      "requirements": {
-        "wealthMin": 200000,
-        "populationMin": 3200,
-        "palaceStages": 16,
-        "cathedral": true
-      },
+      "requirements": [
+        { "wealthMin": 200000, "populationMin": 3200, "palaceStages": 16, "cathedral": true },
+        { "wealthMin": 375000, "populationMin": 2800, "tradingHousesMin": 3 }
+      ],
       "description": "Emperor of the Holy Roman Empire — Victory!"
     }
   ],

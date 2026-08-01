@@ -3,7 +3,7 @@ import { intrinsicUtility, expectedAnnualEventCost, evaluateState, projectedFeed
 import { getPersonality, getPersonalities, validatePersonalities, Personality } from '../src/ai/personalities.ts'
 import { planYear, generateCandidates } from '../src/ai/planner.ts'
 import { aiCompetitor, runMatch, runTournament, compareStanding, Competitor } from '../src/ai/sim.ts'
-import { rankProgress, getNextRank, getTopRank } from '../src/engine/ranks.ts'
+import { rankProgress, getNextRank, getTopRank, groupProgress } from '../src/engine/ranks.ts'
 import { validateDecisions } from '../src/engine/decisions.ts'
 import { createStarterState } from '../src/engine/starter.ts'
 import { PlayerState, GameState } from '../src/engine/state.ts'
@@ -51,32 +51,48 @@ describe('personalities', () => {
 describe('rankProgress', () => {
   // Derived from data/ranks.json rather than hardcoded, so retuning the ladder
   // (as Phase 6 did) cannot silently rot these expectations into nonsense.
-  const duke = getNextRank(0)!.requirements
+  // Duke has two alternative requirement-groups since D2 (docs/d2-rank-gate-design.md):
+  // group 0 is the Prestige (palace) path, group 1 the Land/Population alt path.
+  const dukeGroups = getNextRank(0)!.requirements
+  const prestigePath = dukeGroups[0]
+  const altPath = dukeGroups[1]
 
-  it('is the MINIMUM across requirements, so the binding constraint governs', () => {
-    // Enormous wealth cannot compensate for a missing palace.
+  it('within a group, progress is the MINIMUM across requirements, so the binding constraint governs', () => {
+    // Enormous wealth cannot compensate for a missing palace, on the Prestige path.
     const rich = makePlayer({
       taler: 10_000_000,
-      population: { peasants: duke.populationMin, unrest: 0 }
+      population: { peasants: prestigePath.populationMin, unrest: 0 }
     })
-    expect(rankProgress(rich)).toBe(0)
+    expect(groupProgress(rich, prestigePath)).toBe(0)
 
     // Wealth and palace fully met, population at half its requirement — so the
     // binding constraint is population, and progress must equal exactly that.
-    const halfPopulation = duke.populationMin / 2
+    const halfPopulation = prestigePath.populationMin / 2
     const balanced = makePlayer({
-      taler: duke.wealthMin,
+      taler: prestigePath.wealthMin,
       population: { peasants: halfPopulation, unrest: 0 },
-      buildings: { ...makePlayer().buildings, palace: duke.palaceStages ?? 0 }
+      buildings: { ...makePlayer().buildings, palace: prestigePath.palaceStages ?? 0 }
     })
-    expect(rankProgress(balanced)).toBeCloseTo(0.5, 5)
+    expect(groupProgress(balanced, prestigePath)).toBeCloseTo(0.5, 5)
   })
 
-  it('reaches 1 when every requirement is met, and stays 1 at the top rank', () => {
+  it('across groups, progress is the MAXIMUM, so a ruler need only complete one path', () => {
+    // Meets the alt (Land/Population) path in full, but nothing toward the
+    // Prestige path's palace stage — overall progress should track the alt path.
+    const altOnly = makePlayer({
+      taler: altPath.wealthMin,
+      population: { peasants: altPath.populationMin, unrest: 0 }
+    })
+    expect(groupProgress(altOnly, prestigePath)).toBe(0)
+    expect(groupProgress(altOnly, altPath)).toBe(1)
+    expect(rankProgress(altOnly)).toBe(1)
+  })
+
+  it('reaches 1 when every requirement in one group is met, and stays 1 at the top rank', () => {
     const ready = makePlayer({
-      taler: duke.wealthMin * 1.25,
-      population: { peasants: duke.populationMin * 1.25, unrest: 0 },
-      buildings: { ...makePlayer().buildings, palace: duke.palaceStages ?? 0 }
+      taler: prestigePath.wealthMin * 1.25,
+      population: { peasants: prestigePath.populationMin * 1.25, unrest: 0 },
+      buildings: { ...makePlayer().buildings, palace: prestigePath.palaceStages ?? 0 }
     })
     expect(rankProgress(ready)).toBe(1)
     expect(rankProgress(makePlayer({ rank: getTopRank() }))).toBe(1)
@@ -211,12 +227,17 @@ describe('compareStanding', () => {
   })
 
   it('breaks ties on progress toward the next rank before material wealth', () => {
+    // Population is pinned at 1000 — below Duke's alt Land/Population path
+    // threshold (1900, since D2 — docs/d2-rank-gate-design.md) — for BOTH
+    // players, so richerButBehind's wealth cannot trivially max out that path's
+    // progress via population alone; it must actually be behind on every path
+    // for this to test what it claims to.
     const closer = makePlayer({
-      rank: 0, taler: 20000, population: { peasants: 2000, unrest: 0 },
+      rank: 0, taler: 20000, population: { peasants: 1000, unrest: 0 },
       buildings: { ...makePlayer().buildings, palace: 3 }
     })
     const richerButBehind = makePlayer({
-      rank: 0, taler: 900000, population: { peasants: 2000, unrest: 0 },
+      rank: 0, taler: 900000, population: { peasants: 1000, unrest: 0 },
       buildings: { ...makePlayer().buildings, palace: 1 }
     })
     expect(compareStanding(closer, richerButBehind)).toBeGreaterThan(0)
@@ -277,19 +298,15 @@ describe('AI benchmarks (PLAN.md Phase 5 acceptance criteria)', () => {
     const expansionist = profile('expansionist')
     const merchant = profile('merchant')
 
-    // The Merchant runs lean: fewer monuments and a smaller population than the
-    // archetypes that build their realm up.
+    // D2 (docs/d2-rank-gate-design.md) gave the rank ladder a genuine alternative
+    // path, so archetypes now diversify by taking a DIFFERENT route rather than a
+    // worse version of the same one. The Merchant builds fewer palace stages than
+    // the Prestige-leaning archetypes, and — no longer starving its own population
+    // to fund palace land it doesn't need — banks a larger treasury instead.
     expect(merchant.palace).toBeLessThan(builder.palace)
     expect(merchant.palace).toBeLessThan(expansionist.palace)
-    expect(merchant.population).toBeLessThan(builder.population)
-    expect(merchant.population).toBeLessThan(expansionist.population)
-
-    // NOTE: distinctness is WEAKER than it was, and deliberately asserted only
-    // where it is real. Phase 8 made population the effective gate on every senior
-    // rank, so every competent archetype now converges on growing one — treasuries
-    // finish within ~5% of each other. Tracked as BACKLOG.md D2; the fix is more
-    // genuinely different routes to rank (inter-ruler trade, warfare), not more
-    // weight-tweaking.
+    expect(merchant.taler).toBeGreaterThan(builder.taler)
+    expect(merchant.taler).toBeGreaterThan(expansionist.taler)
   })
 
   it('grows its population rather than letting it collapse — the hospital is bought and works', () => {
