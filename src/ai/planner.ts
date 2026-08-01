@@ -21,10 +21,12 @@ import { evaluateState, projectedFeedAdequacy, PersonalityWeights } from './eval
 import { annualGrainRequirement } from '../engine/economy.ts'
 import { Personality } from './personalities.ts'
 import { planAggression } from './aggression.ts'
+import { planWar } from './warAggression.ts'
 import buildingsData from '../../data/buildings.json'
 
 const PRESTIGE = buildingsData.prestige
 const MITIGATION = buildingsData.mitigation
+const COMMERCE = buildingsData.commerce
 
 // How many independent futures each candidate is averaged over. More is steadier
 // but linearly more expensive; 2 is enough to stop a single lucky harvest from
@@ -41,7 +43,7 @@ const TAX_PRESETS: Array<Omit<TaxDecision, 'type'>> = [
 
 const NO_CONSTRUCTION: Omit<ConstructionDecision, 'type'> = {
   marketBuild: 0, millBuild: 0, palaceStages: 0, cathedralBuild: false,
-  wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0
+  wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0, tradingHouseBuild: 0
 }
 
 function landOptions(player: PlayerState, prices: GameState['kaizerTradePrices']): Array<Omit<LandTradeDecision, 'type'>> {
@@ -87,7 +89,7 @@ function landOptions(player: PlayerState, prices: GameState['kaizerTradePrices']
 // would mean "buy land AND start the palace" was never generated as a candidate at
 // all, and the AI could never begin the rank path. (It didn't, in the first
 // benchmark run — every archetype finished at rank 0 with an untouched palace.)
-function constructionOptions(player: PlayerState, projectedLand: number): Array<Omit<ConstructionDecision, 'type'>> {
+function constructionOptions(player: PlayerState, projectedLand: number, rank: number): Array<Omit<ConstructionDecision, 'type'>> {
   const options: Array<Omit<ConstructionDecision, 'type'>> = [NO_CONSTRUCTION]
   const totalLand = projectedLand
 
@@ -127,6 +129,13 @@ function constructionOptions(player: PlayerState, projectedLand: number): Array<
     player.population.peasants >= PRESTIGE.cathedral.requiresMinPopulation
   ) {
     options.push({ ...NO_CONSTRUCTION, cathedralBuild: true })
+  }
+
+  // Trading houses (B3/commerce): rank-gated, so only proposed once actually
+  // unlocked. The evaluator prices the resulting income against the wealth-
+  // proportional tribute through the real reducer, same as everything else here.
+  if (rank >= COMMERCE.tradingHouse.requiresRank && player.tradingHouses < COMMERCE.tradingHouse.maxCount) {
+    options.push({ ...NO_CONSTRUCTION, tradingHouseBuild: 1 })
   }
 
   return options
@@ -174,7 +183,7 @@ export function generateCandidates(player: PlayerState, prices: GameState['kaize
       // candidates are generated against the post-purchase holding.
       const projectedLand = currentLand + Math.max(0, land.farmlanbuy) + Math.max(0, land.buildingLandBuy)
       for (const tax of TAX_PRESETS) {
-        for (const construction of constructionOptions(player, projectedLand)) {
+        for (const construction of constructionOptions(player, projectedLand, player.rank)) {
           candidates.push([
             feed,
             { type: 'land_trade', ...land },
@@ -238,6 +247,13 @@ export function planYear(
     ...planAggression(state, playerId, personality.aggression, personality.weights)
   }
 
+  // War is decided the same way espionage is: priced directly against the real
+  // rivals, since an isolated one-year lookahead cannot see them at all.
+  const war: Decision = {
+    type: 'war',
+    ...planWar(state, playerId, personality.aggression, personality.weights)
+  }
+
   // Fixed per-turn evaluation seeds: every candidate this turn sees identical
   // weather and identical event rolls, so differences in score come from the
   // decisions rather than from luck.
@@ -254,5 +270,5 @@ export function planYear(
     }
   }
 
-  return [...best, espionage]
+  return [...best, espionage, war]
 }

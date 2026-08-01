@@ -5,7 +5,7 @@
 import { SeededRng } from './rng.ts'
 import {
   GameState, Decision, Chronicle, PlayerChronicle, StrikeRecord,
-  GrainDecision, LandTradeDecision, TaxDecision, ConstructionDecision, EspionageDecision
+  GrainDecision, LandTradeDecision, TaxDecision, ConstructionDecision, EspionageDecision, WarDecision
 } from './state.ts'
 import { calculateHarvest, resolveFeeding, applyGrainTrade, storageCapacity } from './economy.ts'
 import { applyLandTrade } from './land.ts'
@@ -15,6 +15,8 @@ import { applyConstruction, calculateBuildingIncome, calculateUpkeep } from './b
 import { checkPromotion } from './ranks.ts'
 import { resolveEvents } from './events/events.ts'
 import { applyRecruitment, espionageUpkeep, resolveStrike } from './espionage.ts'
+import { applySuccession, checkExtinction } from './succession.ts'
+import { resolveAllianceRequests, resolveWar } from './war.ts'
 
 function findDecision<T extends Decision>(decisions: Decision[], type: T['type']): T | undefined {
   return decisions.find((d) => d.type === type) as T | undefined
@@ -24,7 +26,7 @@ const DEFAULT_GRAIN_DECISION: GrainDecision = { type: 'grain', feedLevel: 'requi
 const DEFAULT_TAX_DECISION: TaxDecision = { type: 'tax', vat: 10, incomeTax: 10, tariff: 5, justiceGraft: 0 }
 const DEFAULT_CONSTRUCTION_DECISION: ConstructionDecision = {
   type: 'construction', marketBuild: 0, millBuild: 0, palaceStages: 0, cathedralBuild: false,
-  wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0
+  wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0, tradingHouseBuild: 0
 }
 
 export function advanceYear(
@@ -38,7 +40,8 @@ export function advanceYear(
     year: state.year + 1,
     playerReports: {},
     globalEvents: [],
-    strikes: []
+    strikes: [],
+    wars: []
   }
 
   // Year-advance sequence (mirrors the research doc's core gameplay loop):
@@ -55,18 +58,19 @@ export function advanceYear(
   //     9. Taxation               [Phase 2]
   //    10. Upkeep                 [Phase 2 + 7]
   //    11. Events                 [Phase 4]
+  //    11.5. Succession           [F5 — reign turnover, resets score only]
   //
   //   ACROSS RULERS:
   //    12. Espionage strikes     [Phase 7]
+  //    12.5. Warfare             [F4 — declared wars resolve here, same shape as espionage]
   //
   //   PER RULER again:
   //    13. Rank promotion check  [Phase 2]
   //
-  // Espionage sits between the two per-ruler passes because it is the only phase
-  // where rulers touch each other, and the promotion check has to come after it:
-  // a treasury emptied by raiders should cost you the title that year.
-  //
-  //    14. Warfare               [Phase 9+]
+  // Espionage/warfare sit between the two per-ruler passes because they are the
+  // only phases where rulers touch each other, and the promotion check has to
+  // come after them: a treasury emptied by raiders or a war loss should cost you
+  // the title that year.
 
   for (const playerId of newState.activePlayerIds) {
     const player = newState.players[playerId]
@@ -89,6 +93,7 @@ export function advanceYear(
       grainTradeIncome: 0,
       marketIncome: 0,
       millIncome: 0,
+      tradingHouseIncome: 0,
       tributeIncome: 0,
       taxIncome: 0,
       tariffIncome: 0,
@@ -98,7 +103,9 @@ export function advanceYear(
       eventBuildingsDestroyed: 0,
       unrestGain: 0,
       events: [],
-      rankPromoted: false
+      rankPromoted: false,
+      succession: false,
+      extinct: false
     }
 
     const unrestAtYearStart = player.population.unrest
@@ -122,9 +129,12 @@ export function advanceYear(
 
     // 3. Construction
     const constructionDecision = findDecision<ConstructionDecision>(playerDecisions, 'construction') ?? DEFAULT_CONSTRUCTION_DECISION
-    const constructionResult = applyConstruction(player.land, player.population, player.buildings, player.taler, constructionDecision)
+    const constructionResult = applyConstruction(
+      player.land, player.population, player.buildings, player.taler, player.rank, player.tradingHouses, constructionDecision
+    )
     player.buildings = constructionResult.newBuildings
     player.taler = constructionResult.newTaler
+    player.tradingHouses = constructionResult.newTradingHouses
 
     // 4. Harvest (labor-gated productivity, weather band, spoilage, storage cap)
     const harvest = calculateHarvest(
@@ -164,11 +174,16 @@ export function advanceYear(
     report.emigration = popResult.emigration
     report.immigration = popResult.immigration
 
-    // 8. Building income (markets/mills, from buildings as of this year's construction)
-    const income = calculateBuildingIncome(player.buildings)
-    player.taler += income.marketIncome + income.millIncome
+    // Extinction: population collapsed to nothing. No heir is possible — this is
+    // the one permanent failure state, distinct from succession below.
+    report.extinct = checkExtinction(player)
+
+    // 8. Building income (markets/mills/trading houses, from buildings as of this year's construction)
+    const income = calculateBuildingIncome(player.buildings, player.tradingHouses)
+    player.taler += income.marketIncome + income.millIncome + income.tradingHouseIncome
     report.marketIncome = income.marketIncome
     report.millIncome = income.millIncome
+    report.tradingHouseIncome = income.tradingHouseIncome
 
     // 9. Taxation (revenue from the population's economic output; burden feeds unrest)
     const taxDecision = findDecision<TaxDecision>(playerDecisions, 'tax') ?? DEFAULT_TAX_DECISION
@@ -178,6 +193,11 @@ export function advanceYear(
     report.taxIncome = taxResult.taxIncome
     report.tariffIncome = taxResult.tariffIncome
     report.tributeIncome = taxResult.graftBonus
+
+    // Reign score: cumulative productive income this reign (F5) — resets on
+    // succession below, independent of the real material state (land/rank/
+    // buildings), which never resets.
+    player.score += income.marketIncome + income.millIncome + income.tradingHouseIncome + taxResult.totalRevenue
 
     // 10. Upkeep (buildings, trading-house tribute, and the standing secret service —
     //    all scale with holdings, the anti-snowball lever)
@@ -195,6 +215,12 @@ export function advanceYear(
     report.eventGoldLoss = eventResult.totalGoldLoss
     report.eventPopulationLoss = eventResult.totalPopulationLoss
     report.eventBuildingsDestroyed = eventResult.totalBuildingsDestroyed
+
+    // 11.5. Succession (F5) — skipped for a realm that just went extinct this
+    // year; there is no one left for an heir to inherit from.
+    if (!player.dead) {
+      report.succession = applySuccession(player, rng).succeeded
+    }
 
     report.unrestGain = player.population.unrest - unrestAtYearStart
 
@@ -231,8 +257,43 @@ export function advanceYear(
     }
   }
 
-  // 13. Rank promotion check — after espionage, so a treasury emptied by raiders
-  //     genuinely costs the title this year.
+  // 12.5. Warfare — same cross-ruler shape as espionage, resolved in
+  // activePlayerIds order for the same determinism reason.
+  for (const attackerId of newState.activePlayerIds) {
+    const attacker = newState.players[attackerId]
+    if (!attacker || attacker.dead) continue
+
+    const war = findDecision<WarDecision>(decisions[attackerId] ?? [], 'war')
+    if (!war?.declare || !war.targetPlayerId) continue
+
+    const defender = newState.players[war.targetPlayerId]
+    // Silently ignore a war declared at a ruler who is gone, dead, or at oneself,
+    // rather than failing the whole year over a stale target — same treatment
+    // espionage gives a stale strike target.
+    if (!defender || defender.dead || defender.id === attackerId) continue
+    if (!newState.activePlayerIds.includes(defender.id)) continue
+
+    const requestedAllies = (war.alliesRequested ?? [])
+      .map((id) => newState.players[id])
+      .filter((p): p is typeof attacker => !!p && !p.dead && newState.activePlayerIds.includes(p.id))
+    const joinedAllies = resolveAllianceRequests(requestedAllies, attacker, defender, rng)
+
+    const outcome = resolveWar(attacker, defender, joinedAllies, rng)
+    chronicle.wars.push({
+      attackerId: outcome.attackerId,
+      defenderId: outcome.defenderId,
+      alliesJoined: outcome.alliesJoined,
+      attackerWon: outcome.attackerWon,
+      attackerCasualties: outcome.attackerCasualties,
+      defenderCasualties: outcome.defenderCasualties,
+      landTransferred: outcome.landTransferred,
+      reparationsPaid: outcome.reparationsPaid,
+      garrisonDestroyed: outcome.garrisonDestroyed
+    })
+  }
+
+  // 13. Rank promotion check — after espionage/warfare, so a treasury emptied by
+  //     raiders or a war loss genuinely costs the title this year.
   for (const playerId of newState.activePlayerIds) {
     const player = newState.players[playerId]
     const report = chronicle.playerReports[playerId]

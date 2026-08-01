@@ -24,25 +24,26 @@ population model, but the cathedral's own population gate was not, so a coupled
 constraint silently became the binding one. *Lesson: when recalibrating a threshold,
 check every other requirement that depends on the same quantity.*
 
-### B2. `dead` / `heir` are checked but never set
-`PlayerState.dead` is read in four places in `year.ts` and is **never assigned true**;
-`heir` is never read at all. Succession is designed (research doc: designate an heir,
-inherit territory and rank, score resets to zero) but unimplemented, so the fields are
-inert. Either implement succession (F5) or drop the fields — do not leave a
-half-wired mechanic that looks live.
+### ~~B2. `dead` / `heir` are checked but never set~~ ✅ FIXED (F5, Phase 11)
+`dead` is now genuinely set by `checkExtinction()` when population collapses to
+nothing — the one permanent failure state — instead of being derived separately (and
+never actually written) in three different callers. `heir` is set on succession
+(always `player.id`: Kaiser 3 is a continuous single session, not hot-seat, so there
+is no separate heir entity to route to — a deliberate, documented simplification, see
+`src/engine/succession.ts`).
 
-### B3. Trading houses are inert
-`calculateUpkeep()` charges a wealth-proportional tribute *if* `tradingHouses > 0`, and
-`data/ranks.json` advertises `unlockedFeature: "tradingHouses"` at Margrave — but
-nothing ever increments the counter. `ConstructionDecision` has no field for it. The
-tribute has therefore **never once fired**, and the Margrave unlock is a promise the
-game does not keep.
+### ~~B3. Trading houses are inert~~ ✅ FIXED (Phase 11)
+`ConstructionDecision.tradingHouseBuild` now exists, is rank-gated at Margrave (data
+in `data/buildings.json` commerce.tradingHouse), capped at 3, and generates real
+income (`calculateBuildingIncome`) sized to roughly offset the existing tribute at
+typical Margrave-era wealth before falling behind as wealth grows further — an
+anti-snowball shape, not a strictly-losing building. AI and human UI both build them.
 
-### B4. `TradeDecision` and `WarDecision` are validated but never executed
-Both are members of the `Decision` union and are fully validated by
-`validateDecisions()`, so a caller can submit one and receive no error and no effect.
-Silent no-ops are worse than missing features. Either implement (F2, F4) or remove
-from the union until the phase that does.
+### ~~B4. `TradeDecision` and `WarDecision` are validated but never executed~~ ✅ ADDRESSED (Phase 11)
+`WarDecision` is now fully implemented (F4) and executed every year for both AI and
+human. `TradeDecision` (inter-ruler trade, F2) is still out of scope — removed from
+the `Decision` union entirely per this entry's own prescribed remedy, rather than
+left validated-but-inert. Re-add only alongside the phase that implements F2.
 
 ### B5. Cathedral population gate is inconsistent with the ranks that need it
 Beyond B1: the cathedral needs 5,000 population while **Archbishop asks 3,000, King
@@ -82,13 +83,32 @@ Spoilage at 18%/yr (roughly half a reserve survives three years) plus a hard sto
 ceiling expressed in years of consumption, which a granary raises. Grain is now a real
 but wasting asset: worth carrying through one bad harvest, impossible to hoard.
 
-### F4. Warfare, alliances, and geography-gated attack
-`war.ts` does not exist. The research describes a battlefield screen, alliance voting,
-and passage permission from intervening rulers.
+### ~~F4. Warfare, alliances, and geography-gated attack~~ ✅ DONE (Phase 11, scoped down)
+`src/engine/war.ts`: declared wars resolved probabilistically from `warStrength()`
+(garrison + guards + population levy — no new unit system), with requested allies
+joining data-driven-probabilistically (more likely against a defender stronger than
+themselves — the same balance-of-power logic as leader-focused espionage). Both
+sides always take a real casualty regardless of outcome; the winner takes land
+(capped at half the loser's holdings) and reparations, and the loser's garrison has
+a real chance of being destroyed.
 
-### F5. Succession and heirs
-On a ruler's death, designate an heir who inherits territory and rank but starts from
-zero score — a legacy mechanic, and the counterpart to B2.
+**Deliberately NOT built:** an actual battlefield scene or geography-gated attack
+requiring passage permission from intervening rulers — Kaiser 3 has no map/region
+model to hook that into (unlike the research doc's assumption). Land changing hands
+is the closest available stand-in for a territorial consequence. A real map is a
+bigger, separate feature.
+
+### ~~F5. Succession and heirs~~ ✅ DONE (Phase 11, scoped down)
+`src/engine/succession.ts`: no chance before a 15-year minimum reign, then a small
+and rising annual chance (capped) of the reign ending — territory/rank/buildings
+persist unchanged, only the reign's own accumulated `score` (a new field: cumulative
+productive income this reign) resets to zero.
+
+**Deliberately simplified:** the research doc's heir is `player.id` (self) rather
+than routing to a different entity — Kaiser 3 is one continuous session against AI
+rivals, not a hot-seat handoff between human players, so there is no separate heir
+to choose from. A real multi-heir/dynasty system is a multiplayer-era feature,
+correctly deferred per CLAUDE.md.
 
 ### F6. Flood and drought events
 Named in the research as agriculture-linked events; the event engine supports them
@@ -117,7 +137,11 @@ Merchant and Raider stay visibly leaner (palace 13–14 vs 16, population ~1,900
 ~2,350). The distinctness test asserts only that narrower claim.
 
 The fix is not more weight-tweaking — it is genuinely different **routes** to rank,
-which means F2 (inter-ruler trade) and F4 (warfare). Re-check after both.
+which means F2 (inter-ruler trade) and F4 (warfare). F4 landed in Phase 11; F2 is
+still out of scope. **Not yet re-measured** — `npm run ai-bench` (the archetype
+distinctness benchmark) was not re-run this phase, only the balance harness (a
+different measurement). Re-check before assuming warfare actually diversified the
+archetypes rather than just adding uniform pressure to all of them equally.
 
 ### D5. The balance gate is one-sided
 It guards against snowballing but not against a death spiral: strongly negative
@@ -126,6 +150,20 @@ leader's return going to **−1.36%** by decade 6 with setback rates at 100%, wh
 plausibly the leader-focused aggression working as designed (the "leader" each year
 is by definition whoever is being targeted) but is not currently distinguishable from
 a game that is simply grinding everyone down. Add a floor as well as a ceiling.
+
+**Phase 11 (warfare, F4) made this sharper, not just theoretically live.** Post-war
+balance re-run (60 matches × 60 years, 5 rulers): the gate still **passes** every
+criterion, but loss-persistence jumped from Phase 6's baseline **27–51%/decade to
+78–96%/decade**, and margin-flatness now runs **negative** from decade 4 onward
+(−0.06% to −0.90%). War is now clearly the dominant aggression channel — a
+leader-focused AI declaring war on whoever's ahead hits far more often and far
+harder than espionage alone did. Not fixed here: the gate's own one-sidedness (this
+same entry) means "still passes" cannot distinguish "checked hard" from "ground
+down," and this is exactly the scenario that ambiguity was already flagged against.
+Worth a dedicated look before treating war's current tuning as final — likely
+candidates if it turns out to be too punishing: lower `warfare.casualtyFractionLoser`
+in `data/economy.json`, or raise `MIN_WIN_PROBABILITY` in
+`src/ai/warAggression.ts` so AI rulers commit to fewer, more clearly-favorable wars.
 
 ### D3. Land beyond labour capacity is inert
 Farmland is labour-gated at 5 ha per peasant, so a realm starts with **twice the land

@@ -12,7 +12,7 @@ function makePlayer(o: Partial<PlayerState> = {}): PlayerState {
     id: 'p', name: 'P', taler: 15000, land: { farmland: 10000, buildingLand: 0 }, grainStock: 5000,
     population: { peasants: 1000, unrest: 0 },
     buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 0 },
-    rank: 0, guards: 0, saboteurs: 0, tradingHouses: 0, score: 0, dead: false, ...o
+    rank: 0, guards: 0, saboteurs: 0, tradingHouses: 0, score: 0, reignYears: 0, dead: false, ...o
   }
 }
 

@@ -6,7 +6,7 @@
 import { GameState, Decision, Chronicle, PlayerState, EspionageMode } from '../engine/state.ts'
 import { createStarterState } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
-import { getRankName } from '../engine/ranks.ts'
+import { getRankName, isFeatureUnlocked } from '../engine/ranks.ts'
 import { getPersonalities, Personality } from '../ai/personalities.ts'
 import { planYear } from '../ai/planner.ts'
 import { compareStanding } from '../ai/sim.ts'
@@ -28,7 +28,7 @@ const EVENT_ICON_ID: Record<string, string> = {
 const HUMAN_ID = 'human'
 const KAISER_RANK = 7
 
-type Tab = 'overview' | 'grain' | 'land' | 'tax' | 'build' | 'spy'
+type Tab = 'overview' | 'grain' | 'land' | 'tax' | 'build' | 'spy' | 'war'
 
 interface Session {
   state: GameState
@@ -227,7 +227,8 @@ function renderGame(): void {
     { id: 'land', label: 'Land' },
     { id: 'tax', label: 'Tax' },
     { id: 'build', label: 'Build' },
-    { id: 'spy', label: 'Secret Service' }
+    { id: 'spy', label: 'Secret Service' },
+    { id: 'war', label: 'War' }
   ]
   const tabbar = el('div', { class: 'tabbar' })
   const content = el('div', { class: 'card' })
@@ -299,6 +300,8 @@ function renderTabContent(tab: Tab): HTMLElement {
       return renderBuildTab(player, draft)
     case 'spy':
       return renderSpyTab(player, state, draft)
+    case 'war':
+      return renderWarTab(state, draft)
   }
 }
 
@@ -401,6 +404,22 @@ function buildRow(assetId: string, label: string, control: HTMLElement): HTMLEle
   )
 }
 
+// A one-time mitigation building (well/hospital/granary/garrison — max 1, never
+// removed) shows a static "Built ✓" badge once owned instead of a stepper whose
+// value resets to 0 every year. That reset is correct (it's a fresh order, not
+// the current count) but sitting right next to a small "(1)" in the label reads,
+// at a glance, as "this went back to zero" — this was reported as a bug for
+// exactly that reason even though the underlying state was never touched.
+function mitigationRow(assetId: string, label: string, owned: boolean, draftValue: number, onChange: (v: number) => void): HTMLElement {
+  const control = owned
+    ? el('div', { class: 'field' },
+        el('div', { class: 'field-label' }, label),
+        el('div', { class: 'stepper' }, el('span', { class: 'stepper-value', style: 'flex:1;text-align:center;color:var(--good);font-weight:600' } as never, 'Built ✓'))
+      )
+    : stepper({ label, value: draftValue, min: 0, max: 1, step: 1, onChange })
+  return buildRow(assetId, label, control)
+}
+
 function renderBuildTab(player: GameState['players'][string], draft: DecisionDraft): HTMLElement {
   const container = el('div', {},
     el('h3', {}, 'Production'),
@@ -425,11 +444,21 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
 
   container.append(
     el('h3', {}, 'Mitigation'),
-    buildRow('well', 'Well', stepper({ label: `Wells — fire (${player.buildings.well})`, value: draft.wellBuild, min: 0, max: 1, step: 1, onChange: (v) => { draft.wellBuild = v } })),
-    buildRow('hospital', 'Hospital', stepper({ label: `Hospitals — plague (${player.buildings.hospital})`, value: draft.hospitalBuild, min: 0, max: 1, step: 1, onChange: (v) => { draft.hospitalBuild = v } })),
-    buildRow('granary', 'Granary', stepper({ label: `Granaries — famine (${player.buildings.granary})`, value: draft.granaryBuild, min: 0, max: 1, step: 1, onChange: (v) => { draft.granaryBuild = v } })),
-    buildRow('garrison', 'Garrison', stepper({ label: `Garrisons — banditry/revolt (${player.buildings.garrison})`, value: draft.garrisonBuild, min: 0, max: 1, step: 1, onChange: (v) => { draft.garrisonBuild = v } }))
+    mitigationRow('well', 'Well — fire', player.buildings.well > 0, draft.wellBuild, (v) => { draft.wellBuild = v }),
+    mitigationRow('hospital', 'Hospital — plague', player.buildings.hospital > 0, draft.hospitalBuild, (v) => { draft.hospitalBuild = v }),
+    mitigationRow('granary', 'Granary — famine', player.buildings.granary > 0, draft.granaryBuild, (v) => { draft.granaryBuild = v }),
+    mitigationRow('garrison', 'Garrison — banditry/revolt/war defence', player.buildings.garrison > 0, draft.garrisonBuild, (v) => { draft.garrisonBuild = v })
   )
+
+  if (isFeatureUnlocked(player.rank, 'tradingHouses')) {
+    container.append(
+      el('h3', {}, 'Commerce'),
+      buildRow('trading_house', 'Trading House', stepper({
+        label: `Trading houses (${player.tradingHouses}/3 — leased from the Kaiser, pays tribute on your wealth)`,
+        value: draft.tradingHouseBuild, min: 0, max: 3, step: 1, onChange: (v) => { draft.tradingHouseBuild = v }
+      }))
+    )
+  }
 
   return container
 }
@@ -437,7 +466,11 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
 function renderSpyTab(player: GameState['players'][string], state: GameState, draft: DecisionDraft): HTMLElement {
   const rivals = rivalOptions(state, HUMAN_ID)
   const container = el('div', {},
-    el('p', { class: 'help-text' }, `Guards: ${player.guards} · Saboteurs: ${player.saboteurs}`),
+    el('div', { class: 'stat-grid' },
+      statTile('Guards (standing)', player.guards.toFixed(0)),
+      statTile('Saboteurs (standing)', player.saboteurs.toFixed(0))
+    ),
+    el('p', { class: 'help-text' }, 'The counts above carry over year to year. The steppers below are NEW hires to add this turn — they start at 0 every year, not a reset of your standing force.'),
     stepper({ label: 'Hire guards (defence)', value: draft.guardHire, min: 0, max: 10, step: 1, onChange: (v) => { draft.guardHire = v } }),
     stepper({ label: 'Hire saboteurs (offence)', value: draft.saboteurHire, min: 0, max: 10, step: 1, onChange: (v) => { draft.saboteurHire = v } })
   )
@@ -466,6 +499,66 @@ function renderSpyTab(player: GameState['players'][string], state: GameState, dr
         value: draft.mode,
         onChange: (v) => { draft.mode = v }
       }))
+    }
+  }
+
+  return container
+}
+
+function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
+  const rivals = rivalOptions(state, HUMAN_ID)
+  const container = el('div', {},
+    el('p', { class: 'help-text' },
+      'Declaring war is the biggest risk in the game — both sides take real casualties even in victory, but the winner takes land and reparations from the loser. Requesting allies costs nothing; each one decides for itself whether to join.'
+    )
+  )
+
+  if (rivals.length === 0) {
+    container.appendChild(el('p', { class: 'help-text' }, 'No rivals left to declare war on.'))
+    return container
+  }
+
+  container.appendChild(el('h3', {}, 'Declare war on'))
+  const targetRow = el('div', { class: 'segmented' })
+  const noneBtn = el('button', { textContent: 'None', className: draft.warTargetPlayerId === null ? 'active' : '' })
+  noneBtn.addEventListener('click', () => {
+    draft.warTargetPlayerId = null
+    draft.declareWar = false
+    session!.activeTab = 'war'
+    renderGame()
+  })
+  targetRow.appendChild(noneBtn)
+  for (const rival of rivals) {
+    const btn = el('button', { textContent: rival.name, className: draft.warTargetPlayerId === rival.id ? 'active' : '' })
+    btn.addEventListener('click', () => {
+      draft.warTargetPlayerId = rival.id
+      draft.declareWar = true
+      draft.warAlliesRequested = draft.warAlliesRequested.filter((id) => id !== rival.id)
+      session!.activeTab = 'war'
+      renderGame()
+    })
+    targetRow.appendChild(btn)
+  }
+  container.appendChild(targetRow)
+
+  if (draft.warTargetPlayerId) {
+    const potentialAllies = rivals.filter((r) => r.id !== draft.warTargetPlayerId)
+    if (potentialAllies.length > 0) {
+      container.appendChild(el('h3', {}, 'Request allies (each may or may not join)'))
+      const allyRow = el('div', { class: 'row wrap' })
+      for (const ally of potentialAllies) {
+        const active = draft.warAlliesRequested.includes(ally.id)
+        const btn = el('button', { textContent: ally.name, className: active ? 'active' : '' })
+        btn.addEventListener('click', () => {
+          draft.warAlliesRequested = active
+            ? draft.warAlliesRequested.filter((id) => id !== ally.id)
+            : [...draft.warAlliesRequested, ally.id]
+          session!.activeTab = 'war'
+          renderGame()
+        })
+        allyRow.appendChild(btn)
+      }
+      container.appendChild(allyRow)
     }
   }
 
@@ -581,6 +674,35 @@ function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement
           : `Your ${verb} against ${defenderName} failed — ${strike.saboteursLost} saboteurs lost.`
       ))
     }
+  }
+
+  for (const war of chronicle.wars) {
+    if (war.attackerId !== HUMAN_ID && war.defenderId !== HUMAN_ID) continue
+    const isAttacker = war.attackerId === HUMAN_ID
+    const rivalId = isAttacker ? war.defenderId : war.attackerId
+    const rivalName = state.players[rivalId]?.name ?? rivalId
+    const humanWon = isAttacker ? war.attackerWon : !war.attackerWon
+    const alliesText = war.alliesJoined.length > 0
+      ? ` (${war.alliesJoined.map((id) => state.players[id]?.name ?? id).join(', ')} joined the fight)`
+      : ''
+    const consequence = humanWon
+      ? `${war.landTransferred.toFixed(0)} ha and ${war.reparationsPaid.toFixed(0)} Taler taken from ${rivalName}.`
+      : `Lost ${war.landTransferred.toFixed(0)} ha and paid ${war.reparationsPaid.toFixed(0)} Taler in reparations${war.garrisonDestroyed ? '; your garrison was destroyed' : ''}.`
+    entries.push(el('div', { class: `log-entry with-icon ${humanWon ? 'good' : 'bad'}` },
+      spriteImg('buildings', 'garrison', 'war', 'event-sm'),
+      el('span', {},
+        isAttacker
+          ? `${humanWon ? 'You defeated' : 'You were defeated by'} ${rivalName} in the war you declared.`
+          : `${rivalName} declared war on you and ${humanWon ? 'lost' : 'won'}.`,
+        ` ${consequence}${alliesText}`
+      )
+    ))
+  }
+
+  if (report.succession) {
+    entries.push(el('div', { class: 'log-entry' },
+      `The reign ends; your heir succeeds you on the same throne. Territory and rank are undisturbed, but your reign's accumulated score resets to zero.`
+    ))
   }
 
   if (report.rankPromoted) {

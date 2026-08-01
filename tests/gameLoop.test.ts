@@ -9,7 +9,7 @@ function sensibleHumanDecisions(): Decision[] {
     { type: 'grain', feedLevel: 'required' },
     { type: 'land_trade', farmlanbuy: 0, buildingLandBuy: 0, partnerPlayerId: 'kaiser' },
     { type: 'tax', vat: 15, incomeTax: 15, tariff: 5, justiceGraft: 0 },
-    { type: 'construction', marketBuild: 0, millBuild: 0, palaceStages: 0, cathedralBuild: false, wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0 }
+    { type: 'construction', marketBuild: 0, millBuild: 0, palaceStages: 0, cathedralBuild: false, wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0, tradingHouseBuild: 0 }
   ]
 }
 
@@ -26,7 +26,7 @@ function recklessHumanDecisions(state: GameState): Decision[] {
     { type: 'grain', feedLevel: 'min' },
     { type: 'land_trade', farmlanbuy: -player.land.farmland, buildingLandBuy: 0, partnerPlayerId: 'kaiser' },
     { type: 'tax', vat: 0, incomeTax: 0, tariff: 0, justiceGraft: 0 },
-    { type: 'construction', marketBuild: 0, millBuild: 0, palaceStages: 0, cathedralBuild: false, wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0 }
+    { type: 'construction', marketBuild: 0, millBuild: 0, palaceStages: 0, cathedralBuild: false, wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0, tradingHouseBuild: 0 }
   ]
 }
 
@@ -43,7 +43,7 @@ function investorHumanDecisions(state: GameState): Decision[] {
     { type: 'grain', feedLevel: 'required' },
     { type: 'land_trade', farmlanbuy: 0, buildingLandBuy: Math.min(500, Math.floor(player.taler * 0.2 / state.kaizerTradePrices.buildingLand)), partnerPlayerId: 'kaiser' },
     { type: 'tax', vat: 20, incomeTax: 20, tariff: 5, justiceGraft: 0 },
-    { type: 'construction', marketBuild: 2, millBuild: 2, palaceStages: 0, cathedralBuild: false, wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0 }
+    { type: 'construction', marketBuild: 2, millBuild: 2, palaceStages: 0, cathedralBuild: false, wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0, tradingHouseBuild: 0 }
   ]
 }
 
@@ -150,7 +150,7 @@ describe('scriptedOpponentDecisions', () => {
       id: 'x', name: 'X', taler: 10000, land: { farmland: 5000, buildingLand: 0 }, grainStock: 1000,
       population: { peasants: 500, unrest: 0 },
       buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 0 },
-      rank: 0, guards: 0, saboteurs: 0, tradingHouses: 0, score: 0, dead: false
+      rank: 0, guards: 0, saboteurs: 0, tradingHouses: 0, score: 0, reignYears: 0, dead: false
     }
     const decisions = scriptedOpponentDecisions(player, state.kaizerTradePrices)
     expect(decisions.some((d) => d.type === 'grain')).toBe(true)
@@ -162,7 +162,7 @@ describe('scriptedOpponentDecisions', () => {
       id: 'x', name: 'X', taler: 50, land: { farmland: 100, buildingLand: 0 }, grainStock: 100,
       population: { peasants: 100, unrest: 0 },
       buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 0 },
-      rank: 0, guards: 0, saboteurs: 0, tradingHouses: 0, score: 0, dead: false
+      rank: 0, guards: 0, saboteurs: 0, tradingHouses: 0, score: 0, reignYears: 0, dead: false
     }
     const decisions = scriptedOpponentDecisions(poorPlayer, prices)
     const landDecision = decisions.find((d) => d.type === 'land_trade') as { farmlanbuy: number }

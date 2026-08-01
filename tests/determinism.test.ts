@@ -10,17 +10,17 @@ function createNoOpDecisions(): Record<string, Decision[]> {
       { type: 'grain', feedLevel: 'required' },
       { type: 'land_trade', farmlanbuy: 0, buildingLandBuy: 0, partnerPlayerId: 'kaiser' },
       { type: 'tax', vat: 10, incomeTax: 10, tariff: 5, justiceGraft: 0 },
-      { type: 'construction', marketBuild: 0, millBuild: 0, palaceStages: 0, cathedralBuild: false, wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0 },
+      { type: 'construction', marketBuild: 0, millBuild: 0, palaceStages: 0, cathedralBuild: false, wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0, tradingHouseBuild: 0 },
       { type: 'espionage', guardHire: 0, saboteurHire: 0 },
-      { type: 'trade', cornBuyPrice: 35, cornSellPrice: 45, farmlanbSellPrice: 25, buildingLandSellPrice: 55, minimumPercentageForSale: 10 }
+      { type: 'war', declare: false }
     ],
     player2: [
       { type: 'grain', feedLevel: 'required' },
       { type: 'land_trade', farmlanbuy: 0, buildingLandBuy: 0, partnerPlayerId: 'kaiser' },
       { type: 'tax', vat: 10, incomeTax: 10, tariff: 5, justiceGraft: 0 },
-      { type: 'construction', marketBuild: 0, millBuild: 0, palaceStages: 0, cathedralBuild: false, wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0 },
+      { type: 'construction', marketBuild: 0, millBuild: 0, palaceStages: 0, cathedralBuild: false, wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0, tradingHouseBuild: 0 },
       { type: 'espionage', guardHire: 0, saboteurHire: 0 },
-      { type: 'trade', cornBuyPrice: 35, cornSellPrice: 45, farmlanbSellPrice: 25, buildingLandSellPrice: 55, minimumPercentageForSale: 10 }
+      { type: 'war', declare: false }
     ]
   }
 }

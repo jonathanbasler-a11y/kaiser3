@@ -29,7 +29,8 @@ export function scriptedOpponentDecisions(player: PlayerState, kaizerPrices: Gam
       wellBuild: 0,
       hospitalBuild: 0,
       granaryBuild: 0,
-      garrisonBuild: 0
+      garrisonBuild: 0,
+      tradingHouseBuild: 0
     }
   ]
 }

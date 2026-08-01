@@ -62,7 +62,8 @@ export function randomLegalDecisions(player: PlayerState, rng: SeededRng): Decis
       wellBuild: rng.nextInt(0, 1),
       hospitalBuild: rng.nextInt(0, 1),
       granaryBuild: rng.nextInt(0, 1),
-      garrisonBuild: rng.nextInt(0, 1)
+      garrisonBuild: rng.nextInt(0, 1),
+      tradingHouseBuild: rng.nextInt(0, 1)
     }
   ]
 }
@@ -74,7 +75,7 @@ function passiveDecisions(): Decision[] {
     { type: 'tax', vat: 15, incomeTax: 15, tariff: 5, justiceGraft: 0 },
     {
       type: 'construction', marketBuild: 0, millBuild: 0, palaceStages: 0, cathedralBuild: false,
-      wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0
+      wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0, tradingHouseBuild: 0
     }
   ]
 }

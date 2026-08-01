@@ -8,7 +8,7 @@ const emptyBuildings: BuildingState = {
 
 const noOpDecision: ConstructionDecision = {
   type: 'construction', marketBuild: 0, millBuild: 0, palaceStages: 0, cathedralBuild: false,
-  wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0
+  wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0, tradingHouseBuild: 0
 }
 
 describe('applyConstruction', () => {
@@ -16,7 +16,7 @@ describe('applyConstruction', () => {
     const land: LandHolding = { farmland: 0, buildingLand: 1500 } // 1 market per 1000 ha -> cap of 1
     const population: PopulationState = { peasants: 1000, unrest: 0 }
     const decision: ConstructionDecision = { ...noOpDecision, marketBuild: 5 }
-    const result = applyConstruction(land, population, emptyBuildings, 100000, decision)
+    const result = applyConstruction(land, population, emptyBuildings, 100000, 0, 0, decision)
     expect(result.newBuildings.markets).toBe(1)
   })
 
@@ -24,7 +24,7 @@ describe('applyConstruction', () => {
     const land: LandHolding = { farmland: 0, buildingLand: 10000 } // ratio cap not binding
     const population: PopulationState = { peasants: 1000, unrest: 0 }
     const decision: ConstructionDecision = { ...noOpDecision, marketBuild: 100 }
-    const result = applyConstruction(land, population, emptyBuildings, 3000, decision) // buildCost 2000/market
+    const result = applyConstruction(land, population, emptyBuildings, 3000, 0, 0, decision) // buildCost 2000/market
     expect(result.newBuildings.markets).toBe(1)
     expect(result.newTaler).toBeGreaterThanOrEqual(0)
   })
@@ -33,7 +33,7 @@ describe('applyConstruction', () => {
     const land: LandHolding = { farmland: 0, buildingLand: 10000 }
     const population: PopulationState = { peasants: 500, unrest: 0 } // below requiresMinPopulation
     const decision: ConstructionDecision = { ...noOpDecision, hospitalBuild: 1 }
-    const result = applyConstruction(land, population, emptyBuildings, 100000, decision)
+    const result = applyConstruction(land, population, emptyBuildings, 100000, 0, 0, decision)
     expect(result.newBuildings.hospital).toBe(0)
   })
 
@@ -42,11 +42,11 @@ describe('applyConstruction', () => {
     const decision: ConstructionDecision = { ...noOpDecision, palaceStages: 2 }
 
     const smallLand: LandHolding = { farmland: 5000, buildingLand: 0 } // below 13,000 requirement
-    const smallResult = applyConstruction(smallLand, population, emptyBuildings, 100000, decision)
+    const smallResult = applyConstruction(smallLand, population, emptyBuildings, 100000, 0, 0, decision)
     expect(smallResult.newBuildings.palace).toBe(0)
 
     const bigLand: LandHolding = { farmland: 13000, buildingLand: 0 }
-    const bigResult = applyConstruction(bigLand, population, emptyBuildings, 100000, decision)
+    const bigResult = applyConstruction(bigLand, population, emptyBuildings, 100000, 0, 0, decision)
     expect(bigResult.newBuildings.palace).toBe(2)
   })
 
@@ -54,22 +54,53 @@ describe('applyConstruction', () => {
     const decision: ConstructionDecision = { ...noOpDecision, cathedralBuild: true }
 
     const landOnly = applyConstruction(
-      { farmland: 5000, buildingLand: 0 }, { peasants: 100, unrest: 0 }, emptyBuildings, 100000, decision
+      { farmland: 5000, buildingLand: 0 }, { peasants: 100, unrest: 0 }, emptyBuildings, 100000, 0, 0, decision
     )
     expect(landOnly.newBuildings.cathedral).toBe(0)
 
     const both = applyConstruction(
-      { farmland: 5000, buildingLand: 0 }, { peasants: 5000, unrest: 0 }, emptyBuildings, 100000, decision
+      { farmland: 5000, buildingLand: 0 }, { peasants: 5000, unrest: 0 }, emptyBuildings, 100000, 0, 0, decision
     )
     expect(both.newBuildings.cathedral).toBe(1)
+  })
+
+  it('cannot build a trading house below Margrave rank (4)', () => {
+    const land: LandHolding = { farmland: 0, buildingLand: 10000 }
+    const population: PopulationState = { peasants: 5000, unrest: 0 }
+    const decision: ConstructionDecision = { ...noOpDecision, tradingHouseBuild: 1 }
+    const result = applyConstruction(land, population, emptyBuildings, 100000, 3, 0, decision)
+    expect(result.newTradingHouses).toBe(0)
+  })
+
+  it('can build a trading house at Margrave rank and beyond, capped at maxCount', () => {
+    const land: LandHolding = { farmland: 0, buildingLand: 10000 }
+    const population: PopulationState = { peasants: 5000, unrest: 0 }
+    const decision: ConstructionDecision = { ...noOpDecision, tradingHouseBuild: 10 }
+    const result = applyConstruction(land, population, emptyBuildings, 1000000, 4, 0, decision)
+    expect(result.newTradingHouses).toBe(3) // data/buildings.json commerce.tradingHouse.maxCount
+  })
+
+  it('trading house count persists and only grows by the amount affordable/capped this year', () => {
+    const land: LandHolding = { farmland: 0, buildingLand: 10000 }
+    const population: PopulationState = { peasants: 5000, unrest: 0 }
+    const decision: ConstructionDecision = { ...noOpDecision, tradingHouseBuild: 1 }
+    const result = applyConstruction(land, population, emptyBuildings, 100000, 4, 2, decision)
+    expect(result.newTradingHouses).toBe(3)
   })
 })
 
 describe('calculateBuildingIncome', () => {
   it('scales linearly with building count', () => {
-    const oneMarket = calculateBuildingIncome({ ...emptyBuildings, markets: 1 })
-    const twoMarkets = calculateBuildingIncome({ ...emptyBuildings, markets: 2 })
+    const oneMarket = calculateBuildingIncome({ ...emptyBuildings, markets: 1 }, 0)
+    const twoMarkets = calculateBuildingIncome({ ...emptyBuildings, markets: 2 }, 0)
     expect(twoMarkets.marketIncome).toBe(oneMarket.marketIncome * 2)
+  })
+
+  it('trading houses generate income proportional to count', () => {
+    const oneHouse = calculateBuildingIncome(emptyBuildings, 1)
+    const twoHouses = calculateBuildingIncome(emptyBuildings, 2)
+    expect(oneHouse.tradingHouseIncome).toBeGreaterThan(0)
+    expect(twoHouses.tradingHouseIncome).toBe(oneHouse.tradingHouseIncome * 2)
   })
 })
 

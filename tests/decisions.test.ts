@@ -8,7 +8,7 @@ const legalSheet: Decision[] = [
   { type: 'tax', vat: 20, incomeTax: 20, tariff: 5, justiceGraft: 0 },
   {
     type: 'construction', marketBuild: 2, millBuild: 1, palaceStages: 1, cathedralBuild: false,
-    wellBuild: 0, hospitalBuild: 1, granaryBuild: 0, garrisonBuild: 0
+    wellBuild: 0, hospitalBuild: 1, granaryBuild: 0, garrisonBuild: 0, tradingHouseBuild: 0
   }
 ]
 
@@ -34,13 +34,13 @@ describe('validateDecisions', () => {
   it('rejects negative or fractional build counts', () => {
     const negative = validateDecisions([{
       type: 'construction', marketBuild: -1, millBuild: 0, palaceStages: 0, cathedralBuild: false,
-      wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0
+      wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0, tradingHouseBuild: 0
     }])
     expect(negative.valid).toBe(false)
 
     const fractional = validateDecisions([{
       type: 'construction', marketBuild: 1.5, millBuild: 0, palaceStages: 0, cathedralBuild: false,
-      wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0
+      wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0, tradingHouseBuild: 0
     }])
     expect(fractional.valid).toBe(false)
   })

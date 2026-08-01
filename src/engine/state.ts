@@ -12,9 +12,10 @@ export interface PlayerState {
   guards: number                   // Secret service: hired guards (defense)
   saboteurs: number                // Secret service: hired saboteurs (offense)
   tradingHouses: number            // Number of leased trading houses
-  score: number                    // Annual promotion score
-  dead: boolean                    // If true, may designate heir
-  heir?: string                    // Heir's player ID when dead
+  score: number                    // Cumulative productive income earned THIS REIGN (resets on succession — see F5)
+  reignYears: number                // Years the current ruler/heir has held the throne (resets on succession)
+  dead: boolean                    // True once the realm's population has collapsed to extinction (permanent — no heir can inherit nothing)
+  heir?: string                    // The player ID that inherited on succession (currently always self — see docs/kaiser-research.md succession note; a DIFFERENT heir ID is a multiplayer/dynasty extension, deferred per CLAUDE.md)
 }
 
 export interface LandHolding {
@@ -56,6 +57,20 @@ export interface Chronicle {
   // Espionage is inherently cross-player, so strikes are recorded once at the top
   // level rather than duplicated into both the attacker's and the victim's report.
   strikes: StrikeRecord[]
+  // Warfare (F4) is the same shape: cross-player, recorded once.
+  wars: WarRecord[]
+}
+
+export interface WarRecord {
+  attackerId: string
+  defenderId: string
+  alliesJoined: string[]
+  attackerWon: boolean
+  attackerCasualties: number
+  defenderCasualties: number
+  landTransferred: number
+  reparationsPaid: number
+  garrisonDestroyed: boolean
 }
 
 export interface StrikeRecord {
@@ -85,6 +100,7 @@ export interface PlayerChronicle {
   grainTradeIncome: number         // Net Taler from the grain market (may be negative)
   marketIncome: number
   millIncome: number
+  tradingHouseIncome: number
   tributeIncome: number
   taxIncome: number
   tariffIncome: number
@@ -99,6 +115,12 @@ export interface PlayerChronicle {
   events: PlayerEvent[]
   rankPromoted: boolean
   newRank?: number
+  // F5 succession (docs/kaiser-research.md): a ruler occasionally dies of natural
+  // causes and an heir inherits the SAME territory/rank/buildings, only the
+  // accumulated reign `score` resets to zero. Distinct from `dead` (extinction —
+  // no heir, no continuation).
+  succession: boolean
+  extinct: boolean
 }
 
 // The events shipped in data/events.json. Flood/drought are plausible future
@@ -125,13 +147,17 @@ export interface GameEvent {
 
 // Decision union: every yearly choice a player makes (human or AI).
 // Enforces parity between human UI and AI planner.
+//
+// TradeDecision (inter-ruler trade, F2 in BACKLOG.md) is deliberately NOT a
+// member: it was defined and validated but nothing ever executed it — a
+// validated-but-inert no-op is worse than a missing feature (BACKLOG.md B4).
+// Re-add it only alongside the phase that actually implements F2.
 export type Decision =
   | GrainDecision
   | LandTradeDecision
   | TaxDecision
   | ConstructionDecision
   | EspionageDecision
-  | TradeDecision
   | WarDecision
 
 export interface GrainDecision {
@@ -170,6 +196,7 @@ export interface ConstructionDecision {
   hospitalBuild: number
   granaryBuild: number
   garrisonBuild: number
+  tradingHouseBuild: number        // Rank-gated (Margrave+) — see data/buildings.json commerce.tradingHouse
 }
 
 // Two distinct ways to strike a rival, so the aggressive archetypes are not
@@ -186,15 +213,6 @@ export interface EspionageDecision {
   targetPlayerId?: string           // Whom to strike; omitted means stay home
   saboteursCommitted?: number       // How many to send against that target
   mode?: EspionageMode
-}
-
-export interface TradeDecision {
-  type: 'trade'
-  cornBuyPrice: number             // What I'll pay per unit
-  cornSellPrice: number            // What I'll sell at
-  farmlanbSellPrice: number        // Land trading prices
-  buildingLandSellPrice: number
-  minimumPercentageForSale: number // Rule: must offer ≥10% of holdings for sale (imperial decree)
 }
 
 export interface WarDecision {

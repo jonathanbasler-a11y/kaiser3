@@ -16,6 +16,15 @@
       "laborRequirement": 30
     }
   },
+  "commerce": {
+    "tradingHouse": {
+      "cost": 8000,
+      "incomePerYear": 900,
+      "maxCount": 3,
+      "requiresRank": 4,
+      "_note": "Unlocked at Margrave (rank 4, see data/ranks.json unlockedFeature). Income is sized so a single trading house roughly breaks even against the wealth-proportional tribute (economy.json upkeep.tradingHouseTributePercentage) at typical Margrave-era treasuries, then falls behind as wealth grows — the anti-snowball shape every other late-game building follows: bigger holdings cost more, not just earn more."
+    }
+  },
   "prestige": {
     "palace": {
       "stages": 16,

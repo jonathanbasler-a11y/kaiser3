@@ -70,7 +70,7 @@ describe('20-year integration run', () => {
       grainStock: 5000,
       population: { peasants: 3000, unrest: 0 },
       buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 0 },
-      rank: 0, guards: 0, saboteurs: 0, tradingHouses: 0, score: 0, dead: false
+      rank: 0, guards: 0, saboteurs: 0, tradingHouses: 0, score: 0, reignYears: 0, dead: false
     })
 
     let state: GameState = {
@@ -84,7 +84,7 @@ describe('20-year integration run', () => {
       player1: [
         { type: 'grain', feedLevel: 'required' },
         { type: 'tax', vat: 15, incomeTax: 15, tariff: 5, justiceGraft: 0 },
-        { type: 'construction', marketBuild: 0, millBuild: 0, palaceStages: 2, cathedralBuild: false, wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0 }
+        { type: 'construction', marketBuild: 0, millBuild: 0, palaceStages: 2, cathedralBuild: false, wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0, tradingHouseBuild: 0 }
       ],
       player2: noOpDecisions().player2
     }

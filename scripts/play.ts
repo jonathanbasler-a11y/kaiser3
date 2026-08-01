@@ -122,7 +122,7 @@ async function getHumanDecisions(state: GameState, humanId: string): Promise<Dec
     grainDecision,
     { type: 'land_trade', farmlanbuy, buildingLandBuy, partnerPlayerId: 'kaiser' },
     taxDecision,
-    { type: 'construction', marketBuild, millBuild, palaceStages, cathedralBuild, wellBuild, hospitalBuild, granaryBuild, garrisonBuild },
+    { type: 'construction', marketBuild, millBuild, palaceStages, cathedralBuild, wellBuild, hospitalBuild, granaryBuild, garrisonBuild, tradingHouseBuild: 0 },
     espionage
   ]
 }

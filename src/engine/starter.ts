@@ -26,6 +26,7 @@ export function createStarterPlayer(id: string, name: string): PlayerState {
     saboteurs: 0,
     tradingHouses: 0,
     score: 0,
+    reignYears: 0,
     dead: false
   }
 }

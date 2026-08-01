@@ -12,11 +12,13 @@ import { BuildingState, ConstructionDecision, LandHolding, PopulationState } fro
 const PRODUCTION = buildingsData.production
 const PRESTIGE = buildingsData.prestige
 const MITIGATION = buildingsData.mitigation
+const COMMERCE = buildingsData.commerce
 const UPKEEP = economyData.upkeep
 
 export interface ConstructionResult {
   newBuildings: BuildingState
   newTaler: number
+  newTradingHouses: number
   spent: number
 }
 
@@ -28,6 +30,8 @@ export function applyConstruction(
   population: PopulationState,
   buildings: BuildingState,
   taler: number,
+  rank: number,
+  tradingHouses: number,
   decision: ConstructionDecision
 ): ConstructionResult {
   const totalLand = land.farmland + land.buildingLand
@@ -76,18 +80,33 @@ export function applyConstruction(
     newBuildings.cathedral += built
   }
 
-  return { newBuildings, newTaler: remainingTaler, spent: taler - remainingTaler }
+  // Trading houses: rank-gated (Margrave+, data-driven) rather than a land ratio —
+  // per docs/kaiser-research.md these are LEASED from the Kaiser, not built on your
+  // own holdings, so there is no land cost, only the lease price and a count cap.
+  let newTradingHouses = tradingHouses
+  if (rank >= COMMERCE.tradingHouse.requiresRank) {
+    const built = buildCapped(
+      decision.tradingHouseBuild ?? 0,
+      COMMERCE.tradingHouse.cost,
+      Math.max(0, COMMERCE.tradingHouse.maxCount - newTradingHouses)
+    )
+    newTradingHouses += built
+  }
+
+  return { newBuildings, newTaler: remainingTaler, newTradingHouses, spent: taler - remainingTaler }
 }
 
 export interface BuildingIncomeResult {
   marketIncome: number
   millIncome: number
+  tradingHouseIncome: number
 }
 
-export function calculateBuildingIncome(buildings: BuildingState): BuildingIncomeResult {
+export function calculateBuildingIncome(buildings: BuildingState, tradingHouses: number): BuildingIncomeResult {
   return {
     marketIncome: buildings.markets * PRODUCTION.market.incomePerYear,
-    millIncome: buildings.mills * PRODUCTION.mill.incomePerYear
+    millIncome: buildings.mills * PRODUCTION.mill.incomePerYear,
+    tradingHouseIncome: tradingHouses * COMMERCE.tradingHouse.incomePerYear
   }
 }
 

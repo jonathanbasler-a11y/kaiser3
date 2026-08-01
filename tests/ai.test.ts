@@ -15,7 +15,7 @@ function makePlayer(overrides: Partial<PlayerState> = {}): PlayerState {
     grainStock: 5000,
     population: { peasants: 1000, unrest: 0 },
     buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 0 },
-    rank: 0, guards: 0, saboteurs: 0, tradingHouses: 0, score: 0, dead: false,
+    rank: 0, guards: 0, saboteurs: 0, tradingHouses: 0, score: 0, reignYears: 0, dead: false,
     ...overrides
   }
 }
@@ -161,10 +161,10 @@ describe('planner', () => {
     expect(result.valid).toBe(true)
   })
 
-  it('emits one decision per domain, espionage included', () => {
+  it('emits one decision per domain, espionage and war included', () => {
     const decisions = planYear(starterGame(), 'ai', BUILDER, 42)
     const types = decisions.map((d) => d.type).sort()
-    expect(types).toEqual(['construction', 'espionage', 'grain', 'land_trade', 'tax'])
+    expect(types).toEqual(['construction', 'espionage', 'grain', 'land_trade', 'tax', 'war'])
   })
 
   it('is deterministic for a given seed', () => {

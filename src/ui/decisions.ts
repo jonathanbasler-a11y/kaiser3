@@ -26,11 +26,15 @@ export interface DecisionDraft {
   hospitalBuild: number
   granaryBuild: number
   garrisonBuild: number
+  tradingHouseBuild: number
   guardHire: number
   saboteurHire: number
   targetPlayerId: string | null
   saboteursCommitted: number
   mode: EspionageMode
+  declareWar: boolean
+  warTargetPlayerId: string | null
+  warAlliesRequested: string[]
 }
 
 // Sensible defaults each year, re-derived from the fresh state rather than carried
@@ -56,11 +60,15 @@ export function defaultDraft(player: PlayerState): DecisionDraft {
     hospitalBuild: 0,
     granaryBuild: 0,
     garrisonBuild: 0,
+    tradingHouseBuild: 0,
     guardHire: 0,
     saboteurHire: 0,
     targetPlayerId: null,
     saboteursCommitted: Math.min(player.saboteurs, 4),
-    mode: 'raid'
+    mode: 'raid',
+    declareWar: false,
+    warTargetPlayerId: null,
+    warAlliesRequested: []
   }
 }
 
@@ -95,7 +103,8 @@ export function draftToDecisions(draft: DecisionDraft): Decision[] {
       wellBuild: draft.wellBuild,
       hospitalBuild: draft.hospitalBuild,
       granaryBuild: draft.granaryBuild,
-      garrisonBuild: draft.garrisonBuild
+      garrisonBuild: draft.garrisonBuild,
+      tradingHouseBuild: draft.tradingHouseBuild
     },
     {
       type: 'espionage',
@@ -104,6 +113,12 @@ export function draftToDecisions(draft: DecisionDraft): Decision[] {
       targetPlayerId: draft.targetPlayerId ?? undefined,
       saboteursCommitted: draft.targetPlayerId ? draft.saboteursCommitted : undefined,
       mode: draft.targetPlayerId ? draft.mode : undefined
+    },
+    {
+      type: 'war',
+      declare: draft.declareWar && !!draft.warTargetPlayerId,
+      targetPlayerId: draft.warTargetPlayerId ?? undefined,
+      alliesRequested: draft.warAlliesRequested.length > 0 ? draft.warAlliesRequested : undefined
     }
   ]
 }

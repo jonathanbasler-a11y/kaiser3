@@ -17,7 +17,8 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **8** | Sonnet | Medium | Warfare, alliances, succession/heir | War resolution, alliance votes, heir inheritance tests |
 | **9** | Sonnet | Medium | Graphical UI v1 (procedural art, dashboard/battlefield/chronicle/coronation) | Human plays full game without CLI, all events visible on map |
 | **10** | Sonnet/Haiku | Low–Medium | ComfyUI art pass (portraits, buildings, event icons, coronation tableau) | Tileset manifest loads, art deletable → procedural fallback works |
-| **11** | Sonnet | High | QA/hardening, regression, difficulty presets | All prior gates re-pass, difficulty presets validate via harness |
+| **11** | Sonnet | High | Trading houses, succession, warfare (BACKLOG B2-B4, F4, F5) | Tests green, balance gate re-passes with the new income/loss channels |
+| **12** | Sonnet | High | QA/hardening, regression, difficulty presets | All prior gates re-pass, difficulty presets validate via harness |
 
 ## Phase 0: Scaffold & Ground Rules ✓
 
@@ -554,4 +555,43 @@ Code *reads* these, never writes them. Balance tuning is JSON edits, not code re
 
 ---
 
-**Last updated:** Phase 10 complete — all art generated, verified, committed. Ready for Phase 11.
+## Phase 11: Trading Houses, Succession, Warfare ✓
+
+**Status:** Complete — closes BACKLOG.md items B2, B3, B4, F4, F5.
+
+### What Was Built
+- **Trading houses (B3):** `ConstructionDecision.tradingHouseBuild`, rank-gated at Margrave (`data/buildings.json` commerce.tradingHouse), capped at 3, generating real income via `calculateBuildingIncome()` — sized to roughly offset the pre-existing wealth-proportional tribute at typical Margrave-era wealth, then falling behind as wealth grows (the same anti-snowball shape every other late-game building follows). Wired into AI candidate generation and the human Build tab.
+- **Succession (B2/F5):** `src/engine/succession.ts`. No chance before a 15-year minimum reign; then a small, rising, capped annual chance the reign ends. Territory/rank/buildings persist unchanged; only a new `score` field (cumulative productive income this reign) resets to zero. `dead` is now genuinely set by `checkExtinction()` on real population collapse — previously declared but never assigned anywhere in the codebase. `heir` is set to the player's own id (self-succession): Kaiser 3 is one continuous session against AI rivals, not a hot-seat handoff, so there is no separate heir entity — a documented simplification, not an oversight.
+- **Warfare (F4):** `src/engine/war.ts`. `warStrength()` derived from garrison + guards + a population levy (no new unit system). Declared wars resolve probabilistically; requested allies join data-driven-probabilistically (more likely against a defender stronger than themselves). Both sides always take a real casualty regardless of outcome; the winner takes land (capped at half the loser's holdings) and reparations; the loser's garrison has a real chance of being destroyed. AI wiring in `src/ai/warAggression.ts` (same "price it directly, can't isolate-simulate a rival" reasoning as espionage's `aggression.ts`) — only archetypes with real aggression and a clearly favorable win probability (≥62%) ever declare. Human UI: new War tab mirroring the Secret Service tab's target-selection pattern, plus ally-request buttons.
+- **B4 (TradeDecision/WarDecision no-ops):** WarDecision is now fully executed. `TradeDecision` (inter-ruler trade, F2) stays out of scope and was **removed from the `Decision` union** per BACKLOG's own prescribed remedy, rather than left validated-but-inert.
+- **UI bug fix (unrelated report, fixed same phase):** mitigation buildings (well/hospital/granary/garrison) and the guards/saboteurs counts were reported as "resetting to zero" every turn. Root cause: not a state bug (verified directly — persistence confirmed via a standalone engine test) but a UI ambiguity — the yearly *order* stepper correctly defaults to 0 every year, sitting right next to a small `(1)` showing the real persisted count. Fixed: one-time mitigation buildings now show a static "Built ✓" badge once owned instead of a stepper; guards/saboteurs get a prominent stat-grid display with an explanatory note, both matching the pattern already used for the cathedral.
+- **Art quality pass (unrelated report, fixed same session):** of the 32 ComfyUI-generated assets from Phase 10, 15 had real spec violations (multi-figure portraits where the brief called for one person, whole villages instead of single buildings, wrong subjects entirely for famine/revolt/drought icons, a full castle illustration instead of a parchment texture). Fixed via iterative per-category and per-asset negative-prompt tightening in `scripts/gen-art.ts` across three regeneration rounds; 31/32 now match spec (`well.png` still resolves to a small cottage rather than a bare wellhead after three attempts — accepted rather than further iterated). All 32 art assets wired into the UI for the first time: setup screen portraits, standings portraits, build-tab building icons, chronicle event icons, and a coronation scene on victory.
+
+### Tests
+- 18 new tests: `tests/war.test.ts` (8), `tests/succession.test.ts` (6), 4 new trading-house cases in `tests/buildings.test.ts`. One stale assertion fixed in `tests/ai.test.ts` (the AI now correctly emits a `war` decision every year — decision parity with the human, same as espionage).
+- **172/172 tests passing**, `tsc` clean, production build succeeds.
+
+### Balance Re-Validation
+Per the project's own stated practice (any new income/loss channel requires a balance re-run), ran `npm run balance -- 60 60` (60 matches × 60 years, 5 rulers). **Gate PASSED** on all four criteria — but with a finding worth flagging rather than quietly accepting:
+- Loss-persistence rose sharply from Phase 6's baseline (27–51%/decade) to **78–96%/decade**.
+- Margin flatness now runs **negative** from decade 4 onward (−0.06% to −0.90%).
+
+War is clearly the dominant aggression channel now — a leader-focused AI declaring war on whoever's ahead hits far more often and harder than espionage alone did. The gate technically passes (it only checks for snowballing, not for a death spiral — see BACKLOG.md D5, itself a known limitation this only made more visible), so this is recorded as an open finding rather than silently tuned away. Candidates for a follow-up tuning pass, if the war mechanic proves too punishing in actual play: lower `warfare.casualtyFractionLoser` in `data/economy.json`, or raise `MIN_WIN_PROBABILITY` in `src/ai/warAggression.ts`.
+
+**Not re-measured this phase:** `npm run ai-bench` (archetype distinctness) — Phase 5/8's D2 finding predicted F4 might diversify the converged archetypes, but that specific claim needs its own benchmark run, not just the balance harness, before being treated as confirmed either way.
+
+### Acceptance Criteria
+- ✓ Trading houses buildable, rank-gated, generate income, AI and human both use them
+- ✓ Succession fires probabilistically after a minimum reign, resets score only, territory/rank/buildings persist — verified directly (100-year run: 3 successions, each reset correctly)
+- ✓ Extinction (`dead`) now genuinely set by the engine, not a vestigial always-false field
+- ✓ Warfare resolves with the documented win-probability formula — verified directly (200-trial sample: 81.0% observed vs. 80.3% predicted)
+- ✓ `TradeDecision` removed rather than left as a validated no-op
+- ✓ 172/172 tests, `tsc` clean, build succeeds, balance gate re-passes (with the D5-related finding above recorded, not hidden)
+- ✓ Verified end-to-end in-browser: War tab target/ally selection, Build tab rank-gating, chronicle war/succession entries, zero console errors
+
+### Next Phase
+**Phase 12 — QA/Hardening.** Full regression sweep, difficulty presets, and — given this phase's own findings — a closer look at whether war's current tuning is "hard but survivable" or drifting toward the death-spiral D5 already warned the gate can't distinguish. Re-run `npm run ai-bench` to check whether F4 actually diversified the converged archetypes (D2) before assuming it did.
+
+---
+
+**Last updated:** Phase 11 complete — trading houses, succession, and warfare implemented and balance-revalidated. Ready for Phase 12.

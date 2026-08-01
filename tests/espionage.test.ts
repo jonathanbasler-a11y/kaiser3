@@ -14,7 +14,7 @@ function makePlayer(id: string, overrides: Partial<PlayerState> = {}): PlayerSta
     grainStock: 10000,
     population: { peasants: 1000, unrest: 0 },
     buildings: { markets: 4, mills: 3, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 0 },
-    rank: 0, guards: 0, saboteurs: 10, tradingHouses: 0, score: 0, dead: false,
+    rank: 0, guards: 0, saboteurs: 10, tradingHouses: 0, score: 0, reignYears: 0, dead: false,
     ...overrides
   }
 }

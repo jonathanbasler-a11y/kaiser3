@@ -70,6 +70,29 @@
   "upkeep": {
     "tradingHouseTributePercentage": 0.1
   },
+  "_warfareNote": "F4: military strength is derived from existing stats (garrison, guards, population) rather than a new unit system — consistent with the rest of the game being data-driven stats, not a simulated army. Both sides always take SOME casualty (war has a real cost even in victory), and mitigation is impossible to buy down to zero risk, matching every other risk mechanic in this game (events.ts's own rule: mitigation caps risk, never eliminates it). Land transfer is the closest thing to the research doc's 'geography-gated' territorial consequence available without an actual map.",
+  "warfare": {
+    "garrisonStrengthWeight": 15,
+    "guardStrengthWeight": 3,
+    "levyStrengthPerThousandPeasants": 8,
+    "baseDefenceConstant": 5,
+    "allianceContributionFraction": 0.4,
+    "allianceJoinBaseChance": 0.25,
+    "allianceJoinStrongerTargetBonus": 0.35,
+    "casualtyFractionLoser": 0.03,
+    "casualtyFractionWinner": 0.008,
+    "landTransferFraction": 0.08,
+    "maxLandTransferShare": 0.5,
+    "reparationsFraction": 0.15,
+    "garrisonDestructionChanceLoser": 0.5
+  },
+  "_successionNote": "F5: a ruler's reign occasionally ends and an heir (same seat, same territory/rank/buildings) inherits — only the accumulated `score` resets. No chance of succession before minReignYears, so a new game/heir always gets a fair run before facing it. Chance then rises with reignYears, capped at maxAnnualDeathChance, so an unusually long reign becomes progressively more likely to turn over rather than running indefinitely.",
+  "succession": {
+    "minReignYears": 15,
+    "annualDeathChanceBase": 0.015,
+    "annualDeathChanceGrowth": 0.003,
+    "maxAnnualDeathChance": 0.12
+  },
   "population": {
     "birthRateBase": 0.038,
     "deathRateBase": 0.017,

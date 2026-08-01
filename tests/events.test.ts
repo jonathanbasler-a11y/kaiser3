@@ -21,6 +21,7 @@ function makePlayer(overrides: Partial<PlayerState> = {}): PlayerState {
     saboteurs: 0,
     tradingHouses: 0,
     score: 0,
+    reignYears: 0,
     dead: false,
     ...overrides
   }

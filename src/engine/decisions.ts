@@ -91,6 +91,7 @@ export function validateDecisions(decisions: Decision[]): ValidationResult {
         checkNonNegativeInteger('construction.hospitalBuild', decision.hospitalBuild, errors)
         checkNonNegativeInteger('construction.granaryBuild', decision.granaryBuild, errors)
         checkNonNegativeInteger('construction.garrisonBuild', decision.garrisonBuild, errors)
+        checkNonNegativeInteger('construction.tradingHouseBuild', decision.tradingHouseBuild, errors)
         if (typeof decision.cathedralBuild !== 'boolean') {
           errors.push('construction.cathedralBuild must be a boolean')
         }
@@ -100,19 +101,6 @@ export function validateDecisions(decisions: Decision[]): ValidationResult {
       case 'espionage': {
         checkNonNegativeInteger('espionage.guardHire', decision.guardHire, errors)
         checkNonNegativeInteger('espionage.saboteurHire', decision.saboteurHire, errors)
-        break
-      }
-
-      case 'trade': {
-        for (const field of ['cornBuyPrice', 'cornSellPrice', 'farmlanbSellPrice', 'buildingLandSellPrice'] as const) {
-          const value = decision[field]
-          if (!isFiniteNumber(value)) {
-            errors.push(`trade.${field} must be a finite number`)
-          } else if (value < 0) {
-            errors.push(`trade.${field} cannot be negative (got ${value})`)
-          }
-        }
-        checkRate('trade.minimumPercentageForSale', decision.minimumPercentageForSale, errors)
         break
       }
 
