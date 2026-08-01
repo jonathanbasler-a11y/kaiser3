@@ -4,6 +4,7 @@
 // discrete player actions (never continuously), so this is plenty fast.
 
 import { GameState, Decision, Chronicle, PlayerState, EspionageMode } from '../engine/state.ts'
+import { eventLossMagnitudeText } from '../engine/events/events.ts'
 import { createStarterState } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
 import { getRankName, isFeatureUnlocked } from '../engine/ranks.ts'
@@ -16,7 +17,10 @@ import { DecisionDraft, defaultDraft, draftToDecisions, rivalOptions, affordable
 import { drawBanner } from './render.ts'
 import { spriteImg } from './spriteLoader.ts'
 
-// EventId ('plague'/'fire'/'famine'/'revolt'/'banditry') -> tileset.json eventIcons asset id.
+// EventId -> tileset.json eventIcons asset id. Drought/flood (F6) have no art
+// yet, so they're deliberately absent here — spriteImg's 404-safe fallback
+// (spriteLoader.ts) means an unmapped id just renders without an icon rather
+// than breaking, consistent with the art-fallback invariant.
 const EVENT_ICON_ID: Record<string, string> = {
   plague: 'plague_flag',
   fire: 'fire_smoke',
@@ -24,6 +28,7 @@ const EVENT_ICON_ID: Record<string, string> = {
   revolt: 'revolt_banner',
   banditry: 'bandit_skull'
 }
+
 
 const HUMAN_ID = 'human'
 const KAISER_RANK = 7
@@ -444,10 +449,11 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
 
   container.append(
     el('h3', {}, 'Mitigation'),
-    mitigationRow('well', 'Well — fire', player.buildings.well > 0, draft.wellBuild, (v) => { draft.wellBuild = v }),
+    mitigationRow('well', 'Well — fire/drought', player.buildings.well > 0, draft.wellBuild, (v) => { draft.wellBuild = v }),
     mitigationRow('hospital', 'Hospital — plague', player.buildings.hospital > 0, draft.hospitalBuild, (v) => { draft.hospitalBuild = v }),
     mitigationRow('granary', 'Granary — famine', player.buildings.granary > 0, draft.granaryBuild, (v) => { draft.granaryBuild = v }),
-    mitigationRow('garrison', 'Garrison — banditry/revolt/war defence', player.buildings.garrison > 0, draft.garrisonBuild, (v) => { draft.garrisonBuild = v })
+    mitigationRow('garrison', 'Garrison — banditry/revolt/war defence', player.buildings.garrison > 0, draft.garrisonBuild, (v) => { draft.garrisonBuild = v }),
+    mitigationRow('dike', 'Dike — flood', (player.buildings.dike ?? 0) > 0, draft.dikeBuild, (v) => { draft.dikeBuild = v })
   )
 
   if (isFeatureUnlocked(player.rank, 'tradingHouses')) {
@@ -647,9 +653,7 @@ function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement
   }
 
   for (const event of report.events) {
-    const magnitude = event.lossType === 'gold' ? `${event.loss.toFixed(0)} Taler lost`
-      : event.lossType === 'population' ? `${event.loss.toFixed(0)} peasants lost`
-      : `${event.loss.toFixed(0)} buildings destroyed`
+    const magnitude = eventLossMagnitudeText(event)
     const iconId = EVENT_ICON_ID[event.type]
     entries.push(el('div', { class: 'log-entry bad with-icon' },
       iconId ? spriteImg('eventIcons', iconId, event.type, 'event-sm') : null,

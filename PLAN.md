@@ -642,4 +642,134 @@ War fires **2.2×/match** with a **72.7%** attacker win rate. Only aggressive ar
 
 ---
 
-**Last updated:** Phase 11.5 complete — balance instrumentation corrected, war made real. Ready for Phase 12 (QA/hardening, difficulty presets, and `ai-bench` to test whether war actually diversifies archetypes).
+## Phase 12: Performance, Flood/Drought, Corn Price ✓
+
+**Status:** Complete. Scoped by a plan-mode research pass that also resolved
+one of its own two open questions before any code was written: D2 (archetype
+convergence) is a victory-condition design problem, not a missing-mechanics
+one — `npm run ai-bench` (finally re-run, per Phase 11.5's "not re-measured
+this phase" note) showed every archetype buying land to exactly the 13,000 ha
+palace gate and stopping, with F4 (warfare, shipped Phase 11) moving that
+number **not at all**. See BACKLOG.md D2 for the measured table.
+
+### Golden baseline (prerequisite for the performance work)
+`npm run ai-bench`'s output committed to `tests/fixtures/ai-bench-baseline.json`,
+plus a genuinely cross-process guard — `tests/golden.test.ts` — that the prior
+`determinism.test.ts` could not provide: that test only compares two runs *in
+the same process*, so a change that consistently shifts which candidate wins
+still passes it. `tests/golden.test.ts` diffs live `planYear` output against a
+fixture on disk (`tests/fixtures/planner-golden.json`, regenerated only via a
+deliberate run of `scripts/gen-golden-fixture.ts`), at both the starter state
+and after 19 years of real simulated play.
+
+### D4: `planYear` performance (~4× on the suite, byte-identical decisions)
+Profiled cost: hoisting `isolate()` out of the per-candidate/per-seed loop in
+`src/ai/planner.ts` (advanceYear never mutates the state it's given — see
+`year.ts`'s own clone — so the isolated single-player state can be built once
+per `planYear` call and reused across every candidate and seed); a
+hand-written structural clone (`cloneGameState`/`clonePlayerState`,
+`src/engine/state.ts`) replacing `JSON.parse(JSON.stringify())` in
+`src/engine/year.ts` and `src/ai/evaluator.ts`'s `applyExpectedLosses`. Full
+suite: 52.5s → 13.6s (`ai.test.ts` alone: 36.8s → 8.4s). Re-ran `npm run
+ai-bench` after: output matched the committed baseline exactly — the
+performance pass changed nothing about what the AI decides. **Excluded**
+(per the plan): a `PlayerChronicle` clone optimization worth only 5-10% that
+would have widened `advanceYear`'s signature, which CLAUDE.md treats as
+load-bearing.
+
+### F6: Flood and drought (Path B — agriculture-linked, not a data reskin)
+A "Path A" reskin of the existing event types was rejected during planning:
+it would have made flood≈fire and drought≈famine, failing this project's own
+event-design standard (every event needs a genuinely distinct mitigation
+hook). Built instead:
+- New exposure drivers `harvestShortfall`/`harvestExcess` (`src/engine/scarcity.ts`),
+  driven by the SAME weather roll that decided that year's harvest
+  (`harvest.weather.multiplier`, threaded through `year.ts`) — drought/flood
+  compound a real bad/wet year rather than rolling independently of it, the
+  same relationship famine already has to a real feeding shortfall.
+- New loss types `grain` (drought — scorches the barn) and `farmland` (flood —
+  washes out hectares), added to `EventLossType`. **Every switch over that
+  type was made exhaustive** — `src/engine/events/events.ts`'s
+  `applyEventLoss`, `src/ai/evaluator.ts`'s `applyExpectedLosses`, and a new
+  shared `eventLossMagnitudeText()` (moved into `events.ts` so
+  `scripts/play.ts`'s CLI and `src/ui/app.ts`'s browser UI share one
+  definition instead of two ternary chains that had already silently
+  defaulted to "buildings destroyed" for anything unrecognised).
+- New `dike` building (`data/buildings.json`), optional on `BuildingState`/
+  `ConstructionDecision` rather than a required field threaded through the
+  ~15 existing literal construction sites, defaulting to `?? 0` at every read
+  and normalized to a real `0` by `clonePlayerState` so it can never silently
+  drop out of a clone. `well` now also mitigates drought.
+- **The AI's forward risk-pricing needed its own fix, not just a context
+  field.** Pricing drought/flood off a single "expected weather multiplier"
+  (~1.02, the weather-band mean) collapsed drought exposure to exactly zero
+  forever — `max(0, 1 - 1.02) = 0` — the textbook Jensen's-gap trap
+  (`E[f(X)] ≠ f(E[X])` for the nonlinear `max(0, ...)` exposure formula).
+  Fixed by computing the TRUE expectations `E[max(0, 1-m)]` and
+  `E[max(0, m-1)]` directly over the weather-band distribution
+  (`projectedHarvestShortfall`/`projectedHarvestExcess`, `evaluator.ts`) —
+  caught by a test asserting `expectedAnnualEventCost` is strictly lower for
+  a player holding a well/dike than one without.
+- `src/ai/balance.ts`'s `eventLossShare` extended to see grain/farmland loss
+  as adversity — the same class of blind spot Phase 11.5 documented for war
+  before it was wired in, avoided pre-emptively this time.
+- 11 new tests (`tests/f6-weather-events.test.ts`): catalog shape, exposure
+  zero-in-an-ordinary-year / positive-in-a-real-drought-or-flood-year,
+  mitigation reduces but never eliminates probability, a fired event moves
+  exactly the right resource and nothing else, AI risk-pricing differentiates
+  mitigated from unmitigated, and `eventLossMagnitudeText` exhaustiveness.
+
+### Precursor: `cornPriceBands` was dead data — wired in, not deleted
+`data/economy.json`'s `prices.cornPriceBands` (min/max) was referenced
+nowhere; the Kaiser's corn price never moved from its starting value for an
+entire match. Wired in as `driftCornPrice()` (`src/engine/economy.ts`): a
+field-wide poor/bountiful harvest (averaged across all rulers' already-rolled
+weather, no new RNG draw) nudges next year's price toward scarcity, clamped
+to the band — the Hanse-style "price + weather" uncertainty
+`docs/kaiser-research.md` calls for, and it makes selling grain a real timing
+decision rather than arithmetic against a fixed number.
+
+### Golden fixture regeneration (both deliberate, both reviewed)
+F6 and the corn-price drift each genuinely change what a 19-year-developed
+game state looks like, so `tests/fixtures/planner-golden.json` was
+regenerated once after each — confirmed by reading the diffs (grain-sale
+sizing and tax posture shifting with the new price signal; nothing
+structurally wrong) before accepting.
+
+### Balance Re-Validation
+Two new adversity/income channels, so the gate was re-run twice (`npm run
+balance`, 200×60y, 5 rulers) — once after F6, once after the corn-price
+precursor. **PASSED both times.** Diagnostics after both changes: leader
+return still positive through decade 5, field population/holdings/mean-rank
+still growing every decade (1069→2097 / 404k→1.05M / 0.03→3.27), **0.0%
+extinctions** — no death spiral, consistent with Phase 11.5's reading of the
+anti-snowball lever.
+
+### Acceptance Criteria
+- ✓ `tests/golden.test.ts` catches decision drift a same-process determinism
+  test cannot; `npm run ai-bench` matched the committed baseline exactly after
+  the performance pass
+- ✓ D4: ~4× full-suite speedup, zero behavior change
+- ✓ F6: flood and drought are real, distinct, mitigable events; every
+  `EventLossType` switch is exhaustive (compile-time enforced)
+- ✓ `cornPriceBands` is live data, not dead weight
+- ✓ 195/195 tests, `tsc` clean, balance gate re-passes twice with diagnostics
+  read (not just PASS taken at face value)
+
+### Deferred (per the plan's own recommendation, not silently dropped)
+- **F2 (inter-ruler trade):** its stated justification — fixing D2 — is now
+  known false (see above). The `cornPriceBands` precursor was taken instead
+  of the full feature.
+- **F7 (fog of war):** would predictably regress the balance gate — leader-
+  focused targeting is the anti-snowball lever criteria 2 and 3 measure, and
+  it only works because AIs can see who leads.
+- **D2 as a design problem, B5, D1, D5's numeric floor:** left for the
+  hardening phase, per the approved plan.
+
+### Next Phase
+**Phase 13** — hardening/performance/testing, and D2 as a victory-condition
+design question (not a benchmark to re-run).
+
+---
+
+**Last updated:** Phase 12 complete — `planYear` ~4× faster with byte-identical decisions, flood/drought (F6) shipped as real agriculture-linked events, corn price drift wired in. Balance gate re-passes. Ready for Phase 13 (hardening).

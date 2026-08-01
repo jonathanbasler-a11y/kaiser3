@@ -1,0 +1,13 @@
+{
+  "_comment": "Committed baseline from `npm run ai-bench`, captured before the D4 performance pass (Phase 12 planning). This is the only valid pre-optimization measurement — see BACKLOG.md D4. Not asserted against directly by a test (the archetype loop is stochastic across 12 seeded matches per row and legitimately shifts a few units run to run); it exists for a human to diff `npm run ai-bench` output against after each optimization step. The cross-process decision golden in tests/golden.test.ts is the automated guard.",
+  "archetypeProfiles": [
+    { "archetype": "The Builder", "taler": 695451, "peasants": 2227, "land": 13240, "marketsAndMills": 25.9, "palace": 16.0, "mitigation": 4.00, "rank": 3.67 },
+    { "archetype": "The Expansionist", "taler": 766873, "peasants": 2127, "land": 13256, "marketsAndMills": 26.0, "palace": 16.0, "mitigation": 4.00, "rank": 3.58 },
+    { "archetype": "The Merchant", "taler": 736713, "peasants": 1651, "land": 13097, "marketsAndMills": 25.9, "palace": 10.8, "mitigation": 3.92, "rank": 2.17 },
+    { "archetype": "The Schemer", "taler": 802802, "peasants": 2155, "land": 13159, "marketsAndMills": 25.8, "palace": 16.0, "mitigation": 4.00, "rank": 3.50 },
+    { "archetype": "The Raider", "taler": 723774, "peasants": 1955, "land": 13093, "marketsAndMills": 25.8, "palace": 12.1, "mitigation": 4.00, "rank": 2.92 }
+  ],
+  "legalityAudit": { "sheetsAudited": 600, "illegal": 0 },
+  "winRatesVsRandomBot": { "builder": 1.0, "expansionist": 1.0, "merchant": 1.0, "schemer": 1.0, "raider": 1.0 },
+  "winRatesVsPassive": { "builder": 1.0, "expansionist": 1.0, "merchant": 1.0, "schemer": 1.0, "raider": 1.0 }
+}

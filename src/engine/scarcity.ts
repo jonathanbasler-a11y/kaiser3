@@ -23,7 +23,7 @@
 
 import { PlayerState } from './state.ts'
 
-export type ExposureDriver = 'population' | 'buildings' | 'wealth' | 'unrest' | 'grainShortfall'
+export type ExposureDriver = 'population' | 'buildings' | 'wealth' | 'unrest' | 'grainShortfall' | 'harvestShortfall' | 'harvestExcess'
 
 export interface ExposureSpec {
   driver: ExposureDriver
@@ -36,13 +36,43 @@ export interface ExposureSpec {
 // (feeding adequacy is computed during the year, not stored on the player).
 export interface ExposureContext {
   feedAdequacy: number   // From economy.ts resolveFeeding(); 1.0 = exactly fed
+  // F6: the SAME weather roll that decided this year's harvest (economy.ts
+  // WeatherBand.multiplier; 1.0 = an ordinary year). Drought/flood are
+  // deliberately driven by the real weather that already happened this year
+  // (harvest.weather, computed before events resolve — see year.ts), not by a
+  // second independent roll: a genuine drought year should be the year the
+  // drought EVENT is more likely, the same way famine compounds a real feeding
+  // shortfall rather than rolling independently of it.
+  //
+  // Optional, defaulting to 1.0 (an ordinary year, zero drought/flood
+  // exposure) wherever read — see rawDriverValue below — so the many existing
+  // call sites built before F6 (mostly in tests) that construct a context with
+  // only `feedAdequacy` keep compiling and keep behaving exactly as before:
+  // no drought/flood exposure unless a caller deliberately supplies real
+  // weather.
+  weatherMultiplier?: number
+  // The AI's forward-looking risk pricing (evaluator.ts) cannot know next
+  // year's ACTUAL weather, so it cannot derive harvestShortfall/harvestExcess
+  // from a single weatherMultiplier the way the real per-year path does.
+  //
+  // Deliberately NOT approximated as max(0, 1 - E[weatherMultiplier]): the
+  // weather-band mean is ~1.02 (skewed above 1 by design), which makes
+  // max(0, 1 - 1.02) collapse to exactly 0 — the AI would price drought risk
+  // at zero forever, the Jensen's-gap trap this file's own hospital story
+  // warns about (E[f(X)] != f(E[X]) for a nonlinear f like max(0, ...)).
+  // These carry the CORRECT expectation instead — E[max(0, 1-m)] and
+  // E[max(0, m-1)] computed directly over the weather bands (evaluator.ts) —
+  // and rawDriverValue prefers them over the weatherMultiplier-derived
+  // formula whenever present.
+  harvestShortfallExpectation?: number
+  harvestExcessExpectation?: number
 }
 
 // Counts everything a fire could plausibly consume. Palace stages count because
 // a half-built palace is a construction site full of timber and scaffolding.
 export function countBuildings(player: PlayerState): number {
   const b = player.buildings
-  return b.markets + b.mills + b.palace + b.cathedral + b.hospital + b.well + b.granary + b.garrison
+  return b.markets + b.mills + b.palace + b.cathedral + b.hospital + b.well + b.granary + b.garrison + (b.dike ?? 0)
 }
 
 function rawDriverValue(driver: ExposureDriver, player: PlayerState, context: ExposureContext): number {
@@ -60,6 +90,25 @@ function rawDriverValue(driver: ExposureDriver, player: PlayerState, context: Ex
       // this is what makes famine COMPOUND an existing shortage rather than
       // rolling as an independent disaster (a PLAN.md Phase 4 acceptance criterion).
       return Math.max(0, 1 - context.feedAdequacy)
+    case 'harvestShortfall':
+      // F6: how far this year's weather fell below an ordinary one. 0 in an
+      // average-or-better year — drought compounds a bad harvest, it doesn't
+      // roll independently of it. A precomputed expectation (evaluator.ts's
+      // projection) takes priority when supplied — see the comment on
+      // ExposureContext. Falls back to an ordinary year (0 exposure) if a
+      // caller omits weatherMultiplier too, rather than propagating NaN into
+      // a probability the resolveEvents() firing check can't safely compare —
+      // same "degrade to the safe choice" rule economy.ts's feed-level
+      // default follows.
+      if (context.harvestShortfallExpectation !== undefined) return context.harvestShortfallExpectation
+      return Math.max(0, 1 - (context.weatherMultiplier ?? 1))
+    case 'harvestExcess':
+      // F6: how far this year's weather exceeded an ordinary one. 0 in an
+      // average-or-worse year — flood compounds an unusually wet/bountiful
+      // year, mirroring drought's relationship to a dry one. Same precedence
+      // and NaN-safe default as harvestShortfall above.
+      if (context.harvestExcessExpectation !== undefined) return context.harvestExcessExpectation
+      return Math.max(0, (context.weatherMultiplier ?? 1) - 1)
   }
 }
 

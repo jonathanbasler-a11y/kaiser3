@@ -68,6 +68,36 @@
       }
     },
     {
+      "id": "drought",
+      "name": "Drought",
+      "category": "condition",
+      "baseWeight": 0.30,
+      "exposure": { "driver": "harvestShortfall", "reference": 0.4, "exponent": 1.0, "cap": 2 },
+      "mitigation": { "building": "well", "probabilityReduction": 0.55, "severityReduction": 0.25 },
+      "floorProbability": 0.0,
+      "maxProbability": 0.45,
+      "loss": { "type": "grain", "fraction": 0.3, "severityJitter": 0.4 },
+      "telegraph": {
+        "unmitigated": "The dry year scorches the fields and empties the barns — no wells to draw on",
+        "mitigated": "The dry year bites, but the wells keep enough water flowing to save most of the stores"
+      }
+    },
+    {
+      "id": "flood",
+      "name": "Flood",
+      "category": "condition",
+      "baseWeight": 0.25,
+      "exposure": { "driver": "harvestExcess", "reference": 0.4, "exponent": 1.0, "cap": 2 },
+      "mitigation": { "building": "dike", "probabilityReduction": 0.55, "severityReduction": 0.25 },
+      "floorProbability": 0.0,
+      "maxProbability": 0.40,
+      "loss": { "type": "farmland", "fraction": 0.08, "severityJitter": 0.4 },
+      "telegraph": {
+        "unmitigated": "The heavy rains overwhelm the fields — no dikes to hold the water back",
+        "mitigated": "The rains swell the rivers, but the dikes hold most of the fields dry"
+      }
+    },
+    {
       "id": "famine",
       "name": "Famine",
       "category": "condition",

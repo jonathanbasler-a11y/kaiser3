@@ -22,7 +22,7 @@
 
 import economyData from '../../data/economy.json'
 import buildingsData from '../../data/buildings.json'
-import { PlayerState } from '../engine/state.ts'
+import { PlayerState, clonePlayerState } from '../engine/state.ts'
 import { getEventCatalog, calculateEventProbability } from '../engine/events/events.ts'
 import { ExposureContext } from '../engine/scarcity.ts'
 import { rankProgress, getNextRank } from '../engine/ranks.ts'
@@ -98,6 +98,46 @@ export function projectedFeedAdequacy(player: PlayerState): number {
   return Math.min(1, yearsOfFoodHeld(player))
 }
 
+// F6: next year's weather is exogenous — nothing in player state predicts it,
+// unlike feedAdequacy above, which the ruler's own grain stock genuinely
+// determines. The one-year-ahead risk pricing needs E[harvestShortfall] and
+// E[harvestExcess] — the TRUE expectation of scarcity.ts's max(0, ...)
+// formulas over the weather-band distribution, computed directly here rather
+// than derived from a single "expected multiplier".
+//
+// That distinction matters: the band-weighted mean multiplier is ~1.02 (see
+// economy.json's own _harvestNote, skewed above 1 by design), so
+// max(0, 1 - 1.02) collapses to exactly 0 — plugging the mean multiplier into
+// the shortfall formula would price drought risk at zero FOREVER regardless
+// of exposure, the textbook Jensen's-gap trap (E[f(X)] != f(E[X]) for a
+// nonlinear f). Computing E[max(0, 1-m)] and E[max(0, m-1)] directly avoids
+// it, and gives the same result the real per-year path would average to over
+// many seeds. Constants, not per-player projections — computed once at
+// module load, same shape as any other precomputed weight in this file.
+//
+// Without this the AI would price drought/flood risk at exactly zero and
+// never value a well or a dike for it — the same failure mode this file
+// already documents for hospitals above.
+interface WeatherBandLike { multiplier: number; weight: number }
+
+function weightedMean(bands: WeatherBandLike[], valueOf: (band: WeatherBandLike) => number): number {
+  const totalWeight = bands.reduce((sum, band) => sum + band.weight, 0)
+  const totalValue = bands.reduce((sum, band) => sum + valueOf(band) * band.weight, 0)
+  return totalWeight > 0 ? totalValue / totalWeight : 0
+}
+
+const WEATHER_BANDS = HARVEST.weatherBands as WeatherBandLike[]
+const PROJECTED_HARVEST_SHORTFALL = weightedMean(WEATHER_BANDS, (b) => Math.max(0, 1 - b.multiplier))
+const PROJECTED_HARVEST_EXCESS = weightedMean(WEATHER_BANDS, (b) => Math.max(0, b.multiplier - 1))
+
+export function projectedHarvestShortfall(): number {
+  return PROJECTED_HARVEST_SHORTFALL
+}
+
+export function projectedHarvestExcess(): number {
+  return PROJECTED_HARVEST_EXCESS
+}
+
 // How much headroom beyond the present workforce still counts as useful land.
 // Roughly a generation's worth of growth: enough that a ruler keeps buying room to
 // expand into, not so much that it hoards hectares nobody will ever work.
@@ -162,7 +202,13 @@ function palaceLandEnablement(player: PlayerState): number {
 
 // A copy of the player with one year's EXPECTED event losses already applied.
 function applyExpectedLosses(player: PlayerState, context: ExposureContext): PlayerState {
-  const projected = JSON.parse(JSON.stringify(player)) as PlayerState
+  // Hand-written clone (state.ts) instead of JSON.parse(JSON.stringify()) —
+  // this runs once per candidate-seed evaluation, same hot path as the
+  // isolate()/advanceYear() clones this pass already replaced. `projected` is
+  // purely a scratch valuation object (see the comment on intrinsicUtility
+  // below), never fed back into the simulation, so a field-for-field copy is
+  // exactly as safe as the JSON round-trip it replaces.
+  const projected = clonePlayerState(player)
 
   for (const event of getEventCatalog()) {
     const probability = calculateEventProbability(event, player, context)
@@ -192,6 +238,21 @@ function applyExpectedLosses(player: PlayerState, context: ExposureContext): Pla
         const lossShare = event.loss.fraction * expectedShare
         projected.buildings.markets = Math.max(0, projected.buildings.markets - player.buildings.markets * lossShare)
         projected.buildings.mills = Math.max(0, projected.buildings.mills - player.buildings.mills * lossShare)
+        break
+      }
+      case 'grain': {
+        // F6 (drought). Grain has no weight in intrinsicUtility() directly — its
+        // value shows up through grainSecurityRatio(), so pricing this loss is
+        // what makes the AI value a well against drought the same way it values
+        // a granary against famine.
+        projected.grainStock = Math.max(0, projected.grainStock - player.grainStock * event.loss.fraction * expectedShare)
+        break
+      }
+      case 'farmland': {
+        // F6 (flood). Reduces the land itself, not just this year's yield —
+        // priced through usableLand()'s land weight, same as any other loss of
+        // productive hectares.
+        projected.land.farmland = Math.max(0, projected.land.farmland - player.land.farmland * event.loss.fraction * expectedShare)
         break
       }
     }

@@ -92,6 +92,11 @@ export function validateDecisions(decisions: Decision[]): ValidationResult {
         checkNonNegativeInteger('construction.granaryBuild', decision.granaryBuild, errors)
         checkNonNegativeInteger('construction.garrisonBuild', decision.garrisonBuild, errors)
         checkNonNegativeInteger('construction.tradingHouseBuild', decision.tradingHouseBuild, errors)
+        // dikeBuild (F6) is optional on the type, but once a caller supplies it
+        // it must be well-formed like every other build count.
+        if (decision.dikeBuild !== undefined) {
+          checkNonNegativeInteger('construction.dikeBuild', decision.dikeBuild, errors)
+        }
         if (typeof decision.cathedralBuild !== 'boolean') {
           errors.push('construction.cathedralBuild must be a boolean')
         }

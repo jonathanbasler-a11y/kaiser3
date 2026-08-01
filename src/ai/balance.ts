@@ -148,6 +148,16 @@ export function snapshotYear(state: GameState, chronicle: Chronicle): YearSnapsh
     const goldShare = talerBefore > 0 ? goldLost / talerBefore : 0
     const populationShare = populationBefore > 0 ? populationLost / populationBefore : 0
 
+    // F6: drought (grain) and flood (farmland) are a real new adversity channel
+    // this criterion must actually see, or re-running the gate after adding
+    // them would show ~nothing changed while a genuine new risk went
+    // completely unmeasured — the same class of blind spot BACKLOG D5
+    // documents for war before it was wired into this file.
+    const grainBefore = state.players[playerId].grainStock + report.eventGrainLoss
+    const farmlandBefore = state.players[playerId].land.farmland + report.eventFarmlandLoss
+    const grainShare = grainBefore > 0 ? report.eventGrainLoss / grainBefore : 0
+    const farmlandShare = farmlandBefore > 0 ? report.eventFarmlandLoss / farmlandBefore : 0
+
     players[playerId] = {
       taler: state.players[playerId].taler,
       population: state.players[playerId].population.peasants,
@@ -157,7 +167,7 @@ export function snapshotYear(state: GameState, chronicle: Chronicle): YearSnapsh
       eventGoldLoss: report.eventGoldLoss,
       netIncome,
       rank: state.players[playerId].rank,
-      eventLossShare: Math.max(goldShare, populationShare)
+      eventLossShare: Math.max(goldShare, populationShare, grainShare, farmlandShare)
     }
   }
 

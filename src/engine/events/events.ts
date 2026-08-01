@@ -134,6 +134,8 @@ export interface ResolvedEvent {
   populationLoss: number
   goldLoss: number
   buildingsDestroyed: number
+  grainLoss: number       // F6 (drought)
+  farmlandLoss: number    // F6 (flood)
 }
 
 function rollSeverity(event: EventDefinition, rng: SeededRng): number {
@@ -191,6 +193,8 @@ function applyEventLoss(
   let populationLoss = 0
   let goldLoss = 0
   let buildingsDestroyed = 0
+  let grainLoss = 0
+  let farmlandLoss = 0
 
   switch (event.loss.type) {
     case 'population': {
@@ -215,9 +219,26 @@ function applyEventLoss(
       buildingsDestroyed = destroyProductionBuildings(player, Math.ceil(target))
       break
     }
+    case 'grain': {
+      // F6 (drought): the standing crop and stored reserve scorch together —
+      // both are equally exposed to a dry year, so this is priced against the
+      // barn, not the field. Never takes more than the barn holds.
+      grainLoss = Math.min(player.grainStock, player.grainStock * event.loss.fraction * severityFactor)
+      player.grainStock = Math.max(0, player.grainStock - grainLoss)
+      break
+    }
+    case 'farmland': {
+      // F6 (flood): hectares washed out — a real, standing loss to the land
+      // holding itself (distinct from harvest.ts's laborGatedFarmland, which
+      // is about labor availability, not land existing at all). Building land
+      // is untouched: flooding takes fields, not the palace's foundation.
+      farmlandLoss = Math.min(player.land.farmland, player.land.farmland * event.loss.fraction * severityFactor)
+      player.land.farmland = Math.max(0, player.land.farmland - farmlandLoss)
+      break
+    }
   }
 
-  const totalLoss = populationLoss + goldLoss + buildingsDestroyed
+  const totalLoss = populationLoss + goldLoss + buildingsDestroyed + grainLoss + farmlandLoss
 
   return {
     event: {
@@ -230,7 +251,9 @@ function applyEventLoss(
     },
     populationLoss,
     goldLoss,
-    buildingsDestroyed
+    buildingsDestroyed,
+    grainLoss,
+    farmlandLoss
   }
 }
 
@@ -239,6 +262,8 @@ export interface EventPhaseResult {
   totalPopulationLoss: number
   totalGoldLoss: number
   totalBuildingsDestroyed: number
+  totalGrainLoss: number       // F6 (drought)
+  totalFarmlandLoss: number    // F6 (flood)
 }
 
 // Rolls every event in the catalog exactly once for this player, applying any
@@ -253,6 +278,8 @@ export function resolveEvents(
   let totalPopulationLoss = 0
   let totalGoldLoss = 0
   let totalBuildingsDestroyed = 0
+  let totalGrainLoss = 0
+  let totalFarmlandLoss = 0
 
   for (const event of CATALOG) {
     const probability = calculateEventProbability(event, player, context)
@@ -288,11 +315,31 @@ export function resolveEvents(
     totalPopulationLoss += resolved.populationLoss
     totalGoldLoss += resolved.goldLoss
     totalBuildingsDestroyed += resolved.buildingsDestroyed
+    totalGrainLoss += resolved.grainLoss
+    totalFarmlandLoss += resolved.farmlandLoss
   }
 
-  return { events, totalPopulationLoss, totalGoldLoss, totalBuildingsDestroyed }
+  return { events, totalPopulationLoss, totalGoldLoss, totalBuildingsDestroyed, totalGrainLoss, totalFarmlandLoss }
 }
 
 export function getEventCatalog(): EventDefinition[] {
   return CATALOG
+}
+
+// Shared UI/CLI helper: human-readable magnitude text for a fired event.
+// EXHAUSTIVE over EventLossType (state.ts) — a new loss type without a case
+// here is a TypeScript compile error, not a silently wrong "0 buildings
+// destroyed" label. Lives in the engine layer (not src/ui) so scripts/play.ts
+// (a Node CLI with no DOM) can share it with src/ui/app.ts rather than each
+// maintaining its own copy that can drift out of sync, which is exactly what
+// happened before F6: both had their own ternary chain, and both defaulted
+// silently to "buildings destroyed" for any unrecognised type.
+export function eventLossMagnitudeText(event: PlayerEvent): string {
+  switch (event.lossType) {
+    case 'gold': return `${event.loss.toFixed(0)} Taler lost`
+    case 'population': return `${event.loss.toFixed(0)} peasants lost`
+    case 'buildings': return `${event.loss.toFixed(0)} buildings destroyed`
+    case 'grain': return `${event.loss.toFixed(0)} grain lost`
+    case 'farmland': return `${event.loss.toFixed(0)} hectares of farmland lost`
+  }
 }

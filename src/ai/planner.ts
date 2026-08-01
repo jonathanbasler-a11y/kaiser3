@@ -15,9 +15,9 @@
 //     picks a plan that is robust rather than one that happens to win under a
 //     single roll of the dice.
 
-import { GameState, PlayerState, Decision, TaxDecision, ConstructionDecision, LandTradeDecision } from '../engine/state.ts'
+import { GameState, PlayerState, Decision, TaxDecision, ConstructionDecision, LandTradeDecision, clonePlayerState } from '../engine/state.ts'
 import { advanceYear } from '../engine/year.ts'
-import { evaluateState, projectedFeedAdequacy, PersonalityWeights } from './evaluator.ts'
+import { evaluateState, projectedFeedAdequacy, projectedHarvestShortfall, projectedHarvestExcess, PersonalityWeights } from './evaluator.ts'
 import { annualGrainRequirement } from '../engine/economy.ts'
 import { Personality } from './personalities.ts'
 import { planAggression } from './aggression.ts'
@@ -107,12 +107,14 @@ function constructionOptions(player: PlayerState, projectedLand: number, rank: n
   if (player.buildings.granary === 0) options.push({ ...NO_CONSTRUCTION, granaryBuild: 1 })
   if (player.buildings.well === 0) options.push({ ...NO_CONSTRUCTION, wellBuild: 1 })
   if (player.buildings.garrison === 0) options.push({ ...NO_CONSTRUCTION, garrisonBuild: 1 })
+  if ((player.buildings.dike ?? 0) === 0) options.push({ ...NO_CONSTRUCTION, dikeBuild: 1 })
   options.push({
     ...NO_CONSTRUCTION,
     hospitalBuild: player.buildings.hospital === 0 && player.population.peasants >= MITIGATION.hospital.requiresMinPopulation ? 1 : 0,
     granaryBuild: player.buildings.granary === 0 ? 1 : 0,
     wellBuild: player.buildings.well === 0 ? 1 : 0,
-    garrisonBuild: player.buildings.garrison === 0 ? 1 : 0
+    garrisonBuild: player.buildings.garrison === 0 ? 1 : 0,
+    dikeBuild: (player.buildings.dike ?? 0) === 0 ? 1 : 0
   })
 
   // The rank path: palace stages, then a cathedral.
@@ -201,7 +203,7 @@ export function generateCandidates(player: PlayerState, prices: GameState['kaize
 // Builds a single-player game state so a candidate can be simulated in isolation,
 // without other rulers' decisions perturbing the comparison.
 function isolate(state: GameState, playerId: string): GameState {
-  const player = JSON.parse(JSON.stringify(state.players[playerId])) as PlayerState
+  const player = clonePlayerState(state.players[playerId])
   return {
     year: state.year,
     players: { [playerId]: player },
@@ -210,8 +212,16 @@ function isolate(state: GameState, playerId: string): GameState {
   }
 }
 
+// `isolated` is read-only from here down: advanceYear() takes its own deep
+// copy of the state it's given (year.ts:38) and never mutates the object
+// passed in, so the SAME isolated single-player state can be reused across
+// every candidate and every evaluation seed for one planYear() call instead
+// of being re-cloned per seed. Cloning it once per candidate (the previous
+// shape) or once per seed (the shape before that) was pure waste: isolate()
+// alone was ~14% of planYear's cost, almost none of which was doing useful
+// work — the source player never changes during a single planning pass.
 function scoreCandidate(
-  state: GameState,
+  isolated: GameState,
   playerId: string,
   candidate: Decision[],
   weights: PersonalityWeights,
@@ -220,10 +230,17 @@ function scoreCandidate(
   let total = 0
 
   for (const seed of evaluationSeeds) {
-    const isolated = isolate(state, playerId)
     const result = advanceYear(isolated, { [playerId]: candidate }, seed)
     const outcome = result.state.players[playerId]
-    total += evaluateState(outcome, { feedAdequacy: projectedFeedAdequacy(outcome) }, weights)
+    total += evaluateState(
+      outcome,
+      {
+        feedAdequacy: projectedFeedAdequacy(outcome),
+        harvestShortfallExpectation: projectedHarvestShortfall(),
+        harvestExcessExpectation: projectedHarvestExcess()
+      },
+      weights
+    )
   }
 
   return total / evaluationSeeds.length
@@ -259,11 +276,13 @@ export function planYear(
   // decisions rather than from luck.
   const evaluationSeeds = Array.from({ length: EVALUATION_SEEDS }, (_, i) => seed + i * 7919)
 
+  const isolated = isolate(state, playerId)
+
   let best = candidates[0]
   let bestScore = -Infinity
 
   for (const candidate of candidates) {
-    const score = scoreCandidate(state, playerId, candidate, personality.weights, evaluationSeeds)
+    const score = scoreCandidate(isolated, playerId, candidate, personality.weights, evaluationSeeds)
     if (score > bestScore) {
       bestScore = score
       best = candidate

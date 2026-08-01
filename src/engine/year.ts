@@ -5,9 +5,10 @@
 import { SeededRng } from './rng.ts'
 import {
   GameState, Decision, Chronicle, PlayerChronicle, StrikeRecord,
-  GrainDecision, LandTradeDecision, TaxDecision, ConstructionDecision, EspionageDecision, WarDecision
+  GrainDecision, LandTradeDecision, TaxDecision, ConstructionDecision, EspionageDecision, WarDecision,
+  cloneGameState
 } from './state.ts'
-import { calculateHarvest, resolveFeeding, applyGrainTrade, storageCapacity } from './economy.ts'
+import { calculateHarvest, resolveFeeding, applyGrainTrade, storageCapacity, driftCornPrice } from './economy.ts'
 import { applyLandTrade } from './land.ts'
 import { applyPopulationDynamics } from './population.ts'
 import { applyTaxation } from './tax.ts'
@@ -35,7 +36,7 @@ export function advanceYear(
   seed: number
 ): { state: GameState; chronicle: Chronicle } {
   const rng = new SeededRng(seed)
-  const newState = JSON.parse(JSON.stringify(state)) as GameState
+  const newState = cloneGameState(state)
   const chronicle: Chronicle = {
     year: state.year + 1,
     playerReports: {},
@@ -60,6 +61,9 @@ export function advanceYear(
   //    11. Events                 [Phase 4]
   //    11.5. Succession           [F5 — reign turnover, resets score only]
   //
+  //   AFTER ALL RULERS (still per-year, not per-ruler):
+  //    11.6. Corn price drift     [F2 precursor — field-wide scarcity nudges the Kaiser's price]
+  //
   //   ACROSS RULERS:
   //    12. Espionage strikes     [Phase 7]
   //    12.5. Warfare             [F4 — declared wars resolve here, same shape as espionage]
@@ -71,6 +75,12 @@ export function advanceYear(
   // only phases where rulers touch each other, and the promotion check has to
   // come after them: a treasury emptied by raiders or a war loss should cost you
   // the title that year.
+
+  // Accumulated across the per-ruler loop below to drift the Kaiser's corn
+  // price toward scarcity once every ruler's harvest is known (see
+  // driftCornPrice in economy.ts).
+  let weatherMultiplierSum = 0
+  let weatherSamples = 0
 
   for (const playerId of newState.activePlayerIds) {
     const player = newState.players[playerId]
@@ -101,6 +111,8 @@ export function advanceYear(
       eventGoldLoss: 0,
       eventPopulationLoss: 0,
       eventBuildingsDestroyed: 0,
+      eventGrainLoss: 0,
+      eventFarmlandLoss: 0,
       unrestGain: 0,
       events: [],
       rankPromoted: false,
@@ -146,6 +158,8 @@ export function advanceYear(
     report.grainOverflowLost = harvest.overflowLost
     report.weatherId = harvest.weather.id
     report.weatherName = harvest.weather.name
+    weatherMultiplierSum += harvest.weather.multiplier
+    weatherSamples += 1
 
     // 5. Grain feeding decision
     const grainDecision = findDecision<GrainDecision>(playerDecisions, 'grain') ?? DEFAULT_GRAIN_DECISION
@@ -210,11 +224,17 @@ export function advanceYear(
     //    the player's own bad state). Resolved AFTER taxation so revolt reacts to
     //    this year's unrest including the tax burden, and BEFORE the rank check so
     //    a bad year can genuinely cost a promotion.
-    const eventResult = resolveEvents(player, { feedAdequacy: feeding.feedAdequacy }, rng)
+    const eventResult = resolveEvents(
+      player,
+      { feedAdequacy: feeding.feedAdequacy, weatherMultiplier: harvest.weather.multiplier },
+      rng
+    )
     report.events = eventResult.events
     report.eventGoldLoss = eventResult.totalGoldLoss
     report.eventPopulationLoss = eventResult.totalPopulationLoss
     report.eventBuildingsDestroyed = eventResult.totalBuildingsDestroyed
+    report.eventGrainLoss = eventResult.totalGrainLoss
+    report.eventFarmlandLoss = eventResult.totalFarmlandLoss
 
     // 11.5. Succession (F5) — skipped for a realm that just went extinct this
     // year; there is no one left for an heir to inherit from.
@@ -225,6 +245,17 @@ export function advanceYear(
     report.unrestGain = player.population.unrest - unrestAtYearStart
 
     chronicle.playerReports[playerId] = report
+  }
+
+  // 11.6. Corn price drift — a field-wide poor/bountiful harvest nudges next
+  // year's Kaiser corn price (economy.ts driftCornPrice). Deliberately global
+  // rather than per-ruler: the Kaiser is one NPC market, not a separate price
+  // for each principality. No new RNG draw — reuses each ruler's own harvest
+  // roll already spent above.
+  if (weatherSamples > 0) {
+    newState.kaizerTradePrices.corn = driftCornPrice(
+      newState.kaizerTradePrices.corn, weatherMultiplierSum / weatherSamples
+    )
   }
 
   // 12. Espionage strikes — the only cross-ruler phase.

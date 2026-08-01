@@ -72,11 +72,22 @@ all**, with three consequences already measured:
 
 Requires re-running the balance gate — it adds a whole income channel.
 
-### F2. Inter-ruler trade
+### F2. Inter-ruler trade — deferred, its justification is now known false
 Buying and selling between rulers with per-ruler pricing, and the original's
-in-fiction decree that at least 10% of goods be offered for sale. **Blocked on F1.**
-Deliberately not attempted in Phase 7: trading grain is meaningless while grain has no
-price, and half a trade system is worse than none.
+in-fiction decree that at least 10% of goods be offered for sale. No longer blocked
+on F1 (grain has a real price since Phase 8), but deferred anyway: F2's stated
+purpose was diversifying the archetypes (D2), and Phase 12's F4 measurement shows a
+second economic route to rank doesn't touch that convergence — the binding
+constraint is the victory condition, not a shortage of routes. F2 is also
+substantially larger than F4 (bilateral offer book, matching, partial fills, value
+conservation, money-pump risk, and it must not enter the AI planner's candidate
+sweep, which is already the performance-sensitive path — see D4). A small precursor
+was taken instead: `prices.cornPriceBands` (previously dead data — defined,
+referenced nowhere) is now wired into a real corn-price drift (Phase 12,
+`driftCornPrice()` in `src/engine/economy.ts`) — field-wide harvest scarcity nudges
+the Kaiser's price, the Hanse-style "price + weather" uncertainty
+`docs/kaiser-research.md` calls for. Re-open F2 only alongside a genuine rank-gate
+redesign that would actually use it, not as a D2 fix.
 
 ### ~~F3. Multi-season grain storage~~ ✅ DONE (Phase 8)
 Spoilage at 18%/yr (roughly half a reserve survives three years) plus a hard storage
@@ -110,14 +121,31 @@ rivals, not a hot-seat handoff between human players, so there is no separate he
 to choose from. A real multi-heir/dynasty system is a multiplayer-era feature,
 correctly deferred per CLAUDE.md.
 
-### F6. Flood and drought events
-Named in the research as agriculture-linked events; the event engine supports them
-with no new machinery, but they are not in `data/events.json`.
+### ~~F6. Flood and drought events~~ ✅ DONE (Phase 12, Path B)
+Built as genuinely agriculture-linked, per the original research framing, not a
+data-only reskin of the existing catalog (a "Path A" reskin was considered and
+rejected during planning: it would have made flood≈fire and drought≈famine, failing
+this project's own rule that every event needs a distinct mitigation hook). New
+exposure drivers `harvestShortfall`/`harvestExcess` (`src/engine/scarcity.ts`) are
+driven by the same weather roll that decided that year's harvest, so drought/flood
+compound a real bad/wet year rather than rolling independently — the same
+relationship famine already has to a real feeding shortfall. New loss types `grain`
+(drought) and `farmland` (flood); mitigated by `well` (drought, alongside fire) and
+a new `dike` building (flood). The AI's forward risk-pricing needed a real fix, not
+just a new context field: pricing off the mean weather multiplier (~1.02) collapsed
+drought exposure to exactly zero forever (`max(0, 1-1.02) = 0`, a Jensen's-gap trap —
+`E[f(X)] ≠ f(E[X])` for the nonlinear exposure formula); fixed by computing the true
+expectation `E[max(0, 1-m)]` over the weather-band distribution instead of deriving
+it from a single expected multiplier.
 
-### F7. Fog of war and the spy phase
+### F7. Fog of war and the spy phase — deferred, would regress the balance gate
 The original's espionage had a spying step that revealed a rival's guard count.
 Meaningless today because all state is visible. Needs hidden information first —
-which is also what would make bluffing and misdirection possible.
+which is also what would make bluffing and misdirection possible. Deliberately
+deferred past the hardening phase (Phase 12 planning pass): leader-focused
+targeting is the anti-snowball lever `src/ai/balance.ts` criteria 2 and 3 measure,
+and it works precisely because AIs can see who is leading — hiding that information
+would predictably regress the gate, not just add a feature.
 
 ---
 
@@ -128,25 +156,40 @@ Even setting B1 aside, progression measures **Duke ~60y, Count ~120y, Margrave ~
 Whether that is "hard" or simply unwinnable is a judgment call for Phase 11's
 difficulty presets. Recorded rather than quietly tuned away.
 
-### D2. Archetypes converge — and Phase 8 made it worse ⚠️
+### D2. Archetypes converge — and it is a victory-condition problem, not a missing-mechanics one ⚠️
 Noted in Phase 5, partly helped by Phase 7's aggression, and then **regressed** by
 Phase 8: making food a real constraint turned population into the effective gate on
-every senior rank, so every competent archetype now grows one. At the standard test
-configuration all five finish within ~5% of each other on treasury; only the
-Merchant and Raider stay visibly leaner (palace 13–14 vs 16, population ~1,900 vs
-~2,350). The distinctness test asserts only that narrower claim.
+every senior rank.
 
-The fix is not more weight-tweaking — it is genuinely different **routes** to rank,
-which means F2 (inter-ruler trade) and F4 (warfare). F2 is still out of scope.
+**Measured in Phase 12** (`npm run ai-bench`, 12 solo matches/archetype, after F4
+had a full match-year to matter):
 
-F4 shipped in Phase 11 but did **nothing** for this until Phase 11.5: measured, war
-fired once in 1,200 match-years, and even when it fired it moved land and coin —
-neither of which is the binding constraint — so it opened no route to anything. It
-now transfers population with territory and fires ~2.2 times per match, which is the
-first version of F4 that could plausibly affect archetype distinctness.
+| Archetype | Taler | Pop | Land | Mkt+Mill | Palace | Rank |
+|---|---|---|---|---|---|---|
+| Builder | 695,451 | 2227 | 13,240 | 25.9 | 16.0 | 3.67 |
+| Expansionist | 766,873 | 2127 | 13,256 | 26.0 | 16.0 | 3.58 |
+| Merchant | 736,713 | 1651 | 13,097 | 25.9 | 10.8 | 2.17 |
+| Schemer | 802,802 | 2155 | 13,159 | 25.8 | 16.0 | 3.50 |
+| Raider | 723,774 | 1955 | 13,093 | 25.8 | 12.1 | 2.92 |
 
-**Still not re-measured:** `npm run ai-bench` has not been run since. Whether war
-actually diversifies the archetypes is an open question, not a claim.
+Land is identical to three significant figures across every archetype: **all five
+buy exactly to the 13,000 ha palace gate and stop.** Builder/Expansionist/Schemer
+are effectively the same ruler; Merchant/Raider differ only by underperforming, not
+by pursuing a different route.
+
+**F4 (warfare, live since Phase 11.5) moved this number not at all.** It gave every
+archetype a coalition-war option, but every archetype already reaches the same land
+ceiling without it — a new mechanic in front of the same single gate just produces
+another way to hit the same wall. The convergence is caused by the *victory
+condition itself* (one palace/population gate every strategy must clear), not by a
+shortage of mechanics feeding into it.
+
+**This reframes what would actually fix it.** F2 (inter-ruler trade) was previously
+proposed as the fix on the theory that a second route to rank would diversify play —
+that theory is now falsified by the F4 measurement above, since F4 *was* a second
+route and changed nothing. A real fix needs a different **victory condition or
+rank-gate shape**, not another economic channel feeding the same gate. Recorded as a
+design question for the hardening phase, not a benchmark to re-run.
 
 ### D5. The balance gate is one-sided
 It guards against snowballing but not against a death spiral: strongly negative
@@ -179,10 +222,34 @@ it can work**. This is realistic and it is what makes population the true constr
 but it makes "buy land" a trap for a new player with nothing in the UI to explain it.
 A UI affordance is needed (worked vs. idle hectares), not a mechanics change.
 
-### D4. The balance gate's five-ruler configuration is slow
+### D4. The balance gate's five-ruler configuration is slow ⚠️ partially addressed (Phase 12)
 Roughly 4× the per-match cost of three rulers; a 200-match run exceeds practical
 runtime. Current results are reported at 60 matches. Consider parallelising the
 harness or profiling `planYear`, whose candidate sweep dominates.
+
+**Phase 12 profiled and fixed the algorithmic waste**, not the match count.
+~48% of `planYear`'s cost was `JSON.parse(JSON.stringify())`: 960–1,650 candidates ×
+`EVALUATION_SEEDS=2` = 1,920–3,300 `advanceYear` calls per `planYear`, each cloning
+the full `GameState`. Fixed, in order: hoisting `isolate()` out of the
+per-candidate/per-seed loop (advanceYear never mutates the state it's given, so one
+clone can serve every candidate and seed in a `planYear` call, not one per
+candidate-seed pair); a hand-written structural clone
+(`cloneGameState`/`clonePlayerState`, `src/engine/state.ts`) replacing the JSON
+round-trip in `year.ts` and `evaluator.ts`'s `applyExpectedLosses`. Full test suite
+52.5s → 13.6s (~4×); `npm run ai-bench` re-run after and matched the pre-optimization
+baseline (`tests/fixtures/ai-bench-baseline.json`) byte-for-byte, so this was pure
+speedup with zero decision drift, verified rather than assumed. **Excluded:** a
+`PlayerChronicle` clone optimization worth only 5–10% that would have widened
+`advanceYear`'s signature — CLAUDE.md treats that as load-bearing.
+
+**Critical prerequisite this fix depended on:** there was previously no committed
+golden baseline for planner decisions. `determinism.test.ts` only compares two runs
+*in the same process*, so an optimization that consistently changes which candidate
+wins still passes it silently. `tests/golden.test.ts` (new) diffs live `planYear`
+output against a fixture committed to disk, regenerated only via a deliberate,
+reviewed run of `scripts/gen-golden-fixture.ts` — this is what let the performance
+pass above be verified as decision-neutral rather than merely assumed to be.
+Still open: match-count parallelisation (workers) was not attempted this phase.
 
 ---
 
