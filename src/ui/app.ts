@@ -3,11 +3,12 @@
 // active screen from scratch on every transition. The game only re-renders on
 // discrete player actions (never continuously), so this is plenty fast.
 
+import buildingsData from '../../data/buildings.json'
 import { GameState, Decision, Chronicle, PlayerState, EspionageMode } from '../engine/state.ts'
 import { eventLossMagnitudeText } from '../engine/events/events.ts'
 import { createStarterState, applyStartingMultiplier } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
-import { getRankName, isFeatureUnlocked } from '../engine/ranks.ts'
+import { getRankName, isFeatureUnlocked, getNextRank, groupProgress, RankRequirement } from '../engine/ranks.ts'
 import { getPersonalities, Personality } from '../ai/personalities.ts'
 import { getDifficultyPresets, getDifficultyPreset, DEFAULT_DIFFICULTY_ID, DifficultyPreset } from '../ai/difficulty.ts'
 import { planYear } from '../ai/planner.ts'
@@ -29,6 +30,8 @@ const EVENT_ICON_ID: Record<string, string> = {
   revolt: 'revolt_banner',
   banditry: 'bandit_skull'
 }
+
+const PALACE = buildingsData.prestige.palace
 
 
 const HUMAN_ID = 'human'
@@ -339,10 +342,46 @@ function renderTabContent(tab: Tab): HTMLElement {
   }
 }
 
+// Labels a D2 requirement group (docs/d2-rank-gate-design.md) by which fields
+// it carries — there is no name in the data itself, only the shape.
+function pathLabel(req: RankRequirement): string {
+  if (req.tradingHousesMin !== undefined) return 'Commerce'
+  if (req.palaceStages !== undefined || req.cathedral === true) return 'Prestige'
+  return 'Land & Population'
+}
+
+// D2 (docs/d2-rank-gate-design.md) gave every rank alternative qualifying
+// paths — a player has no way to see this from the Build tab alone, since it
+// only shows the Prestige path's buildings. This surfaces every path toward
+// the next rank and how close each one is, so a Commerce- or population-
+// leaning player can see they're closer than the palace alone would suggest.
+function renderRankProgress(player: PlayerState): HTMLElement | null {
+  const next = getNextRank(player.rank)
+  if (!next) return el('p', { class: 'help-text' }, 'You hold the highest rank — Kaiser of the Holy Roman Empire.')
+
+  const rows = next.requirements.map((req) => {
+    const pct = Math.round(groupProgress(player, req) * 100)
+    return { label: pathLabel(req), pct }
+  })
+  const leadPct = Math.max(...rows.map((r) => r.pct))
+
+  return el('div', { class: 'card' },
+    el('h2', {}, `Path to ${next.name}`),
+    ...rows.map((row) =>
+      el('div', { class: `rank-progress-row${row.pct === leadPct ? ' leading' : ''}` },
+        el('div', { class: 'rank-progress-label' }, el('span', {}, row.label), el('span', {}, `${row.pct}%`)),
+        el('div', { class: 'progress-track' }, el('div', { class: 'progress-fill', style: `width:${row.pct}%` } as never))
+      )
+    )
+  )
+}
+
 function renderOverviewTab(): HTMLElement {
   const { state, rivals: rivalPersonalities } = session!
+  const player = state.players[HUMAN_ID]
   const rivals = rivalOptions(state, HUMAN_ID)
   return el('div', {},
+    renderRankProgress(player),
     el('h2', {}, 'Rival standings'),
     el('div', { class: 'rival-list' },
       ...rivals.map(({ id, name }) => {
@@ -472,25 +511,51 @@ function mitigationRow(assetId: string, label: string, owned: boolean, draftValu
 }
 
 function renderBuildTab(player: GameState['players'][string], draft: DecisionDraft): HTMLElement {
+  const totalLand = player.land.farmland + player.land.buildingLand
+  const CATHEDRAL = buildingsData.prestige.cathedral
+
+  // Palace stages and the cathedral both require a land threshold to begin at
+  // all (data/buildings.json) — buildings.ts's applyConstruction() drops the
+  // entire order silently below that line, so a player could queue stages or
+  // attempt the cathedral, see nothing happen at year-end, and have no way to
+  // know why. Gate the control here and say what's missing instead.
+  const palaceLandOk = totalLand >= PALACE.landRequirement
+  const palaceRow = buildRow(
+    player.buildings.palace >= 16 ? 'palace_stage_16' : player.buildings.palace >= 1 ? 'palace_stage_2' : 'palace_stage_1',
+    'Palace',
+    stepper({ label: `Palace stages (${player.buildings.palace}/16)`, value: palaceLandOk ? draft.palaceStages : 0, min: 0, max: palaceLandOk ? 16 : 0, step: 1, onChange: (v) => { draft.palaceStages = v } })
+  )
+
   const container = el('div', {},
     el('h3', {}, 'Production'),
     buildRow('market', 'Market', stepper({ label: `Markets (${player.buildings.markets})`, value: draft.marketBuild, min: 0, max: 10, step: 1, onChange: (v) => { draft.marketBuild = v } })),
     buildRow('mill', 'Mill', stepper({ label: `Mills (${player.buildings.mills})`, value: draft.millBuild, min: 0, max: 10, step: 1, onChange: (v) => { draft.millBuild = v } })),
     el('h3', {}, 'Rank path'),
-    buildRow(
-      player.buildings.palace >= 16 ? 'palace_stage_16' : player.buildings.palace >= 1 ? 'palace_stage_2' : 'palace_stage_1',
-      'Palace',
-      stepper({ label: `Palace stages (${player.buildings.palace}/16)`, value: draft.palaceStages, min: 0, max: 16, step: 1, onChange: (v) => { draft.palaceStages = v } })
-    ),
+    palaceRow,
+    palaceLandOk ? null : el('p', { class: 'help-text bad' },
+      `Needs ${PALACE.landRequirement.toLocaleString('en-US')} ha to begin construction — you hold ${totalLand.toFixed(0)} ha.`)
   )
 
   if (!player.buildings.cathedral) {
+    const cathedralLandOk = totalLand >= CATHEDRAL.landRequirement
+    const cathedralPopOk = player.population.peasants >= CATHEDRAL.requiresMinPopulation
+    const cathedralOk = cathedralLandOk && cathedralPopOk
+    if (!cathedralOk) draft.cathedralBuild = false
+
     const cathedralBtn = el('button', { class: 'full', textContent: draft.cathedralBuild ? 'Cathedral: Building ✓' : 'Attempt Cathedral' })
+    if (!cathedralOk) cathedralBtn.setAttribute('disabled', 'true')
     cathedralBtn.addEventListener('click', () => {
       draft.cathedralBuild = !draft.cathedralBuild
       cathedralBtn.textContent = draft.cathedralBuild ? 'Cathedral: Building ✓' : 'Attempt Cathedral'
     })
     container.appendChild(buildRow('cathedral', 'Cathedral', cathedralBtn))
+    if (!cathedralOk) {
+      const missing = [
+        !cathedralLandOk ? `${CATHEDRAL.landRequirement.toLocaleString('en-US')} ha (have ${totalLand.toFixed(0)})` : null,
+        !cathedralPopOk ? `${CATHEDRAL.requiresMinPopulation.toLocaleString('en-US')} population (have ${player.population.peasants.toFixed(0)})` : null
+      ].filter(Boolean).join(' and ')
+      container.appendChild(el('p', { class: 'help-text bad' }, `Needs ${missing} to attempt.`))
+    }
   }
 
   container.append(
