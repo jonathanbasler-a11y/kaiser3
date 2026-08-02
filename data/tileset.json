@@ -40,7 +40,17 @@
   "scenes": {
     "coronation_tableau": "art/scenes/coronation.png",
     "battlefield_backdrop": "art/scenes/battlefield.png",
-    "chronicle_parchment": "art/scenes/chronicle_frame.png"
+    "chronicle_parchment": "art/scenes/chronicle_frame.png",
+    "kingdom_overview": "art/scenes/kingdom_overview.png"
+  },
+  "eventScenes": {
+    "plague": "art/eventScenes/plague.png",
+    "fire": "art/eventScenes/fire.png",
+    "famine": "art/eventScenes/famine.png",
+    "revolt": "art/eventScenes/revolt.png",
+    "banditry": "art/eventScenes/banditry.png",
+    "flood": "art/eventScenes/flood.png",
+    "drought": "art/eventScenes/drought.png"
   },
   "crests": {
     "baron": "art/crests/baron.png",

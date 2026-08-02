@@ -4,7 +4,13 @@
 //   const sprite = await loadSprite('buildings', 'market', canvas)
 //   sprite.drawOn(ctx, x, y)
 
-import { drawBuildingProcedural, drawPortraitProcedural, drawEventIconProcedural, drawTerrainProcedural } from './render.ts'
+import {
+  drawBuildingProcedural,
+  drawPortraitProcedural,
+  drawEventIconProcedural,
+  drawTerrainProcedural,
+  drawCrestProcedural
+} from './render.ts'
 import tilesetData from '../../data/tileset.json'
 
 const STATIC_TILESET = tilesetData as unknown as Record<string, Record<string, string>>
@@ -61,6 +67,7 @@ const FALLBACK_RENDERERS: Record<string, (ctx: CanvasRenderingContext2D, w: numb
   portraits: drawPortraitProcedural,
   eventIcons: drawEventIconProcedural,
   terrain: drawTerrainProcedural,
+  crests: drawCrestProcedural,
   scenes: (ctx, w, h, id) => {
     // Scenes are too large for a simple procedural fallback; just fill with a color
     ctx.fillStyle = '#2f2318'
@@ -77,7 +84,9 @@ const RESOLUTIONS: Record<string, [number, number]> = {
   portraits: [256, 256],
   eventIcons: [96, 96],
   terrain: [128, 96],
-  scenes: [1280, 720]
+  scenes: [1280, 720],
+  eventScenes: [1280, 720],
+  crests: [256, 256]
 }
 
 export async function loadSprite(category: string, assetId: string, sourceCanvas?: HTMLCanvasElement): Promise<Sprite> {
@@ -159,13 +168,38 @@ export function getCachedSprite(category: string, assetId: string): Sprite | und
 // class instead of throwing — the game must stay playable either way.
 // ---------------------------------------------------------------------------
 
+function proceduralDataUrl(category: string, assetId: string): string | null {
+  const renderer = FALLBACK_RENDERERS[category]
+  if (!renderer) return null
+  const [width, height] = RESOLUTIONS[category] ?? [96, 96]
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  renderer(ctx, width, height, assetId)
+  return canvas.toDataURL('image/png')
+}
+
 export function spriteImg(category: string, assetId: string, alt: string, className?: string): HTMLElement {
   const wrapper = document.createElement('div')
   wrapper.className = `sprite-thumb${className ? ' ' + className : ''}`
 
   const filePath = STATIC_TILESET[category]?.[assetId]
+  const applyProcedural = (): void => {
+    const dataUrl = proceduralDataUrl(category, assetId)
+    if (!dataUrl) {
+      wrapper.classList.add('sprite-fallback')
+      return
+    }
+    const img = document.createElement('img')
+    img.src = dataUrl
+    img.alt = alt
+    wrapper.appendChild(img)
+  }
+
   if (!filePath) {
-    wrapper.classList.add('sprite-fallback')
+    applyProcedural()
     return wrapper
   }
 
@@ -174,8 +208,8 @@ export function spriteImg(category: string, assetId: string, alt: string, classN
   img.alt = alt
   img.loading = 'lazy'
   img.onerror = () => {
-    wrapper.classList.add('sprite-fallback')
     img.remove()
+    applyProcedural()
   }
   wrapper.appendChild(img)
   return wrapper
