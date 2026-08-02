@@ -123,3 +123,7 @@ export function rankProgress(player: PlayerState): number {
 export function getTopRank(): number {
   return RANKS[RANKS.length - 1].id
 }
+
+export function getAllRanks(): RankDef[] {
+  return RANKS
+}

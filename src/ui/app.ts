@@ -9,7 +9,7 @@ import { GameState, Decision, Chronicle, PlayerState, EspionageMode } from '../e
 import { eventLossMagnitudeText } from '../engine/events/events.ts'
 import { createStarterState, applyStartingMultiplier } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
-import { getRankName, isFeatureUnlocked, getNextRank, groupProgress, RankRequirement } from '../engine/ranks.ts'
+import { getRankName, isFeatureUnlocked, getNextRank, groupProgress, getAllRanks, RankRequirement } from '../engine/ranks.ts'
 import { getPersonalities, Personality } from '../ai/personalities.ts'
 import { getDifficultyPresets, getDifficultyPreset, DEFAULT_DIFFICULTY_ID, DifficultyPreset } from '../ai/difficulty.ts'
 import { planYear } from '../ai/planner.ts'
@@ -495,14 +495,14 @@ function renderGame(): void {
 
   const banner = el('canvas', { id: 'banner' })
 
-  const tabs: Array<{ id: Tab; label: string }> = [
-    { id: 'overview', label: 'Realm' },
-    { id: 'grain', label: 'Grain' },
-    { id: 'land', label: 'Land' },
-    { id: 'tax', label: 'Tax' },
-    { id: 'build', label: 'Build' },
-    { id: 'spy', label: 'Secret Service' },
-    { id: 'war', label: 'War' }
+  const tabs: Array<{ id: Tab; label: string; icon: string }> = [
+    { id: 'overview', label: 'Realm', icon: 'people' },
+    { id: 'grain', label: 'Grain', icon: 'grain' },
+    { id: 'land', label: 'Land', icon: 'land' },
+    { id: 'tax', label: 'Tax', icon: 'taler' },
+    { id: 'build', label: 'Build', icon: 'buildings' },
+    { id: 'spy', label: 'Spies', icon: 'spy' },
+    { id: 'war', label: 'War', icon: 'army' }
   ]
   const tabbar = el('div', { class: 'tabbar' })
   const content = el('div', { class: 'card' })
@@ -516,8 +516,12 @@ function renderGame(): void {
   }
 
   for (const tab of tabs) {
-    const btn = el('button', { textContent: tab.label })
+    const btn = el('button', { class: 'tab-btn', type: 'button' })
     btn.dataset.tab = tab.id
+    btn.append(
+      spriteImg('uiIcons', tab.icon, tab.label, 'tab-icon'),
+      el('span', { class: 'tab-label' }, tab.label)
+    )
     btn.addEventListener('click', () => { session!.activeTab = tab.id; renderTab() })
     tabbar.appendChild(btn)
   }
@@ -596,43 +600,112 @@ function pathLabel(req: RankRequirement): string {
   return 'Land & Population'
 }
 
-// bug report #12 ("Prestige and population — not clear how we get them"): a
-// percentage alone doesn't say what to actually go DO. This spells out every
-// still-unmet requirement in a path, in plain terms, against the player's
-// current numbers — "what's missing" rather than "how close," since the
-// former is the actionable one.
-function pathHint(req: RankRequirement, player: PlayerState): string {
-  const missing: string[] = []
-  if (player.taler < req.wealthMin) missing.push(`${req.wealthMin.toLocaleString('en-US')} Taler (have ${player.taler.toFixed(0)}) — raise taxes or trade`)
-  if (player.population.peasants < req.populationMin) missing.push(`${req.populationMin.toLocaleString('en-US')} population (have ${player.population.peasants.toFixed(0)}) — feed well, keep unrest low`)
-  if (req.palaceStages !== undefined && player.buildings.palace < req.palaceStages) missing.push(`${req.palaceStages} palace stages (have ${player.buildings.palace}) — Build tab`)
-  if (req.cathedral === true && player.buildings.cathedral < 1) missing.push(`a cathedral — Build tab`)
-  if (req.tradingHousesMin !== undefined && player.tradingHouses < req.tradingHousesMin) missing.push(`${req.tradingHousesMin} trading houses (have ${player.tradingHouses}) — Build tab, once unlocked`)
-  return missing.length === 0 ? 'Requirements met — should promote at year end.' : `Needs ${missing.join('; ')}.`
+interface ReqTile {
+  icon: string
+  label: string
+  ok: boolean
+  /** "OK" or the remaining amount / shortfall text shown in red. */
+  valueText: string
 }
 
-// D2 (docs/d2-rank-gate-design.md) gave every rank alternative qualifying
-// paths — a player has no way to see this from the Build tab alone, since it
-// only shows the Prestige path's buildings. This surfaces every path toward
-// the next rank and how close each one is, so a Commerce- or population-
-// leaning player can see they're closer than the palace alone would suggest.
+// Kaiser-II-style checklist: green OK vs red remaining amount per hard gate.
+function requirementTiles(req: RankRequirement, player: PlayerState): ReqTile[] {
+  const tiles: ReqTile[] = []
+
+  const wealthOk = player.taler >= req.wealthMin
+  tiles.push({
+    icon: 'req_wealth',
+    label: 'Taler',
+    ok: wealthOk,
+    valueText: wealthOk ? 'OK' : Math.ceil(req.wealthMin - player.taler).toLocaleString('en-US')
+  })
+
+  const popOk = player.population.peasants >= req.populationMin
+  tiles.push({
+    icon: 'req_population',
+    label: 'People',
+    ok: popOk,
+    valueText: popOk ? 'OK' : Math.ceil(req.populationMin - player.population.peasants).toLocaleString('en-US')
+  })
+
+  if (req.palaceStages !== undefined) {
+    const ok = player.buildings.palace >= req.palaceStages
+    tiles.push({
+      icon: 'req_palace',
+      label: 'Palace',
+      ok,
+      valueText: ok ? 'OK' : `${player.buildings.palace}/${req.palaceStages}`
+    })
+  }
+  if (req.cathedral === true) {
+    const ok = player.buildings.cathedral >= 1
+    tiles.push({
+      icon: 'req_cathedral',
+      label: 'Cathedral',
+      ok,
+      valueText: ok ? 'OK' : 'Need 1'
+    })
+  }
+  if (req.tradingHousesMin !== undefined) {
+    const ok = player.tradingHouses >= req.tradingHousesMin
+    tiles.push({
+      icon: 'req_trading_house',
+      label: 'Trade houses',
+      ok,
+      valueText: ok ? 'OK' : `${player.tradingHouses}/${req.tradingHousesMin}`
+    })
+  }
+
+  return tiles
+}
+
+function renderReqTile(tile: ReqTile): HTMLElement {
+  return el('div', { class: `req-tile${tile.ok ? ' ok' : ' deficit'}` },
+    spriteImg('uiIcons', tile.icon, tile.label, 'req-icon'),
+    el('span', { class: 'req-tile-label' }, tile.label),
+    el('span', { class: 'req-tile-value' }, tile.valueText)
+  )
+}
+
+// Full Baron→Kaiser ladder — attained ranks highlighted (Kaiser II Rangleiter pattern).
+function renderRankLadder(player: PlayerState): HTMLElement {
+  return el('div', { class: 'card' },
+    el('h2', {}, 'Rank ladder'),
+    el('div', { class: 'rank-ladder' },
+      ...getAllRanks().map((rank) => {
+        const attained = player.rank >= rank.id
+        const current = player.rank === rank.id
+        return el('div', {
+          class: `rank-ladder-cell${attained ? ' attained' : ''}${current ? ' current' : ''}`,
+          title: rank.name
+        } as never,
+          spriteImg('crests', RANK_CREST_ID[rank.id] ?? 'baron', rank.name, 'crest-ladder'),
+          el('span', { class: 'rank-ladder-name' }, rank.name)
+        )
+      })
+    )
+  )
+}
+
+// D2 paths toward the next rank with OK/deficit tiles (replaces prose-only hints).
 function renderRankProgress(player: PlayerState): HTMLElement | null {
   const next = getNextRank(player.rank)
   if (!next) return el('p', { class: 'help-text' }, 'You hold the highest rank — Kaiser of the Holy Roman Empire.')
 
   const rows = next.requirements.map((req) => {
     const pct = Math.round(groupProgress(player, req) * 100)
-    return { label: pathLabel(req), pct, hint: pathHint(req, player) }
+    return { label: pathLabel(req), pct, tiles: requirementTiles(req, player) }
   })
   const leadPct = Math.max(...rows.map((r) => r.pct))
 
   return el('div', { class: 'card' },
     el('h2', {}, `Path to ${next.name}`),
+    el('p', { class: 'help-text' }, 'Green OK = met. Red = still missing (amount or stages).'),
     ...rows.map((row) =>
       el('div', { class: `rank-progress-row${row.pct === leadPct ? ' leading' : ''}` },
         el('div', { class: 'rank-progress-label' }, el('span', {}, row.label), el('span', {}, `${row.pct}%`)),
         el('div', { class: 'progress-track' }, el('div', { class: 'progress-fill', style: `width:${row.pct}%` } as never)),
-        el('p', { class: 'help-text' }, row.hint)
+        el('div', { class: 'req-tile-grid' }, ...row.tiles.map(renderReqTile))
       )
     )
   )
@@ -646,6 +719,7 @@ function renderOverviewTab(): HTMLElement {
     el('div', { class: 'scene-banner' },
       spriteImg('scenes', 'kingdom_overview', 'Your principality', 'scene-full')
     ),
+    renderRankLadder(player),
     renderRankProgress(player),
     el('h2', {}, 'Rival standings'),
     el('div', { class: 'rival-list' },

@@ -28,7 +28,8 @@ const SHARED_PREAMBLES: Record<string, string> = {
   scenes: `Medieval illustration, oil painting style, rich detail, warm lighting, wide cinematic composition.`,
   eventScenes: `Full-screen medieval disaster / crisis painting for a strategy game, oil painting style, dramatic lighting, wide 16:9 cinematic composition, Holy Roman Empire countryside and towns, no text, no UI chrome, no modern elements.`,
   terrain: `Top-down/isometric single farmland plot tile, close overhead view of soil and crops filling the frame — not a wide landscape, not a distant town or castle. Semi-transparent shadow beneath. Painterly, textured. Natural palette. No people, no buildings. Shows land fertility/state via color/pattern.`,
-  crests: `Single heraldic escutcheon (shield) icon for a game UI, painted illuminated-manuscript style, centered on a plain dark brown parchment square with EMPTY margins — no outer picture frame, no square border, no circular medallion rim, no corner ornaments. Symmetrical. Only the shield and its allowed rank ornaments. No people, no faces, no landscape, no real buildings, no text or letters. Gold leaf accents, rich medieval pigments, sharp clear silhouette that still reads when shrunk to 34 pixels.`
+  crests: `Single heraldic escutcheon (shield) icon for a game UI, painted illuminated-manuscript style, centered on a plain dark brown parchment square with EMPTY margins — no outer picture frame, no square border, no circular medallion rim, no corner ornaments. Symmetrical. Only the shield and its allowed rank ornaments. No people, no faces, no landscape, no real buildings, no text or letters. Gold leaf accents, rich medieval pigments, sharp clear silhouette that still reads when shrunk to 34 pixels.`,
+  uiIcons: `Flat medieval game UI icon for a mobile strategy app, single centered symbol on a dark brown parchment square with EMPTY margins, bold silhouette readable at 48 pixels, illuminated-manuscript pigments and gold leaf accents, no text, no letters, no numbers, no people faces, no photo realism, no ornate outer picture frame.`
 }
 
 const ASSET_SPECS: Record<string, Record<string, string>> = {
@@ -98,6 +99,28 @@ const ASSET_SPECS: Record<string, Record<string, string>> = {
     archbishop: `white Latin cross on a purple heater shield, tall pointed bishop mitre with twin ribbons resting ON TOP of the shield, golden crozier crossed behind, flat vector heraldic icon, empty dark brown square background`,
     king: `golden lion rampant charge on a blue heater shield, jeweled arched royal crown above the shield, red-and-gold mantling draping both sides, flat vector heraldic icon, empty dark brown square background`,
     kaiser: `Holy Roman Empire double-headed eagle Reichsadler with two eagle heads facing opposite directions on a black heater shield, closed imperial crown with cross above, orb and sceptre behind, flat vector heraldic icon, empty dark brown square background`
+  },
+  // Optional Kaiser-II-inspired hub / requirement icons — see docs/kaiser2-inspired-features.md.
+  // Ultra-literal single-object icons — SDXL otherwise invents ornate medallions.
+  uiIcons: {
+    people: `ONE flat game UI icon: exactly three simple brown peasant silhouettes standing side by side, empty dark brown square background, no frame, no border`,
+    land: `ONE flat game UI icon: a folded paper map only, empty dark brown square background, no frame`,
+    buildings: `ONE flat game UI icon: one small stone house with peaked roof only, empty dark brown square background, no frame`,
+    taler: `ONE flat game UI icon: a single round gold coin facing the viewer, empty dark brown square background, no frame, no text`,
+    grain: `ONE flat game UI icon: one wheat sheaf bundle only, empty dark brown square background, no frame`,
+    income: `ONE flat game UI icon: two small gold coin bags stacked, empty dark brown square background, no frame`,
+    expense: `ONE flat game UI icon: one open coin pouch spilling three coins, empty dark brown square background, no frame`,
+    army: `ONE flat game UI icon: one heater shield with two crossed swords behind it, empty dark brown square background, no frame`,
+    spy: `ONE flat game UI icon: a dark hooded cloak silhouette and one dagger, empty dark brown square background, no face, no frame`,
+    points: `ONE flat game UI icon: a green laurel wreath circle, empty dark brown square background, no frame`,
+    stats: `ONE flat game UI icon: three solid vertical bars of increasing height like a bar chart, empty dark brown square background, no numbers, no frame`,
+    chart_parchment: `full-bleed blank aged parchment paper texture only, fibrous grain, no icons, no chart, no numbers, no frame, no border ornaments`,
+    req_wealth: `ONE flat game UI icon: a wooden treasure chest overflowing with gold coins, empty dark brown square background, no frame`,
+    req_population: `ONE flat game UI icon: two adult silhouettes and one child silhouette, empty dark brown square background, no frame`,
+    req_palace: `ONE flat game UI icon: a small palace building with one tower silhouette, empty dark brown square background, no frame`,
+    req_cathedral: `ONE flat game UI icon: a gothic cathedral with one tall spire silhouette, empty dark brown square background, no frame`,
+    req_land: `ONE flat game UI icon: four farmland field patches from above, empty dark brown square background, no frame`,
+    req_trading_house: `ONE flat game UI icon: a merchant townhouse with one hanging banner, empty dark brown square background, no frame`
   }
 }
 
@@ -109,7 +132,8 @@ const RESOLUTIONS: Record<string, [number, number]> = {
   terrain: [128, 96],
   scenes: [1280, 720],
   eventScenes: [1280, 720],
-  crests: [256, 256]
+  crests: [256, 256],
+  uiIcons: [96, 96]
 }
 
 // SDXL is trained at ~1024²; sampling straight to a 96×96 latent yields noise, not
@@ -121,6 +145,7 @@ const GEN_SIZES: Record<string, [number, number]> = {
   eventScenes: [1344, 768],
   crests: [1024, 1024],
   eventIcons: [1024, 1024],
+  uiIcons: [1024, 1024],
   terrain: [1152, 896]
 }
 
@@ -137,6 +162,7 @@ const EXTRA_NEGATIVE: Record<string, string> = {
   buildings: 'village, town, city, skyline, many buildings, rooftops, distant buildings, multiple structures',
   terrain: 'village, town, city, castle, wide landscape, valley view, distant buildings, horizon',
   crests: 'people, face, portrait, figure, landscape, real castle, real building, sky, horizon, photo, realistic texture, text, letters, numbers, square picture frame, ornate outer border, circular medallion frame, corner ornaments, plaque, stamp, seal border, photograph of a crest, collage',
+  uiIcons: 'text, letters, numbers, watermark, photograph, people faces, crowd, character select screen, character sheet, multiple panels, ornate picture frame, circular medallion rim, corner filigree, compass rose, sunburst badge, collage, UI chrome, phone frame',
   eventScenes: 'text, watermark, ui overlay, modern clothing, cars, skyscraper, anime, photo collage',
   scenes: 'text, watermark, ui overlay, modern clothing, cars, skyscraper'
 }
@@ -169,7 +195,8 @@ const EXTRA_NEGATIVE_BY_ASSET: Record<string, string> = {
   famine: 'golden wheat, ripe harvest, lush green fields, prosperous farmland, abundant crops',
   flood: 'peaceful dry riverside, sunny calm village, neat dry fields, tranquil water only in riverbed',
   plague: 'crowded healthy market, festive celebration, bright cheerful day',
-  kingdom_overview: 'world map, globe, continent, modern city, highway, airplane'
+  kingdom_overview: 'world map, globe, continent, modern city, highway, airplane',
+  chart_parchment: 'chart, graph, bars, axes, numbers, grid lines, icon, illustration of a place, castle, landscape'
 }
 
 // Deterministic per-asset seed so reruns reproduce and --seed-offset actually varies output.
@@ -193,7 +220,7 @@ function buildPrompt(assetId: string, category: string): string {
   // Crests must stay flat heraldic icons — "semi-isometric" fights that and
   // pushes SDXL toward ornate 3D UI badges with picture frames.
   const style =
-    category === 'crests'
+    category === 'crests' || category === 'uiIcons'
       ? 'Style: flat heraldic illustration, clear bold silhouette, limited colors, manuscript miniature, fine detail, no text, no modern elements, no photo realism.'
       : 'Style: painterly, semi-isometric, natural medieval palette, fine detail, no text, no modern elements.'
   return `${preamble} ${spec}. ${style}`
@@ -239,9 +266,9 @@ async function generateAsset(job: AssetJob, dryRun: boolean, seedOffset: number)
       '5': {
         inputs: {
           seed: seedFor(job.category, job.id, seedOffset),
-          steps: job.category === 'crests' ? 36 : 28,
-          // Crests need higher CFG — soft CFG 7 keeps inventing ornate UI badges.
-          cfg: job.category === 'crests' ? 9.5 : 7.0,
+          steps: job.category === 'crests' || job.category === 'uiIcons' ? 36 : 28,
+          // Crests/uiIcons need higher CFG — soft CFG 7 invents ornate UI badges.
+          cfg: job.category === 'crests' || job.category === 'uiIcons' ? 9.5 : 7.0,
           sampler_name: 'dpmpp_2m',
           scheduler: 'karras',
           denoise: 1.0,
