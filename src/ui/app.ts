@@ -15,7 +15,7 @@ import { getDifficultyPresets, getDifficultyPreset, DEFAULT_DIFFICULTY_ID, Diffi
 import { planYear } from '../ai/planner.ts'
 import { compareStanding } from '../ai/sim.ts'
 import { annualGrainRequirement, storageCapacity, grainBuybackPrice, laborGatedFarmland } from '../engine/economy.ts'
-import { el, clear, stepper, sliderField, segmented, statTile } from './dom.ts'
+import { el, clear, stepper, sliderField, segmented, statTile, tooltip } from './dom.ts'
 import { DecisionDraft, defaultDraft, draftToDecisions, rivalOptions, affordableHectares, maxSellableGrain, maxAffordableGrainBuy, yearsOfFoodLabel } from './decisions.ts'
 import { drawBanner } from './render.ts'
 import { spriteImg } from './spriteLoader.ts'
@@ -208,13 +208,15 @@ function renderSetup(): void {
     opponentStepperHost.appendChild(stepper({
       label: 'Number of rival rulers',
       value: opponentCount, min: 1, max: personalities.length, step: 1,
-      onChange: (v) => { opponentCount = v }
+      onChange: (v) => { opponentCount = v },
+      tooltip: 'Each rival is a fixed AI archetype (see the roster below) — more rivals means more competition for land and rank, but also more targets for war and espionage.'
     }))
     clear(yearsStepperHost as HTMLElement)
     yearsStepperHost.appendChild(stepper({
       label: 'Maximum years to play',
       value: maxYears, min: 20, max: 300, step: 20,
-      onChange: (v) => { maxYears = v }
+      onChange: (v) => { maxYears = v },
+      tooltip: 'If nobody reaches Kaiser by this year, the game ends and whoever is furthest ahead (by rank, then progress, then wealth) wins.'
     }))
   }
   rerenderSteppers()
@@ -452,25 +454,30 @@ function renderGrainTab(player: GameState['players'][string], state: GameState):
       { value: 'custom', label: 'Custom' }
     ],
     value: draft.feedLevel,
-    onChange: (v) => { draft.feedLevel = v; session!.activeTab = 'grain'; renderGame() }
+    onChange: (v) => { draft.feedLevel = v; session!.activeTab = 'grain'; renderGame() },
+    title: 'Feed level',
+    tooltip: 'How much grain to give your people this year. Min: cheapest, but hungry peasants raise unrest and can starve. Required: exactly enough, no surplus. Max: happiest and healthiest, but burns through stored grain fastest. Custom: pick an exact percentage below.'
   }))
 
   if (draft.feedLevel === 'custom') {
     container.appendChild(sliderField({
       label: 'Feed percentage', value: draft.customPercentage, min: 20, max: 80,
-      onChange: (v) => { draft.customPercentage = v }
+      onChange: (v) => { draft.customPercentage = v },
+      tooltip: 'Percentage of full rations given to your population this year.'
     }))
   }
 
   container.appendChild(stepper({
     label: `Sell grain to the Kaiser (${state.kaizerTradePrices.corn.toFixed(2)}/unit)`,
     value: draft.sellGrain, min: 0, max: maxSellableGrain(player), step: 250,
-    onChange: (v) => { draft.sellGrain = v }
+    onChange: (v) => { draft.sellGrain = v },
+    tooltip: 'Converts stored grain into Taler at the current price. Selling too much leaves less buffer against a bad harvest.'
   }))
   container.appendChild(stepper({
     label: `Buy grain from the Kaiser (${grainBuybackPrice(state.kaizerTradePrices.corn).toFixed(2)}/unit)`,
     value: draft.buyGrain, min: 0, max: maxAffordableGrainBuy(player, grainBuybackPrice(state.kaizerTradePrices.corn)), step: 100,
-    onChange: (v) => { draft.buyGrain = v }
+    onChange: (v) => { draft.buyGrain = v },
+    tooltip: 'Buys grain at a markup over the sell price — useful to top up storage ahead of a feared shortfall, but expensive as a habit.'
   }))
 
   return container
@@ -503,22 +510,36 @@ function renderLandTab(player: GameState['players'][string], state: GameState): 
     stepper({
       label: `Farmland (buy up to ${maxFarmBuy}, or sell what you hold)`,
       value: draft.farmlanbuy, min: -player.land.farmland, max: maxFarmBuy, step: 100,
-      onChange: (v) => { draft.farmlanbuy = v }
+      onChange: (v) => { draft.farmlanbuy = v },
+      tooltip: `Grows grain. At ${state.kaizerTradePrices.farmland.toFixed(0)}/ha this turn. Only worked hectares (~5 per peasant) produce anything — buying far ahead of your population just sits idle.`
     }),
     stepper({
       label: `Building land (buy up to ${maxBuildBuy}, or sell what you hold)`,
       value: draft.buildingLandBuy, min: -player.land.buildingLand, max: maxBuildBuy, step: 100,
-      onChange: (v) => { draft.buildingLandBuy = v }
+      onChange: (v) => { draft.buildingLandBuy = v },
+      tooltip: `At ${state.kaizerTradePrices.buildingLand.toFixed(0)}/ha this turn. Required to construct markets, mills, the palace, and the cathedral (Build tab) — farmland can't be built on.`
     })
   )
 }
 
 function renderTaxTab(draft: DecisionDraft): HTMLElement {
   return el('div', {},
-    sliderField({ label: 'VAT', value: draft.vat, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.vat = v } }),
-    sliderField({ label: 'Income tax', value: draft.incomeTax, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.incomeTax = v } }),
-    sliderField({ label: 'Tariff', value: draft.tariff, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.tariff = v } }),
-    sliderField({ label: 'Judicial graft', value: draft.justiceGraft, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.justiceGraft = v } }),
+    sliderField({
+      label: 'VAT', value: draft.vat, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.vat = v },
+      tooltip: 'Taxes the population\'s economic output — averaged with Income tax to set your base revenue rate. Full unrest weight.'
+    }),
+    sliderField({
+      label: 'Income tax', value: draft.incomeTax, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.incomeTax = v },
+      tooltip: 'Taxes the population\'s economic output — averaged with VAT to set your base revenue rate. Full unrest weight.'
+    }),
+    sliderField({
+      label: 'Tariff', value: draft.tariff, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.tariff = v },
+      tooltip: 'Taxes land trade activity (Land tab) specifically, not general income — only matters in years you buy or sell land. Full unrest weight.'
+    }),
+    sliderField({
+      label: 'Judicial graft', value: draft.justiceGraft, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.justiceGraft = v },
+      tooltip: 'Skims an extra ~30% on top of whatever VAT/Income tax/Tariff already earned, at HALF their unrest cost per point — the most unrest-efficient way to squeeze more revenue, but it earns nothing on its own if the other three are at 0.'
+    }),
     el('p', { class: 'help-text' }, 'Higher rates raise revenue but push unrest up — past a point, revolt becomes likely.')
   )
 }
@@ -536,13 +557,13 @@ function buildRow(assetId: string, label: string, control: HTMLElement): HTMLEle
 // the current count) but sitting right next to a small "(1)" in the label reads,
 // at a glance, as "this went back to zero" — this was reported as a bug for
 // exactly that reason even though the underlying state was never touched.
-function mitigationRow(assetId: string, label: string, owned: boolean, draftValue: number, onChange: (v: number) => void): HTMLElement {
+function mitigationRow(assetId: string, label: string, owned: boolean, draftValue: number, onChange: (v: number) => void, tooltipText?: string): HTMLElement {
   const control = owned
     ? el('div', { class: 'field' },
-        el('div', { class: 'field-label' }, label),
+        el('div', { class: 'field-label' }, tooltipText ? el('span', { class: 'field-label-text' }, label, tooltip(tooltipText)) : label),
         el('div', { class: 'stepper' }, el('span', { class: 'stepper-value', style: 'flex:1;text-align:center;color:var(--good);font-weight:600' } as never, 'Built ✓'))
       )
-    : stepper({ label, value: draftValue, min: 0, max: 1, step: 1, onChange })
+    : stepper({ label, value: draftValue, min: 0, max: 1, step: 1, onChange, tooltip: tooltipText })
   return buildRow(assetId, label, control)
 }
 
@@ -561,7 +582,8 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
     'Palace',
     stepper({
       label: `Palace stages (${player.buildings.palace}/16) — ${costSuffix(PALACE.costPerStage, { upkeep: PALACE.upkeepPerYear })} total`,
-      value: palaceLandOk ? draft.palaceStages : 0, min: 0, max: palaceLandOk ? 16 : 0, step: 1, onChange: (v) => { draft.palaceStages = v }
+      value: palaceLandOk ? draft.palaceStages : 0, min: 0, max: palaceLandOk ? 16 : 0, step: 1, onChange: (v) => { draft.palaceStages = v },
+      tooltip: `The Prestige path to your next rank (Realm tab) — most ranks require some number of stages built. Needs ${PALACE.landRequirement.toLocaleString('en-US')} ha of land before the first stage can begin.`
     })
   )
 
@@ -569,11 +591,13 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
     el('h3', {}, 'Production'),
     buildRow('market', 'Market', stepper({
       label: `Markets (${player.buildings.markets}) — ${costSuffix(PRODUCTION.market.buildCost, { income: PRODUCTION.market.incomePerYear, upkeep: PRODUCTION.market.upkeepPerYear })}`,
-      value: draft.marketBuild, min: 0, max: 10, step: 1, onChange: (v) => { draft.marketBuild = v }
+      value: draft.marketBuild, min: 0, max: 10, step: 1, onChange: (v) => { draft.marketBuild = v },
+      tooltip: `Passive Taler income every year. Capped by land: 1 market per ${PRODUCTION.market.ratioPerHectares.toLocaleString('en-US')} ha owned.`
     })),
     buildRow('mill', 'Mill', stepper({
       label: `Mills (${player.buildings.mills}) — ${costSuffix(PRODUCTION.mill.buildCost, { income: PRODUCTION.mill.incomePerYear, upkeep: PRODUCTION.mill.upkeepPerYear })}`,
-      value: draft.millBuild, min: 0, max: 10, step: 1, onChange: (v) => { draft.millBuild = v }
+      value: draft.millBuild, min: 0, max: 10, step: 1, onChange: (v) => { draft.millBuild = v },
+      tooltip: `Passive Taler income every year, more than a market but costlier to run. Capped by land: 1 mill per ${PRODUCTION.mill.ratioPerHectares.toLocaleString('en-US')} ha owned.`
     })),
     el('h3', {}, 'Rank path'),
     palaceRow,
@@ -588,13 +612,16 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
     if (!cathedralOk) draft.cathedralBuild = false
 
     const cathedralLabel = `Attempt Cathedral — ${costSuffix(CATHEDRAL.cost, { upkeep: CATHEDRAL.upkeepPerYear })}`
-    const cathedralBtn = el('button', { class: 'full', textContent: draft.cathedralBuild ? 'Cathedral: Building ✓' : cathedralLabel })
+    const cathedralBtn = el('button', { style: 'flex:1' as never, textContent: draft.cathedralBuild ? 'Cathedral: Building ✓' : cathedralLabel })
     if (!cathedralOk) cathedralBtn.setAttribute('disabled', 'true')
     cathedralBtn.addEventListener('click', () => {
       draft.cathedralBuild = !draft.cathedralBuild
       cathedralBtn.textContent = draft.cathedralBuild ? 'Cathedral: Building ✓' : cathedralLabel
     })
-    container.appendChild(buildRow('cathedral', 'Cathedral', cathedralBtn))
+    container.appendChild(buildRow('cathedral', 'Cathedral', el('div', { class: 'row' },
+      cathedralBtn,
+      tooltip('Required by the Prestige path to Archbishop and Kaiser (Realm tab) — the Commerce alt path skips it entirely. One-time build, never destroyed.')
+    )))
     if (!cathedralOk) {
       const missing = [
         !cathedralLandOk ? `${CATHEDRAL.landRequirement.toLocaleString('en-US')} ha (have ${totalLand.toFixed(0)})` : null,
@@ -606,11 +633,16 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
 
   container.append(
     el('h3', {}, 'Mitigation'),
-    mitigationRow('well', `Well — fire/drought — ${costSuffix(MITIGATION.well.cost, { upkeep: MITIGATION.well.upkeepPerYear })}`, player.buildings.well > 0, draft.wellBuild, (v) => { draft.wellBuild = v }),
-    mitigationRow('hospital', `Hospital — plague — ${costSuffix(MITIGATION.hospital.cost, { upkeep: MITIGATION.hospital.upkeepPerYear })}`, player.buildings.hospital > 0, draft.hospitalBuild, (v) => { draft.hospitalBuild = v }),
-    mitigationRow('granary', `Granary — famine — ${costSuffix(MITIGATION.granary.cost, { upkeep: MITIGATION.granary.upkeepPerYear })}`, player.buildings.granary > 0, draft.granaryBuild, (v) => { draft.granaryBuild = v }),
-    mitigationRow('garrison', `Garrison — banditry/revolt/war defence — ${costSuffix(MITIGATION.garrison.cost, { upkeep: MITIGATION.garrison.upkeepPerYear })}`, player.buildings.garrison > 0, draft.garrisonBuild, (v) => { draft.garrisonBuild = v }),
-    mitigationRow('dike', `Dike — flood — ${costSuffix(MITIGATION.dike.cost, { upkeep: MITIGATION.dike.upkeepPerYear })}`, (player.buildings.dike ?? 0) > 0, draft.dikeBuild, (v) => { draft.dikeBuild = v })
+    mitigationRow('well', `Well — fire/drought — ${costSuffix(MITIGATION.well.cost, { upkeep: MITIGATION.well.upkeepPerYear })}`, player.buildings.well > 0, draft.wellBuild, (v) => { draft.wellBuild = v },
+      'Reduces the chance AND severity of fire and drought events. One-time build, max 1, never destroyed.'),
+    mitigationRow('hospital', `Hospital — plague — ${costSuffix(MITIGATION.hospital.cost, { upkeep: MITIGATION.hospital.upkeepPerYear })}`, player.buildings.hospital > 0, draft.hospitalBuild, (v) => { draft.hospitalBuild = v },
+      `Reduces the chance AND severity of plague. Requires ${MITIGATION.hospital.requiresMinPopulation.toLocaleString('en-US')} population to build. One-time build, max 1, never destroyed.`),
+    mitigationRow('granary', `Granary — famine — ${costSuffix(MITIGATION.granary.cost, { upkeep: MITIGATION.granary.upkeepPerYear })}`, player.buildings.granary > 0, draft.granaryBuild, (v) => { draft.granaryBuild = v },
+      'Reduces the chance AND severity of famine, and raises grain storage capacity (Grain tab). One-time build, max 1, never destroyed.'),
+    mitigationRow('garrison', `Garrison — banditry/revolt/war defence — ${costSuffix(MITIGATION.garrison.cost, { upkeep: MITIGATION.garrison.upkeepPerYear })}`, player.buildings.garrison > 0, draft.garrisonBuild, (v) => { draft.garrisonBuild = v },
+      'Reduces the chance AND severity of banditry and revolt, and adds defensive strength if a rival declares war on you. One-time build, max 1 — but a lost war can destroy it.'),
+    mitigationRow('dike', `Dike — flood — ${costSuffix(MITIGATION.dike.cost, { upkeep: MITIGATION.dike.upkeepPerYear })}`, (player.buildings.dike ?? 0) > 0, draft.dikeBuild, (v) => { draft.dikeBuild = v },
+      'Reduces the chance AND severity of flood. Only protects against flood, not drought — build a well too if you get both. One-time build, max 1, never destroyed.')
   )
 
   if (isFeatureUnlocked(player.rank, 'tradingHouses')) {
@@ -618,7 +650,8 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
       el('h3', {}, 'Commerce'),
       buildRow('trading_house', 'Trading House', stepper({
         label: `Trading houses (${player.tradingHouses}/3) — ${costSuffix(COMMERCE.tradingHouse.cost, { income: COMMERCE.tradingHouse.incomePerYear })}, plus tribute on your wealth`,
-        value: draft.tradingHouseBuild, min: 0, max: 3, step: 1, onChange: (v) => { draft.tradingHouseBuild = v }
+        value: draft.tradingHouseBuild, min: 0, max: 3, step: 1, onChange: (v) => { draft.tradingHouseBuild = v },
+        tooltip: 'The Commerce path to your next rank (Realm tab) for Archbishop and above. Leased from the Kaiser, not built on your own land — pays an ongoing tribute proportional to your total wealth, which grows as you get richer.'
       }))
     )
   }
@@ -644,11 +677,13 @@ function renderSpyTab(player: GameState['players'][string], state: GameState, dr
     el('p', { class: 'help-text' }, 'The counts above carry over year to year and are never reduced by upkeep (only Taler is spent) — the steppers below are NEW hires to add this turn, and correctly start at 0 every year.'),
     stepper({
       label: `Hire NEW guards this turn (defence) — ${costSuffix(ESPIONAGE.guardCost, { upkeep: ESPIONAGE.guardUpkeepPerYear })} each, max ${ESPIONAGE.maxGuards} standing`,
-      value: draft.guardHire, min: 0, max: 10, step: 1, onChange: (v) => { draft.guardHire = v }
+      value: draft.guardHire, min: 0, max: 10, step: 1, onChange: (v) => { draft.guardHire = v },
+      tooltip: 'Lowers the chance a rival\'s strike against you succeeds, and adds defensive strength if a rival declares war. Does nothing on offence.'
     }),
     stepper({
       label: `Hire NEW saboteurs this turn (offence) — ${costSuffix(ESPIONAGE.saboteurCost, { upkeep: ESPIONAGE.saboteurUpkeepPerYear })} each, max ${ESPIONAGE.maxSaboteurs} standing`,
-      value: draft.saboteurHire, min: 0, max: 10, step: 1, onChange: (v) => { draft.saboteurHire = v }
+      value: draft.saboteurHire, min: 0, max: 10, step: 1, onChange: (v) => { draft.saboteurHire = v },
+      tooltip: 'Needed to strike a rival (Strike section below, once you have at least 1). Committing more against a rival\'s guards raises your odds of success; a failed strike loses some of the committed saboteurs.'
     })
   )
 
@@ -669,12 +704,15 @@ function renderSpyTab(player: GameState['players'][string], state: GameState, dr
       container.appendChild(stepper({
         label: 'Saboteurs to commit',
         value: draft.saboteursCommitted, min: 1, max: player.saboteurs, step: 1,
-        onChange: (v) => { draft.saboteursCommitted = v }
+        onChange: (v) => { draft.saboteursCommitted = v },
+        tooltip: 'Success chance = committed ÷ (committed + the target\'s guards + a small base defence). More committed raises your odds but risks more saboteurs if it fails.'
       }))
       container.appendChild(segmented<EspionageMode>({
         options: [{ value: 'raid', label: 'Raid (coin)' }, { value: 'sabotage', label: 'Sabotage (burn + coin)' }],
         value: draft.mode,
-        onChange: (v) => { draft.mode = v }
+        onChange: (v) => { draft.mode = v },
+        title: 'Strike type',
+        tooltip: 'Raid: steals a larger share of the target\'s treasury only. Sabotage: steals a smaller share of treasury plus grain, and destroys some of their production buildings — more damage, less coin.'
       }))
     }
   }
@@ -695,7 +733,9 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
     return container
   }
 
-  container.appendChild(el('h3', {}, 'Declare war on'))
+  container.appendChild(el('h3', { class: 'row' }, 'Declare war on', tooltip(
+    'Strength is derived from garrison, guards, and population — no separate army to manage. The winner takes 8% of the loser\'s land, 5% of their population, and 15% of their treasury as reparations. Both sides take casualties: 2% of population for the loser, 0.8% for the winner, even in victory.'
+  )))
   const targetRow = el('div', { class: 'segmented' })
   const noneBtn = el('button', { textContent: 'None', className: draft.warTargetPlayerId === null ? 'active' : '' })
   noneBtn.addEventListener('click', () => {
@@ -721,7 +761,9 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
   if (draft.warTargetPlayerId) {
     const potentialAllies = rivals.filter((r) => r.id !== draft.warTargetPlayerId)
     if (potentialAllies.length > 0) {
-      container.appendChild(el('h3', {}, 'Request allies (each may or may not join)'))
+      container.appendChild(el('h3', { class: 'row' }, 'Request allies (each may or may not join)', tooltip(
+        'Allies fight on YOUR side, lending part of their strength for this one battle only. They take no casualties and get none of the spoils — a request costs nothing, but each rival decides for itself whether to join, and is likelier to if your target already outweighs them.'
+      )))
       const allyRow = el('div', { class: 'row wrap' })
       for (const ally of potentialAllies) {
         const active = draft.warAlliesRequested.includes(ally.id)

@@ -24,6 +24,52 @@ export function clear(node: HTMLElement): void {
   node.replaceChildren()
 }
 
+// Tap-to-toggle info bubble — the touch-friendly alternative to a hover title
+// tooltip, since this UI is mobile-first and most players have no hover at
+// all (the bug reports this exists to answer were filed from an iPhone).
+// Only one bubble is open at a time; tapping anywhere else closes it.
+let closeOpenTooltip: (() => void) | null = null
+
+export function tooltip(text: string): HTMLElement {
+  const bubble = el('div', { class: 'tooltip-bubble hidden' }, text)
+  const dot = el('button', {
+    type: 'button',
+    class: 'tooltip-dot',
+    textContent: 'ⓘ',
+    ariaLabel: 'More info'
+  } as never)
+
+  const close = () => bubble.classList.add('hidden')
+
+  dot.addEventListener('click', (e) => {
+    e.stopPropagation()
+    const wasHidden = bubble.classList.contains('hidden')
+    closeOpenTooltip?.()
+    if (wasHidden) {
+      bubble.classList.remove('hidden')
+      closeOpenTooltip = close
+    } else {
+      closeOpenTooltip = null
+    }
+  })
+
+  return el('span', { class: 'tooltip-wrap' }, dot, bubble)
+}
+
+// Module-level listener (registered once) so every tooltip closes on an
+// outside tap without each instance adding its own document listener.
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', () => { closeOpenTooltip?.(); closeOpenTooltip = null })
+}
+
+// Groups label text with its optional info dot so the pair stays adjacent
+// inside a `.field-label` — that row is `justify-content: space-between`
+// (label vs. value), and a bare 3-child layout would space the dot away
+// from its label instead of hugging it.
+function labelText(text: string, tooltipText?: string): HTMLElement {
+  return el('span', { class: 'field-label-text' }, text, tooltipText ? tooltip(tooltipText) : null)
+}
+
 // A +/- stepper: the touch-friendly replacement for typing a number. Steps by
 // `step`, long-press-free (repeated taps), clamped to [min, max].
 export function stepper(opts: {
@@ -34,6 +80,7 @@ export function stepper(opts: {
   step: number
   format?: (v: number) => string
   onChange: (value: number) => void
+  tooltip?: string
 }): HTMLElement {
   const format = opts.format ?? ((v: number) => String(v))
   const valueEl = el('span', { class: 'stepper-value' }, format(opts.value))
@@ -57,7 +104,7 @@ export function stepper(opts: {
   })
 
   return el('div', { class: 'field' },
-    el('div', { class: 'field-label' }, opts.label),
+    el('div', { class: 'field-label' }, labelText(opts.label, opts.tooltip)),
     el('div', { class: 'stepper' }, minus, valueEl, plus)
   )
 }
@@ -71,6 +118,7 @@ export function sliderField(opts: {
   step?: number
   suffix?: string
   onChange: (value: number) => void
+  tooltip?: string
 }): HTMLElement {
   const valueLabel = el('span', { class: 'field-value' }, `${opts.value}${opts.suffix ?? ''}`)
   const input = el('input', {
@@ -86,15 +134,20 @@ export function sliderField(opts: {
     opts.onChange(v)
   })
   return el('div', { class: 'field' },
-    el('div', { class: 'field-label' }, opts.label, valueLabel),
+    el('div', { class: 'field-label' }, labelText(opts.label, opts.tooltip), valueLabel),
     input
   )
 }
 
+// `title` is a heading shown above the segmented control when a tooltip is
+// wanted — segmented() has no other place to anchor one (unlike stepper/
+// sliderField, which already render a .field-label row).
 export function segmented<T extends string>(opts: {
   options: Array<{ value: T; label: string }>
   value: T
   onChange: (value: T) => void
+  title?: string
+  tooltip?: string
 }): HTMLElement {
   const container = el('div', { class: 'segmented' })
   const buttons = opts.options.map((option) => {
@@ -111,7 +164,11 @@ export function segmented<T extends string>(opts: {
     return btn
   })
   container.append(...buttons)
-  return container
+  if (!opts.title) return container
+  return el('div', { class: 'field' },
+    el('div', { class: 'field-label' }, labelText(opts.title, opts.tooltip)),
+    container
+  )
 }
 
 export function statTile(label: string, value: string, tone?: 'good' | 'bad'): HTMLElement {
