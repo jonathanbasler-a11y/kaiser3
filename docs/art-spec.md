@@ -154,6 +154,24 @@ All art is AI-generated via local ComfyUI, 100% original — never derived from 
 
 ---
 
+### Crests (8 × rank, added Phase 15)
+
+**Resolution:** 96×96 (small icon, shown beside the rank title in the UI)
+**Count:** 8 — one per rank in `data/ranks.json` (Baron → Kaiser)
+
+**Shared preamble (all crests):**
+> Heraldic coat-of-arms crest, painted illuminated-manuscript style, centered on a plain dark parchment background, symmetrical, no people, no landscape, no buildings, no text or letters of any kind — only heraldic shapes, a shield outline, and rank-appropriate ornamentation. Gold leaf accents, rich medieval pigments.
+
+Ornamentation escalates with rank so the crest reads as a promotion at a glance,
+not just via the text label next to it — Baron is a plain unadorned shield, Kaiser
+is a full imperial crest with crown, orb, and sceptre. See `scripts/gen-art.ts`'s
+`ASSET_SPECS.crests` for the exact per-rank prompt (kept there rather than
+duplicated here, since the generator is the single source of truth for what's
+actually sent to ComfyUI — this doc explains the *shape* of the category, not a
+copy that can drift from it).
+
+---
+
 ## Generation Parameters
 
 ### ComfyUI Model Setup

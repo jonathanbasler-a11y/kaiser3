@@ -4,6 +4,7 @@
 // discrete player actions (never continuously), so this is plenty fast.
 
 import buildingsData from '../../data/buildings.json'
+import economyData from '../../data/economy.json'
 import { GameState, Decision, Chronicle, PlayerState, EspionageMode } from '../engine/state.ts'
 import { eventLossMagnitudeText } from '../engine/events/events.ts'
 import { createStarterState, applyStartingMultiplier } from '../engine/starter.ts'
@@ -32,6 +33,25 @@ const EVENT_ICON_ID: Record<string, string> = {
 }
 
 const PALACE = buildingsData.prestige.palace
+const PRODUCTION = buildingsData.production
+const MITIGATION = buildingsData.mitigation
+const COMMERCE = buildingsData.commerce
+const ESPIONAGE = economyData.espionage
+
+// "How much does what cost? — need descriptors" (bug report #9). Every build
+// control's cost was previously shown nowhere — a player could only learn it
+// by overspending and seeing how many the game actually built. `costSuffix`
+// standardizes "cost, upkeep/income" formatting so every buildRow label says
+// the same thing the same way.
+function costSuffix(cost: number, opts: { upkeep?: number; income?: number } = {}): string {
+  const parts = [`${cost.toLocaleString('en-US')} Taler`]
+  if (opts.income) parts.push(`${opts.income.toLocaleString('en-US')}/yr income`)
+  if (opts.upkeep) parts.push(`${opts.upkeep.toLocaleString('en-US')}/yr upkeep`)
+  return parts.join(', ')
+}
+
+// rank id (0-7, data/ranks.json Baron -> Kaiser) -> crests asset id (data/tileset.json).
+const RANK_CREST_ID = ['baron', 'duke', 'prince', 'count', 'margrave', 'archbishop', 'king', 'kaiser']
 
 
 const HUMAN_ID = 'human'
@@ -291,7 +311,7 @@ function renderGame(): void {
   root.append(
     el('div', { class: 'screen' },
       banner,
-      el('h1', {}, `${getRankName(player.rank)} of the Realm`),
+      el('h1', { class: 'row' }, spriteImg('crests', RANK_CREST_ID[player.rank] ?? 'baron', getRankName(player.rank), 'crest-sm'), `${getRankName(player.rank)} of the Realm`),
       statGrid(player, state),
       tabbar,
       content,
@@ -350,6 +370,21 @@ function pathLabel(req: RankRequirement): string {
   return 'Land & Population'
 }
 
+// bug report #12 ("Prestige and population — not clear how we get them"): a
+// percentage alone doesn't say what to actually go DO. This spells out every
+// still-unmet requirement in a path, in plain terms, against the player's
+// current numbers — "what's missing" rather than "how close," since the
+// former is the actionable one.
+function pathHint(req: RankRequirement, player: PlayerState): string {
+  const missing: string[] = []
+  if (player.taler < req.wealthMin) missing.push(`${req.wealthMin.toLocaleString('en-US')} Taler (have ${player.taler.toFixed(0)}) — raise taxes or trade`)
+  if (player.population.peasants < req.populationMin) missing.push(`${req.populationMin.toLocaleString('en-US')} population (have ${player.population.peasants.toFixed(0)}) — feed well, keep unrest low`)
+  if (req.palaceStages !== undefined && player.buildings.palace < req.palaceStages) missing.push(`${req.palaceStages} palace stages (have ${player.buildings.palace}) — Build tab`)
+  if (req.cathedral === true && player.buildings.cathedral < 1) missing.push(`a cathedral — Build tab`)
+  if (req.tradingHousesMin !== undefined && player.tradingHouses < req.tradingHousesMin) missing.push(`${req.tradingHousesMin} trading houses (have ${player.tradingHouses}) — Build tab, once unlocked`)
+  return missing.length === 0 ? 'Requirements met — should promote at year end.' : `Needs ${missing.join('; ')}.`
+}
+
 // D2 (docs/d2-rank-gate-design.md) gave every rank alternative qualifying
 // paths — a player has no way to see this from the Build tab alone, since it
 // only shows the Prestige path's buildings. This surfaces every path toward
@@ -361,7 +396,7 @@ function renderRankProgress(player: PlayerState): HTMLElement | null {
 
   const rows = next.requirements.map((req) => {
     const pct = Math.round(groupProgress(player, req) * 100)
-    return { label: pathLabel(req), pct }
+    return { label: pathLabel(req), pct, hint: pathHint(req, player) }
   })
   const leadPct = Math.max(...rows.map((r) => r.pct))
 
@@ -370,7 +405,8 @@ function renderRankProgress(player: PlayerState): HTMLElement | null {
     ...rows.map((row) =>
       el('div', { class: `rank-progress-row${row.pct === leadPct ? ' leading' : ''}` },
         el('div', { class: 'rank-progress-label' }, el('span', {}, row.label), el('span', {}, `${row.pct}%`)),
-        el('div', { class: 'progress-track' }, el('div', { class: 'progress-fill', style: `width:${row.pct}%` } as never))
+        el('div', { class: 'progress-track' }, el('div', { class: 'progress-fill', style: `width:${row.pct}%` } as never)),
+        el('p', { class: 'help-text' }, row.hint)
       )
     )
   )
@@ -523,13 +559,22 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
   const palaceRow = buildRow(
     player.buildings.palace >= 16 ? 'palace_stage_16' : player.buildings.palace >= 1 ? 'palace_stage_2' : 'palace_stage_1',
     'Palace',
-    stepper({ label: `Palace stages (${player.buildings.palace}/16)`, value: palaceLandOk ? draft.palaceStages : 0, min: 0, max: palaceLandOk ? 16 : 0, step: 1, onChange: (v) => { draft.palaceStages = v } })
+    stepper({
+      label: `Palace stages (${player.buildings.palace}/16) — ${costSuffix(PALACE.costPerStage, { upkeep: PALACE.upkeepPerYear })} total`,
+      value: palaceLandOk ? draft.palaceStages : 0, min: 0, max: palaceLandOk ? 16 : 0, step: 1, onChange: (v) => { draft.palaceStages = v }
+    })
   )
 
   const container = el('div', {},
     el('h3', {}, 'Production'),
-    buildRow('market', 'Market', stepper({ label: `Markets (${player.buildings.markets})`, value: draft.marketBuild, min: 0, max: 10, step: 1, onChange: (v) => { draft.marketBuild = v } })),
-    buildRow('mill', 'Mill', stepper({ label: `Mills (${player.buildings.mills})`, value: draft.millBuild, min: 0, max: 10, step: 1, onChange: (v) => { draft.millBuild = v } })),
+    buildRow('market', 'Market', stepper({
+      label: `Markets (${player.buildings.markets}) — ${costSuffix(PRODUCTION.market.buildCost, { income: PRODUCTION.market.incomePerYear, upkeep: PRODUCTION.market.upkeepPerYear })}`,
+      value: draft.marketBuild, min: 0, max: 10, step: 1, onChange: (v) => { draft.marketBuild = v }
+    })),
+    buildRow('mill', 'Mill', stepper({
+      label: `Mills (${player.buildings.mills}) — ${costSuffix(PRODUCTION.mill.buildCost, { income: PRODUCTION.mill.incomePerYear, upkeep: PRODUCTION.mill.upkeepPerYear })}`,
+      value: draft.millBuild, min: 0, max: 10, step: 1, onChange: (v) => { draft.millBuild = v }
+    })),
     el('h3', {}, 'Rank path'),
     palaceRow,
     palaceLandOk ? null : el('p', { class: 'help-text bad' },
@@ -542,11 +587,12 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
     const cathedralOk = cathedralLandOk && cathedralPopOk
     if (!cathedralOk) draft.cathedralBuild = false
 
-    const cathedralBtn = el('button', { class: 'full', textContent: draft.cathedralBuild ? 'Cathedral: Building ✓' : 'Attempt Cathedral' })
+    const cathedralLabel = `Attempt Cathedral — ${costSuffix(CATHEDRAL.cost, { upkeep: CATHEDRAL.upkeepPerYear })}`
+    const cathedralBtn = el('button', { class: 'full', textContent: draft.cathedralBuild ? 'Cathedral: Building ✓' : cathedralLabel })
     if (!cathedralOk) cathedralBtn.setAttribute('disabled', 'true')
     cathedralBtn.addEventListener('click', () => {
       draft.cathedralBuild = !draft.cathedralBuild
-      cathedralBtn.textContent = draft.cathedralBuild ? 'Cathedral: Building ✓' : 'Attempt Cathedral'
+      cathedralBtn.textContent = draft.cathedralBuild ? 'Cathedral: Building ✓' : cathedralLabel
     })
     container.appendChild(buildRow('cathedral', 'Cathedral', cathedralBtn))
     if (!cathedralOk) {
@@ -560,18 +606,18 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
 
   container.append(
     el('h3', {}, 'Mitigation'),
-    mitigationRow('well', 'Well — fire/drought', player.buildings.well > 0, draft.wellBuild, (v) => { draft.wellBuild = v }),
-    mitigationRow('hospital', 'Hospital — plague', player.buildings.hospital > 0, draft.hospitalBuild, (v) => { draft.hospitalBuild = v }),
-    mitigationRow('granary', 'Granary — famine', player.buildings.granary > 0, draft.granaryBuild, (v) => { draft.granaryBuild = v }),
-    mitigationRow('garrison', 'Garrison — banditry/revolt/war defence', player.buildings.garrison > 0, draft.garrisonBuild, (v) => { draft.garrisonBuild = v }),
-    mitigationRow('dike', 'Dike — flood', (player.buildings.dike ?? 0) > 0, draft.dikeBuild, (v) => { draft.dikeBuild = v })
+    mitigationRow('well', `Well — fire/drought — ${costSuffix(MITIGATION.well.cost, { upkeep: MITIGATION.well.upkeepPerYear })}`, player.buildings.well > 0, draft.wellBuild, (v) => { draft.wellBuild = v }),
+    mitigationRow('hospital', `Hospital — plague — ${costSuffix(MITIGATION.hospital.cost, { upkeep: MITIGATION.hospital.upkeepPerYear })}`, player.buildings.hospital > 0, draft.hospitalBuild, (v) => { draft.hospitalBuild = v }),
+    mitigationRow('granary', `Granary — famine — ${costSuffix(MITIGATION.granary.cost, { upkeep: MITIGATION.granary.upkeepPerYear })}`, player.buildings.granary > 0, draft.granaryBuild, (v) => { draft.granaryBuild = v }),
+    mitigationRow('garrison', `Garrison — banditry/revolt/war defence — ${costSuffix(MITIGATION.garrison.cost, { upkeep: MITIGATION.garrison.upkeepPerYear })}`, player.buildings.garrison > 0, draft.garrisonBuild, (v) => { draft.garrisonBuild = v }),
+    mitigationRow('dike', `Dike — flood — ${costSuffix(MITIGATION.dike.cost, { upkeep: MITIGATION.dike.upkeepPerYear })}`, (player.buildings.dike ?? 0) > 0, draft.dikeBuild, (v) => { draft.dikeBuild = v })
   )
 
   if (isFeatureUnlocked(player.rank, 'tradingHouses')) {
     container.append(
       el('h3', {}, 'Commerce'),
       buildRow('trading_house', 'Trading House', stepper({
-        label: `Trading houses (${player.tradingHouses}/3 — leased from the Kaiser, pays tribute on your wealth)`,
+        label: `Trading houses (${player.tradingHouses}/3) — ${costSuffix(COMMERCE.tradingHouse.cost, { income: COMMERCE.tradingHouse.incomePerYear })}, plus tribute on your wealth`,
         value: draft.tradingHouseBuild, min: 0, max: 3, step: 1, onChange: (v) => { draft.tradingHouseBuild = v }
       }))
     )
@@ -582,14 +628,28 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
 
 function renderSpyTab(player: GameState['players'][string], state: GameState, draft: DecisionDraft): HTMLElement {
   const rivals = rivalOptions(state, HUMAN_ID)
+  // bug report #10 ("bought them in turn 1 and gone by turn 3"): nothing
+  // actually removes guards/saboteurs — upkeep only costs Taler, never headcount
+  // (espionage.ts). The confusion is the stepper below correctly resetting to 0
+  // every year (it's a NEW-hires order, not a display of your standing force),
+  // read at a glance as "my guards vanished." Naming it "standing" in the stat
+  // tile above and "NEW hires" in the stepper label itself (not just a paragraph
+  // easy to skip) puts the distinction in both places a player's eye actually
+  // lands.
   const container = el('div', {},
     el('div', { class: 'stat-grid' },
       statTile('Guards (standing)', player.guards.toFixed(0)),
       statTile('Saboteurs (standing)', player.saboteurs.toFixed(0))
     ),
-    el('p', { class: 'help-text' }, 'The counts above carry over year to year. The steppers below are NEW hires to add this turn — they start at 0 every year, not a reset of your standing force.'),
-    stepper({ label: 'Hire guards (defence)', value: draft.guardHire, min: 0, max: 10, step: 1, onChange: (v) => { draft.guardHire = v } }),
-    stepper({ label: 'Hire saboteurs (offence)', value: draft.saboteurHire, min: 0, max: 10, step: 1, onChange: (v) => { draft.saboteurHire = v } })
+    el('p', { class: 'help-text' }, 'The counts above carry over year to year and are never reduced by upkeep (only Taler is spent) — the steppers below are NEW hires to add this turn, and correctly start at 0 every year.'),
+    stepper({
+      label: `Hire NEW guards this turn (defence) — ${costSuffix(ESPIONAGE.guardCost, { upkeep: ESPIONAGE.guardUpkeepPerYear })} each, max ${ESPIONAGE.maxGuards} standing`,
+      value: draft.guardHire, min: 0, max: 10, step: 1, onChange: (v) => { draft.guardHire = v }
+    }),
+    stepper({
+      label: `Hire NEW saboteurs this turn (offence) — ${costSuffix(ESPIONAGE.saboteurCost, { upkeep: ESPIONAGE.saboteurUpkeepPerYear })} each, max ${ESPIONAGE.maxSaboteurs} standing`,
+      value: draft.saboteurHire, min: 0, max: 10, step: 1, onChange: (v) => { draft.saboteurHire = v }
+    })
   )
 
   if (player.saboteurs > 0 && rivals.length > 0) {
@@ -746,6 +806,41 @@ function resolveYear(): void {
   renderYearReport()
 }
 
+// bug report #11 ("Income and spend — not clear where it is coming from"):
+// the engine already computes a full itemized breakdown every year
+// (state.ts's PlayerChronicle) but the report screen only ever surfaced the
+// grain trade line — tax, tariffs, market/mill/trading-house income, judicial
+// graft, and upkeep were all silently absorbed into the Taler stat with no
+// visible cause. This surfaces every line the engine already tracks.
+function buildIncomeBreakdown(report: Chronicle['playerReports'][string]): HTMLElement {
+  const pair = (label: string, value: number): [string, number] => [label, value]
+  const lines: Array<[string, number]> = [
+    pair('Tax revenue', report.taxIncome),
+    pair('Tariffs', report.tariffIncome),
+    pair('Judicial graft', report.tributeIncome),
+    pair('Market income', report.marketIncome),
+    pair('Mill income', report.millIncome),
+    pair('Trading house income', report.tradingHouseIncome),
+    pair('Grain trade', report.grainTradeIncome),
+    pair('Upkeep (buildings, secret service, tribute)', -report.upkeepCost)
+  ].filter(([, v]) => Math.abs(v) >= 1)
+  const net = lines.reduce((sum, [, v]) => sum + v, 0)
+
+  return el('div', { class: 'card' },
+    el('h3', {}, 'Income & spending'),
+    ...lines.map(([label, v]) =>
+      el('div', { class: 'row between' },
+        el('span', { class: 'help-text' }, label),
+        el('span', { class: v >= 0 ? 'good' : 'bad' }, `${v >= 0 ? '+' : ''}${v.toFixed(0)}`)
+      )
+    ),
+    el('div', { class: 'row between', style: 'border-top:1px solid var(--border);padding-top:6px;margin-top:6px;font-weight:600' } as never,
+      el('span', {}, 'Net'),
+      el('span', { class: net >= 0 ? 'good' : 'bad' }, `${net >= 0 ? '+' : ''}${net.toFixed(0)}`)
+    )
+  )
+}
+
 function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement[] {
   const entries: HTMLElement[] = []
   const report = chronicle.playerReports[HUMAN_ID]
@@ -762,6 +857,7 @@ function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement
   if (report.grainOverflowLost > 100) {
     entries.push(el('div', { class: 'log-entry' }, `${report.grainOverflowLost.toFixed(0)} grain rotted — the barns were full.`))
   }
+  entries.push(buildIncomeBreakdown(report))
 
   for (const event of report.events) {
     const magnitude = eventLossMagnitudeText(event)

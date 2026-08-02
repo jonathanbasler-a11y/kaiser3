@@ -41,5 +41,15 @@
     "coronation_tableau": "art/scenes/coronation.png",
     "battlefield_backdrop": "art/scenes/battlefield.png",
     "chronicle_parchment": "art/scenes/chronicle_frame.png"
+  },
+  "crests": {
+    "baron": "art/crests/baron.png",
+    "duke": "art/crests/duke.png",
+    "prince": "art/crests/prince.png",
+    "count": "art/crests/count.png",
+    "margrave": "art/crests/margrave.png",
+    "archbishop": "art/crests/archbishop.png",
+    "king": "art/crests/king.png",
+    "kaiser": "art/crests/kaiser.png"
   }
 }

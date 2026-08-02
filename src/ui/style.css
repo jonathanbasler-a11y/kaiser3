@@ -244,6 +244,9 @@ input[type="range"] {
 .sprite-thumb.portrait-lg { width: 56px; height: 56px; border-radius: 50%; }
 .sprite-thumb.building-sm { width: 44px; height: 33px; }
 .sprite-thumb.event-sm { width: 28px; height: 28px; border-radius: 6px; }
+.sprite-thumb.crest-sm { width: 34px; height: 34px; flex-shrink: 0; }
+
+h1.row { align-items: center; gap: 10px; }
 
 .archetype-row {
   display: flex;
@@ -293,6 +296,11 @@ canvas#banner {
 
 .help-text { font-size: 0.8rem; color: var(--ink-dim); }
 .help-text.bad { color: var(--bad); }
+
+/* Generic text-color utilities — used for standalone good/bad figures (e.g.
+   the income & spending breakdown) that aren't inside a .stat or .log-entry. */
+span.good { color: var(--good); font-weight: 600; }
+span.bad { color: var(--bad); font-weight: 600; }
 
 /* D2 rank-progress: one bar per alternative qualifying path toward the next
    rank (docs/d2-rank-gate-design.md) — the leading path is highlighted so a
