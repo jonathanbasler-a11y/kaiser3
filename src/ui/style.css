@@ -213,6 +213,9 @@ input[type="range"] {
   background: linear-gradient(to top, var(--bg) 60%, transparent);
   padding-top: 16px;
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .rival-list { display: flex; flex-direction: column; gap: 6px; }
@@ -287,6 +290,51 @@ h1.row { align-items: center; gap: 10px; }
   background: none;
 }
 .scene-banner .sprite-thumb.scene-full img { width: 100%; height: auto; object-fit: contain; }
+
+.save-slots { margin-top: 12px; }
+.save-slot-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.save-slot-row:first-of-type { border-top: none; }
+.save-slot-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.save-slot-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.save-slot-actions button { min-width: 96px; }
+.save-name-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 4px;
+  font-size: 0.85rem;
+  color: var(--ink-dim);
+}
+.save-name-input,
+.modal-sheet .save-name-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel-raised);
+  color: var(--ink);
+  font: inherit;
+}
+.save-import-row { margin-top: 10px; }
+.hidden-file-input { display: none; }
 
 canvas#banner {
   width: 100%;

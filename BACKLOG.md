@@ -45,23 +45,11 @@ human. `TradeDecision` (inter-ruler trade, F2) is still out of scope — removed
 the `Decision` union entirely per this entry's own prescribed remedy, rather than
 left validated-but-inert. Re-add only alongside the phase that implements F2.
 
-### B5. Cathedral's own population gate is ABOVE the first rank that requires it
-Re-verified against current data (the "5,000" and "Archbishop asks 3,000" figures
-in the original entry were both stale — corrected below). `data/buildings.json`
-gates the cathedral at **`requiresMinPopulation: 2800`**. `data/ranks.json`'s
-**Archbishop** (the first rank requiring `cathedral: true`) only asks
-`populationMin: 2600`. So a ruler can satisfy every OTHER Archbishop requirement
-at population 2600 and still be unable to build the one building the rank needs,
-for another 200 population — the promotion table understates what Archbishop
-actually costs. Milder than B1 (2800 is well below the measured ~4,600 ceiling, so
-this does not make the rank unreachable, just later than `ranks.json` implies), but
-the same class of bug: the cathedral's gate is an independent number in
-`buildings.json` rather than derived from the ranks that need it (Archbishop 2600,
-King 2800, Kaiser 3200), so it can silently drift out of step with any one of them.
-Two legitimate fixes, either acceptable: lower the cathedral gate to ≤2600 (matches
-the stated Archbishop threshold), or raise Archbishop's `populationMin` to 2800
-(matches the real cost). Either way, express the cathedral's requirement in terms
-of the ranks it gates rather than as an independently-tuned constant.
+### ~~B5. Cathedral's own population gate is ABOVE the first rank that requires it~~ ✅ FIXED
+Lowered `data/buildings.json` cathedral `requiresMinPopulation` from 2800 → **2600**
+to match Archbishop Prestige-path `populationMin` in `data/ranks.json` (the first
+rank with `cathedral: true`). The `_note` on the cathedral entry now says to keep
+that coupling when ranks are recalibrated — same lesson as B1.
 
 ### ~~B6. Malformed Decision fields could poison PlayerState to NaN permanently~~ ✅ FIXED (Phase 13)
 `advanceYear()` does NOT call `validateDecisions()` (`src/engine/decisions.ts`)
@@ -281,7 +269,7 @@ follow-up calibration pass, not blocking**, per the design doc's own dominant-pa
 risk and path-count-dilution warnings. Balance gate re-passes unchanged
 (margin flatness, loss persistence, lead volatility, no-death-spiral all PASS).
 
-### D5. The balance gate is one-sided
+### ~~D5. The balance gate is one-sided~~ ✅ ADDRESSED (Phases 11.5 + 13)
 It guards against snowballing but not against a death spiral: strongly negative
 returns pass the margin-flatness test trivially. Phase 8's five-ruler run shows the
 leader's return going to **−1.36%** by decade 6 with setback rates at 100%, which is
@@ -296,8 +284,8 @@ extinction rate. The leader/non-leader pair is the discriminator this entry aske
 for — the design *intends* the leader to have a hard time, so a negative leader
 return beside a healthy non-leader return is the anti-snowball lever working,
 whereas both negative is a spiral. Field growth and extinction rate settle it
-either way. The gate itself is unchanged; only the reader's ability to interpret
-"PASS" honestly has improved.
+either way. Criterion 4 ("no death spiral", Phase 13) now gates on the same
+fields — see the entry below.
 
 ### ~~D5 numeric floor~~ ✅ DONE (Phase 13)
 `src/ai/balanceCriteria.ts` gained a fourth criterion, "no death spiral," built
@@ -328,34 +316,12 @@ directly, computed via `laborGatedFarmland()` (`src/engine/economy.ts`) — the 
 function the harvest itself uses, so the displayed split can never disagree with
 what actually happens at harvest time. Verified in-browser: a starter realm (10,000
 ha, 1,000 peasants) correctly shows 5,000 ha worked / 5,000 ha idle.
-### D4. The balance gate's five-ruler configuration is slow ⚠️ partially addressed (Phase 12)
-Roughly 4× the per-match cost of three rulers; a 200-match run exceeds practical
-runtime. Current results are reported at 60 matches. Consider parallelising the
-harness or profiling `planYear`, whose candidate sweep dominates.
-
-**Phase 12 profiled and fixed the algorithmic waste**, not the match count.
-~48% of `planYear`'s cost was `JSON.parse(JSON.stringify())`: 960–1,650 candidates ×
-`EVALUATION_SEEDS=2` = 1,920–3,300 `advanceYear` calls per `planYear`, each cloning
-the full `GameState`. Fixed, in order: hoisting `isolate()` out of the
-per-candidate/per-seed loop (advanceYear never mutates the state it's given, so one
-clone can serve every candidate and seed in a `planYear` call, not one per
-candidate-seed pair); a hand-written structural clone
-(`cloneGameState`/`clonePlayerState`, `src/engine/state.ts`) replacing the JSON
-round-trip in `year.ts` and `evaluator.ts`'s `applyExpectedLosses`. Full test suite
-52.5s → 13.6s (~4×); `npm run ai-bench` re-run after and matched the pre-optimization
-baseline (`tests/fixtures/ai-bench-baseline.json`) byte-for-byte, so this was pure
-speedup with zero decision drift, verified rather than assumed. **Excluded:** a
-`PlayerChronicle` clone optimization worth only 5–10% that would have widened
-`advanceYear`'s signature — CLAUDE.md treats that as load-bearing.
-
-**Critical prerequisite this fix depended on:** there was previously no committed
-golden baseline for planner decisions. `determinism.test.ts` only compares two runs
-*in the same process*, so an optimization that consistently changes which candidate
-wins still passes it silently. `tests/golden.test.ts` (new) diffs live `planYear`
-output against a fixture committed to disk, regenerated only via a deliberate,
-reviewed run of `scripts/gen-golden-fixture.ts` — this is what let the performance
-pass above be verified as decision-neutral rather than merely assumed to be.
-Still open: match-count parallelisation (workers) was not attempted this phase.
+### ~~D4. The balance gate's five-ruler configuration is slow~~ ✅ ADDRESSED (Phases 12 + 13)
+**Phase 12** fixed the algorithmic waste in `planYear` (~4× suite speedup, golden-
+fixture verified decision-neutral). **Phase 13** added match-count parallelisation
+via `worker_threads` (`scripts/balance-worker.ts`, `src/ai/balanceParallel.ts`) —
+byte-identical to serial, ~4.6× faster wall-clock, with serial fallback if workers
+fail. No further D4 work outstanding.
 
 ---
 
@@ -385,7 +351,7 @@ Left as a note for Phase 10+: **any future use of rAF in this codebase should go
 the same scrutiny** — it is the wrong primitive for "defer this synchronous work",
 right only for "run this in sync with the next paint".
 
-### P2. Bug report → GitHub Issues integration (Phase 9.5)
+### ~~P2. Bug report → GitHub Issues integration~~ ✅ DONE (Phase 9.5)
 `api/bug-report.ts` is a Vercel serverless function that files an in-game bug
 report as a GitHub issue (label `bug-report`) on `jonathanbasler-a11y/kaiser3`.
 This is the one deliberate exception to the "no backend" invariant — bug
@@ -393,3 +359,11 @@ reports need to outlive a static deploy. Reads via `GITHUB_TOKEN` and
 `GITHUB_REPO` env vars set on Vercel (fine-grained PAT, Issues read/write only,
 scoped to this repo). Read reports anytime with:
 `gh issue list --repo jonathanbasler-a11y/kaiser3 --label bug-report`
+
+### F8. Save / load — three local slots ✅ DONE
+Browser `localStorage` slots (`src/ui/saves.ts`, validated by `src/engine/persist.ts`).
+Setup screen loads any of three slots; in-game **Save game** overwrites a chosen
+slot with an optional **name**. **Export** downloads a `.json` file; **Import**
+loads it into a slot on another device — the portable path across phones/PCs
+without a cloud backend (static-hosted invariant). Corrupted / wrong-version
+blobs are rejected. Clears with site data.

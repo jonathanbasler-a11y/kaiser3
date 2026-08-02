@@ -37,8 +37,8 @@
       "cost": 20000,
       "landRequirement": 5000,
       "upkeepPerYear": 200,
-      "requiresMinPopulation": 2800,
-      "_note": "Was 5000 — ABOVE the measured population ceiling of ~4,600, and above the population thresholds of every rank that requires a cathedral (Archbishop 3,000, King 3,500, Kaiser 4,200). The result was that cathedral was never once built and rank capped at Margrave. Now set just below Archbishop's own threshold, so the cathedral gates the rank rather than silently replacing it."
+      "requiresMinPopulation": 2600,
+      "_note": "Tied to Archbishop Prestige-path populationMin in data/ranks.json (2600) — the first rank that requires cathedral:true. Was 5000 (B1, unreachable), then 2800 (still above Archbishop's stated threshold — B5). Keep this equal to (or below) that rank's populationMin whenever ranks are recalibrated."
     }
   },
   "_mitigationNote": "`mitigates` is documentation of intent; the authoritative mitigation coefficients live per-event in data/events.json (an event owns its own risk formula). Kept in sync by validateEventCatalog(), which fails if an event names a mitigation building that doesn't exist here.",

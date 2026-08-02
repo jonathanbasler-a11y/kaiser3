@@ -38,11 +38,11 @@ npm run verify-art
 
 Review each PNG; re-roll bad ones with `--assets <id> --seed-offset <n+1000>`.
 
-## UI wiring (after Claude Phase 18 A/B)
+## UI wiring ✅
 
-1. Year report: when chronicle has events, show `spriteImg('eventScenes', event.type, …)` as a full-bleed banner above the log.
-2. Realm tab: show `spriteImg('scenes', 'kingdom_overview', …)` as the kingdom vista (optionally later: compose from terrain+building tiles).
-3. Flood/drought icon map in `EVENT_ICON_ID` — still deferred to avoid `app.ts` collision.
+1. Year report: when chronicle has events, show `spriteImg('eventScenes', …)` as a full-bleed banner above the log.
+2. Realm tab: show `spriteImg('scenes', 'kingdom_overview', …)` as the kingdom vista.
+3. Flood/drought icon map in `EVENT_ICON_ID` — wired (`flood_wave`, `drought_sun`).
 
 ## Procedural fallback
 

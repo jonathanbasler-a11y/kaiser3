@@ -22,6 +22,9 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **12** | Sonnet | High | `planYear` performance, flood/drought (F6), corn price drift precursor | ~4× perf with byte-identical decisions (golden test), balance gate re-passes twice |
 | **13** | Opus/Sonnet | High | D2 design spike (rank-gate shape), difficulty presets, hardening sweep (D1/D3/D4/D5) | D2 decision documented; presets separate measurably in the harness; D5 gate floor actually fails a spiralled config; all prior gates re-pass |
 | **14** | Sonnet | High | D2 rank-gate implementation (alternative requirement paths) | Schema/engine/evaluator generalized; every consumer updated; tests green with reviewed golden-fixture drift; balance gate re-passes; `ai-bench` shows real diversification |
+| **15** | Sonnet | Medium | UI fixes — palace/cathedral land-gate feedback, D2 rank-progress bars | Gate messages + path progress verified in-browser; tests green |
+| **16** | Sonnet | Medium | Legibility from bug reports #9–12 + crest art pipeline prep | Cost/income/rank hints live; crest schema/prompts/UI ready (PNGs optional) |
+| **17** | Sonnet | Medium | Tap-to-toggle info tooltips on every changeable field | Mobile-first ⓘ tooltips; no hover dependency; tests green |
 
 ## Phase 0: Scaffold & Ground Rules ✓
 
@@ -965,6 +968,58 @@ follow-up-calibration note.
 
 ---
 
-**Last updated:** Phase 14 complete — D2 rank-gate redesign implemented,
-verified, and merged. Balance gate and full test suite green. Next: user-directed
-feature work or the D2 calibration follow-up noted in BACKLOG.md.
+## Phase 15: Palace/Cathedral Gate Feedback + D2 Rank-Progress Bars ✓
+
+Found during a full browser playthrough of the D2 branch. Palace-stage and cathedral
+builds were silently dropped by `applyConstruction()` when land/population thresholds
+weren't met — the UI now explains the gate instead of leaving the player guessing.
+Realm tab gained a rank-progress panel: one bar per alternative D2 requirement path
+toward the next rank (Prestige / Land & Population / Commerce), highlighting whichever
+path the ruler is closest to.
+
+### Acceptance Criteria
+- ✓ Palace/cathedral gate messages render with correct numbers (`en-US` locale)
+- ✓ Rank-progress bars match hand-computed Duke thresholds at game start
+- ✓ `tsc` / full vitest suite / build green; zero console errors in-browser
+
+---
+
+## Phase 16: Legibility Fixes (Bug Reports #9–12) + Crest Pipeline Prep ✓
+
+Fixes four live mobile playtest bug reports (#9–#12):
+- **#10** Guards/hospital "gone by turn 3" — engine persistence confirmed; UI now labels
+  the hire stepper as "NEW hires this turn" so yearly order reset isn't mistaken for loss
+- **#9** Cost descriptors — Build + Secret Service controls show cost/income/upkeep inline
+  via shared `costSuffix()`
+- **#11** Income & spending breakdown card on the year-report screen (engine fields that
+  were already computed but never surfaced)
+- **#12** Per-path unmet-requirement hints under the D2 rank-progress bars
+
+Also prepped the `crests` art category (schema + prompts + UI wiring). PNGs optional —
+procedural fallback covers missing files (see graphics lane / PR #15).
+
+### Acceptance Criteria
+- ✓ Bug reports #9–#12 closed with browser verification
+- ✓ Crest pipeline ready without blocking play on missing PNGs
+- ✓ `tsc` / vitest / build green
+
+---
+
+## Phase 17: Tap-to-Toggle Info Tooltips ✓
+
+Mobile-first ⓘ tooltips on every stepper, slider, segmented control, and standalone
+decision button. Deliberately not hover `title` — iPhone Safari players from the #9–12
+push had no hover. Content cites real formulas/data (tax rates, war fractions, etc.)
+rather than restated prose. One bubble open at a time; closes on second tap or outside tap.
+
+### Acceptance Criteria
+- ✓ Tooltips on every interactive control across setup + all play tabs
+- ✓ Tap open / tap close / outside close; single-open invariant
+- ✓ `tsc` / vitest / build green; zero console errors in-browser
+
+---
+
+**Last updated:** Save/load (3 localStorage slots), event-scene / kingdom-overview
+UI wiring, flood/drought icons, B5 cathedral gate, PLAN sync through Phase 17.
+Still open: Claude Phase 18 (if not merged), D2 Commerce calibration, deferred
+F2/F7. Crest Comfy PNGs remain partial (procedural covers the rest).
