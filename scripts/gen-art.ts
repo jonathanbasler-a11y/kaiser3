@@ -25,9 +25,10 @@ const SHARED_PREAMBLES: Record<string, string> = {
   portraits: `Medieval Holy Roman Empire, oil painting style, late 15th century. Solo character portrait of exactly ONE person, alone in frame, three-quarter view, rich clothing and regalia befitting their rank. Natural lighting, slight warm tone. Painterly brushwork, fine detail in faces. No text, no modern elements.`,
   buildings: `Medieval architecture, isometric three-quarter view, semi-transparent shadow beneath. Painterly texture, earth tones (ochre, sienna, grays). A single isolated building standing alone on plain ground with no town, village, or skyline behind it — just the one structure and open grass/earth around it. No people, no text. Roof and facing visible, shading suggests 3D form.`,
   eventIcons: `Medieval icon style, symbolic rather than realistic. Bold, clear silhouette of the literal described object/symbol, not a portrait of a person. Warm or dark background to suggest the event's tone. Oil painting texture, gold leaf accents where appropriate. Fits in a square, centered. No text, no human figures unless explicitly described.`,
-  scenes: `Medieval illustration, oil painting style, rich detail, warm lighting.`,
+  scenes: `Medieval illustration, oil painting style, rich detail, warm lighting, wide cinematic composition.`,
+  eventScenes: `Full-screen medieval disaster / crisis painting for a strategy game, oil painting style, dramatic lighting, wide 16:9 cinematic composition, Holy Roman Empire countryside and towns, no text, no UI chrome, no modern elements.`,
   terrain: `Top-down/isometric single farmland plot tile, close overhead view of soil and crops filling the frame — not a wide landscape, not a distant town or castle. Semi-transparent shadow beneath. Painterly, textured. Natural palette. No people, no buildings. Shows land fertility/state via color/pattern.`,
-  crests: `Heraldic coat-of-arms crest, painted illuminated-manuscript style, centered on a plain dark parchment background, symmetrical, no people, no landscape, no buildings, no text or letters of any kind — only heraldic shapes, a shield outline, and rank-appropriate ornamentation. Gold leaf accents, rich medieval pigments.`
+  crests: `Single heraldic escutcheon (shield) icon for a game UI, painted illuminated-manuscript style, centered on a plain dark brown parchment square with EMPTY margins — no outer picture frame, no square border, no circular medallion rim, no corner ornaments. Symmetrical. Only the shield and its allowed rank ornaments. No people, no faces, no landscape, no real buildings, no text or letters. Gold leaf accents, rich medieval pigments, sharp clear silhouette that still reads when shrunk to 34 pixels.`
 }
 
 const ASSET_SPECS: Record<string, Record<string, string>> = {
@@ -63,7 +64,17 @@ const ASSET_SPECS: Record<string, Record<string, string>> = {
   scenes: {
     coronation_tableau: `Grand coronation scene in a cathedral: a crowned figure kneeling or standing before an altar, surrounded by bishops and nobles in ceremonial dress. Golden light streaming through stained glass. Opulent, triumphant, ceremonial tone.`,
     battlefield_backdrop: `Aerial view of a medieval battlefield: rolling hills, fortified town in the distance, cavalry and foot soldiers positioned across fields. Tents, banners, smoke from siege weapons. Strategic, tactical feeling. Early morning or late afternoon light.`,
-    chronicle_parchment: `Extreme close-up macro photograph-style texture of blank old paper, like the empty page of an ancient diary. The ENTIRE image must be filled edge-to-edge with paper texture only — fibrous grain, water stains, small creases, one small wax seal blob in a corner, a thin decorative line border near the edges. There must be NO castle, NO building, NO landscape, NO scenery, NO horizon, NO illustration of any object or place — this is purely a flat background material texture, like fabric or wood-grain reference photography, not a picture of a scene.`
+    chronicle_parchment: `Extreme close-up macro photograph-style texture of blank old paper, like the empty page of an ancient diary. The ENTIRE image must be filled edge-to-edge with paper texture only — fibrous grain, water stains, small creases, one small wax seal blob in a corner, a thin decorative line border near the edges. There must be NO castle, NO building, NO landscape, NO scenery, NO horizon, NO illustration of any object or place — this is purely a flat background material texture, like fabric or wood-grain reference photography, not a picture of a scene.`,
+    kingdom_overview: `Isometric three-quarter overview of a single medieval principality for a strategy game. Visible: patchwork farmland fields (some planted, some ripe gold), a small market square, a mill by a stream, a granary, a hospital, a garrison tower, palace wings under construction or complete, a cathedral spire, forest edge and a river. Coherent one-realm composition, not a whole continent. Painterly, readable from a phone screen, warm late-afternoon light. Few tiny distant figures only if needed for scale — no readable faces, no text, no UI overlay.`
+  },
+  eventScenes: {
+    plague: `Plague disaster full-screen scene: deserted medieval German street with quarantine yellow-and-black flags nailed to every door, dead cart covered with a cloth, sickly green-gray mist clinging to cobblestones, boarded windows, one distant church steeple. Almost no living people. Ominous diseased atmosphere, muted green-gray palette.`,
+    fire: `Workshop district ablaze at night: timber market stalls and mills engulfed in orange flames and thick smoke, sparks flying, villagers hauling water buckets. Dramatic firelight, urgent destruction.`,
+    famine: `Severe famine full-screen scene: cracked barren dirt fields with ZERO green crops, empty collapsed granary with open doors showing no grain, wilted brown dead wheat stalks, thin starving peasants sitting hopelessly, bleak gray-brown sky. Desperate starvation — NOT a harvest, NOT golden wheat fields.`,
+    revolt: `Peasant revolt in a market square: pitchforks and torn banners, angry crowd before a stone manor gate, overturned carts, torches, chaotic red-black energy. Civic unrest, not a pitched battlefield.`,
+    banditry: `Night raid on a wealthy manor road: masked riders with torches, plundered grain sacks and coin chests, burning outbuilding, dark forest edge. Dangerous plunder mood.`,
+    flood: `Catastrophic flood full-screen scene: brown muddy floodwater covering farmland UP TO THE ROOFTOPS of half-submerged cottages, broken wooden dike, floating haystacks and debris, people on rooftops, stormy dark sky, torrential water. The land must look underwater — not a peaceful riverside village.`,
+    drought: `Extreme drought full-screen scene: deeply cracked bone-dry earth filling most of the frame, NO green plants, wilted brown stubble only, empty dry irrigation ditches, harsh white-hot sun and heat haze, dust, dead trees. Parched hellscape — NOT golden ripe wheat fields.`
   },
   terrain: {
     farmland_fallow: `Close overhead view of bare turned soil filling the frame, furrow rows, a few scattered rocks. No town, no castle, no buildings. Brown, gray tones. Ready but not planted.`,
@@ -77,14 +88,15 @@ const ASSET_SPECS: Record<string, Record<string, string>> = {
   // (Baron -> Kaiser), each crest visibly grander than the last so the title
   // change on promotion reads at a glance, not just via the text label.
   crests: {
-    baron: `A plain single-color shield, one simple charge (a single tower or plow), no crown, no mantling, unadorned iron rim. Modest, minor-nobility crest.`,
-    duke: `A quartered shield with two charges, a simple circlet coronet above it, light gold trim beginning to appear at the edges. Ambitious but still restrained.`,
-    prince: `A shield with three charges and a fleur-de-lis motif, a princely coronet with visible points above it, gold filigree bordering the shield. Youthful, rising nobility.`,
-    count: `An ornate shield split diagonally with a rampant beast (lion or eagle) charge, a count's coronet with pearls above it, heavier gold scrollwork bordering the whole crest.`,
-    margrave: `A shield bearing a fortified tower or border-march motif (this rank guards a frontier), a wide banded coronet above it, twin supporter banners flanking the shield, rich gold and crimson.`,
-    archbishop: `A shield combined with a bishop's mitre above it and a crozier crossed behind it, deep purple and gold, small radiating halo-like gold rays behind the mitre. Sacred and civil authority combined.`,
-    king: `A large elaborate shield with a rampant lion or double-headed eagle, a full jeweled royal crown with arches above it, heavy gold mantling draping down both sides, red velvet lining visible.`,
-    kaiser: `The grandest possible crest: a large shield bearing an imperial double-headed eagle, a closed imperial crown with a cross atop it, an orb and sceptre crossed behind the shield, elaborate gold mantling and jewels covering the whole frame, radiant gold background glow. Absolute summit of splendor.`
+    // Ultra-literal one-liner subjects — SDXL ignores soft rank language.
+    baron: `simple flat icon of a brown medieval heater shield with a black plow symbol painted on it, plain iron rim, empty dark brown background, minimalist heraldry, no crown no flowers no frame`,
+    duke: `simple flat icon of a quartered heater shield olive and gray with a small key symbol, thin gold open circlet floating above the shield, empty dark brown background, minimalist heraldry, no picture frame`,
+    prince: `simple flat icon of a blue heater shield with one silver fleur-de-lis, three-pointed gold coronet above shield, empty dark brown background, minimalist heraldry`,
+    count: `simple flat icon of a black and gold diagonally divided heater shield with one golden lion rampant correct anatomy, pearl coronet above, empty dark brown background, minimalist heraldry`,
+    margrave: `simple flat icon of a red heater shield with a gray stone tower with battlements as the only symbol on the shield, banded coronet above, two thin ribbons, empty dark brown background, minimalist heraldry, no lion no animal`,
+    archbishop: `simple flat ecclesiastical coat of arms icon: purple heater shield white cross, tall pointed bishop mitre hat with ribbons sitting above the shield, golden crozier behind shield, empty dark brown background, no royal crown`,
+    king: `simple flat royal coat of arms icon: blue heater shield, one golden lion rampant correct four legs one head, jeweled arched crown above, red gold mantling sides, empty dark brown background, minimalist heraldry`,
+    kaiser: `simple flat imperial coat of arms icon: black heater shield, golden eagle with TWO heads facing left and right, closed crown with cross on top, orb and sceptre behind, empty dark brown background, Holy Roman Empire style`
   }
 }
 
@@ -95,7 +107,8 @@ const RESOLUTIONS: Record<string, [number, number]> = {
   eventIcons: [96, 96],
   terrain: [128, 96],
   scenes: [1280, 720],
-  crests: [96, 96]
+  eventScenes: [1280, 720],
+  crests: [256, 256]
 }
 
 // SDXL is trained at ~1024²; sampling straight to a 96×96 latent yields noise, not
@@ -103,10 +116,11 @@ const RESOLUTIONS: Record<string, [number, number]> = {
 const GEN_SIZES: Record<string, [number, number]> = {
   buildings: [1152, 896],
   portraits: [1024, 1024],
+  scenes: [1344, 768],
+  eventScenes: [1344, 768],
   crests: [1024, 1024],
   eventIcons: [1024, 1024],
-  terrain: [1152, 896],
-  scenes: [1344, 768]
+  terrain: [1152, 896]
 }
 
 const COMFYUI_URL = process.env.COMFYUI_URL ?? 'http://127.0.0.1:8188'
@@ -121,7 +135,22 @@ const EXTRA_NEGATIVE: Record<string, string> = {
   portraits: 'multiple people, group portrait, crowd, several figures, two people, three people, four people',
   buildings: 'village, town, city, skyline, many buildings, rooftops, distant buildings, multiple structures',
   terrain: 'village, town, city, castle, wide landscape, valley view, distant buildings, horizon',
-  crests: 'people, face, portrait, figure, landscape, building, castle, sky, horizon, photo, realistic texture, text, letters, numbers'
+  crests: 'people, face, portrait, figure, landscape, real castle, real building, sky, horizon, photo, realistic texture, text, letters, numbers, square picture frame, ornate outer border, circular medallion frame, corner ornaments, plaque, stamp, seal border, photograph of a crest, collage',
+  eventScenes: 'text, watermark, ui overlay, modern clothing, cars, skyscraper, anime, photo collage',
+  scenes: 'text, watermark, ui overlay, modern clothing, cars, skyscraper'
+}
+
+// Per-crest negatives: stop low ranks from growing crowns/mantling, and keep
+// Archbishop sacred (mitre) rather than royal (crown).
+const EXTRA_NEGATIVE_BY_CREST: Record<string, string> = {
+  baron: 'crown, coronet, mitre, mantling, wreath, vines, flowers, tree of life, filigree tree, spears, weapons, supporters, banners, ermine, jewels, ornate, baroque',
+  duke: 'arched crown, closed crown, heavy mantling, wreath, spears, supporters, ermine, jewels, outer frame, wood picture frame, corner filigree',
+  prince: 'closed crown, imperial crown, heavy ermine mantle, outer frame, circular gemmed rim, wood frame',
+  count: 'imperial crown, double-headed eagle, outer frame, circular gemmed rim, oak leaves filling shield, deformed lion, extra limbs',
+  margrave: 'lion, eagle, cross, mitre, outer frame, landscape castle, town, oak sprig, leaves, plant, foliage charge',
+  archbishop: 'royal crown, arched crown, closed crown, ermine mantle, lion, eagle, secular king, outer frame, circular gold plaque, corner seals',
+  king: 'double-headed eagle, mitre, crozier, outer frame, circular gemmed rim, extra paws, mutated limbs, two-tone split lion body',
+  kaiser: 'outer frame, corner seals, square border, circular gemmed plaque, single-headed eagle alone, one head only'
 }
 
 // Per-asset negative overrides for cases the category-level rule doesn't fit
@@ -134,7 +163,12 @@ const EXTRA_NEGATIVE_BY_ASSET: Record<string, string> = {
   hospital: 'castle, towers, battlements, fortress, multiple towers',
   palace_stage_1: 'finished building, complete building, roof, walls, cottage, chapel, village',
   palace_stage_2: 'finished building, complete roof, chapel, cottage, village, castle, towers, spires, flags, battlements, complete walls, tall walls',
-  farmland_fallow: 'house, shed, building, hut, structure'
+  farmland_fallow: 'house, shed, building, hut, structure',
+  drought: 'night, moon, stars, dark sky, golden wheat, ripe crops, lush green fields, prosperous harvest',
+  famine: 'golden wheat, ripe harvest, lush green fields, prosperous farmland, abundant crops',
+  flood: 'peaceful dry riverside, sunny calm village, neat dry fields, tranquil water only in riverbed',
+  plague: 'crowded healthy market, festive celebration, bright cheerful day',
+  kingdom_overview: 'world map, globe, continent, modern city, highway, airplane'
 }
 
 // Deterministic per-asset seed so reruns reproduce and --seed-offset actually varies output.
@@ -155,7 +189,13 @@ function buildPrompt(assetId: string, category: string): string {
     console.error(`No spec found for ${category}/${assetId}`)
     return ''
   }
-  return `${preamble} ${spec}. Style: painterly, semi-isometric, natural medieval palette, fine detail, no text, no modern elements.`
+  // Crests must stay flat heraldic icons — "semi-isometric" fights that and
+  // pushes SDXL toward ornate 3D UI badges with picture frames.
+  const style =
+    category === 'crests'
+      ? 'Style: flat heraldic illustration, clear bold silhouette, limited colors, manuscript miniature, fine detail, no text, no modern elements, no photo realism.'
+      : 'Style: painterly, semi-isometric, natural medieval palette, fine detail, no text, no modern elements.'
+  return `${preamble} ${spec}. ${style}`
 }
 
 async function generateAsset(job: AssetJob, dryRun: boolean, seedOffset: number): Promise<{ ok: boolean; file: string; error?: string }> {
@@ -181,7 +221,12 @@ async function generateAsset(job: AssetJob, dryRun: boolean, seedOffset: number)
       },
       '3': {
         inputs: {
-          text: [NEGATIVE_PROMPT, EXTRA_NEGATIVE[job.category], EXTRA_NEGATIVE_BY_ASSET[job.id]].filter(Boolean).join(', '),
+          text: [
+            NEGATIVE_PROMPT,
+            EXTRA_NEGATIVE[job.category],
+            EXTRA_NEGATIVE_BY_ASSET[job.id],
+            job.category === 'crests' ? EXTRA_NEGATIVE_BY_CREST[job.id] : ''
+          ].filter(Boolean).join(', '),
           clip: ['1', 1]
         },
         class_type: 'CLIPTextEncode'
@@ -193,8 +238,9 @@ async function generateAsset(job: AssetJob, dryRun: boolean, seedOffset: number)
       '5': {
         inputs: {
           seed: seedFor(job.category, job.id, seedOffset),
-          steps: 28,
-          cfg: 7.0,
+          steps: job.category === 'crests' ? 36 : 28,
+          // Crests need higher CFG — soft CFG 7 keeps inventing ornate UI badges.
+          cfg: job.category === 'crests' ? 9.5 : 7.0,
           sampler_name: 'dpmpp_2m',
           scheduler: 'karras',
           denoise: 1.0,
