@@ -146,11 +146,13 @@ button.full { width: 100%; }
 .field-label {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-size: 0.9rem;
   margin-bottom: 6px;
   color: var(--ink-dim);
 }
 .field-label .field-value { color: var(--ink); font-weight: 600; }
+.field-label-text { display: inline-flex; align-items: center; gap: 6px; }
 
 input[type="range"] {
   width: 100%;
@@ -301,6 +303,44 @@ canvas#banner {
    the income & spending breakdown) that aren't inside a .stat or .log-entry. */
 span.good { color: var(--good); font-weight: 600; }
 span.bad { color: var(--bad); font-weight: 600; }
+
+/* Tap-to-toggle info tooltip (dom.ts's tooltip()) — deliberately not a hover
+   title, since this UI is mobile-first and most players have no hover. */
+.tooltip-wrap { position: relative; display: inline-flex; }
+.tooltip-dot {
+  min-height: 20px;
+  min-width: 20px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-panel-raised);
+  color: var(--ink-dim);
+  font-size: 0.7rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.tooltip-bubble {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  width: max-content;
+  max-width: min(260px, 70vw);
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--ink);
+  line-height: 1.35;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.tooltip-bubble.hidden { display: none; }
 
 /* D2 rank-progress: one bar per alternative qualifying path toward the next
    rank (docs/d2-rank-gate-design.md) — the leading path is highlighted so a
