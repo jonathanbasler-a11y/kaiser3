@@ -19,17 +19,39 @@ import { el, clear, stepper, sliderField, segmented, statTile, tooltip } from '.
 import { DecisionDraft, defaultDraft, draftToDecisions, rivalOptions, affordableHectares, maxSellableGrain, maxAffordableGrainBuy, yearsOfFoodLabel } from './decisions.ts'
 import { drawBanner } from './render.ts'
 import { spriteImg } from './spriteLoader.ts'
+import { SavePayload } from '../engine/persist.ts'
+import {
+  clearSlot,
+  downloadSaveFile,
+  formatSlotLabel,
+  listSlotSummaries,
+  readSaveFile,
+  readSlot,
+  writeSlot,
+  writeSlotPayload
+} from './saves.ts'
 
-// EventId -> tileset.json eventIcons asset id. Drought/flood (F6) have no art
-// yet, so they're deliberately absent here — spriteImg's 404-safe fallback
-// (spriteLoader.ts) means an unmapped id just renders without an icon rather
-// than breaking, consistent with the art-fallback invariant.
+// EventId -> tileset.json eventIcons asset id. Flood/drought (F6) icons live
+// under the same category; unmapped ids still render icon-less via spriteImg.
 const EVENT_ICON_ID: Record<string, string> = {
   plague: 'plague_flag',
   fire: 'fire_smoke',
   famine: 'famine_sign',
   revolt: 'revolt_banner',
-  banditry: 'bandit_skull'
+  banditry: 'bandit_skull',
+  flood: 'flood_wave',
+  drought: 'drought_sun'
+}
+
+// Full-screen year-report splash (tileset eventScenes). Same keys as event.type.
+const EVENT_SCENE_ID: Record<string, string> = {
+  plague: 'plague',
+  fire: 'fire',
+  famine: 'famine',
+  revolt: 'revolt',
+  banditry: 'banditry',
+  flood: 'flood',
+  drought: 'drought'
 }
 
 const PALACE = buildingsData.prestige.palace
@@ -66,7 +88,7 @@ interface Session {
   difficulty: DifficultyPreset
   draft: DecisionDraft
   activeTab: Tab
-  yearReport: { entries: HTMLElement[]; outcome: Outcome | null } | null
+  yearReport: { entries: HTMLElement[]; outcome: Outcome | null; sceneId: string | null } | null
 }
 
 type Outcome =
@@ -230,6 +252,7 @@ function renderSetup(): void {
       el('p', { class: 'subtitle' }, 'Rule a principality. Outlast your rivals. Be crowned Kaiser.'),
       el('div', { class: 'card' }, opponentStepperHost, yearsStepperHost,
         el('h3', {}, 'Difficulty'), difficultyHost, difficultyDescription),
+      renderSaveSlotsCard({ mode: 'load' }),
       rivalList,
       el('div', { class: 'sticky-footer' }, startBtn)
     )
@@ -266,6 +289,198 @@ function startGame(opponentCount: number, maxYears: number, difficultyId: string
     yearReport: null
   }
   renderGame()
+}
+
+function resumeFromSave(payload: SavePayload): void {
+  const personalities = getPersonalities()
+  const byId = new Map(personalities.map((p) => [p.id, p]))
+  const rivals = new Map<string, Personality>()
+  for (const entry of payload.rivals) {
+    const personality = byId.get(entry.personalityId)
+    if (!personality) {
+      throw new Error(`Save names unknown personality "${entry.personalityId}"`)
+    }
+    rivals.set(entry.playerId, personality)
+  }
+  if (!payload.game.players[HUMAN_ID]) {
+    throw new Error('Save has no human player')
+  }
+
+  session = {
+    state: payload.game,
+    rivals,
+    maxYears: payload.maxYears,
+    difficulty: getDifficultyPreset(payload.difficultyId),
+    draft: defaultDraft(payload.game.players[HUMAN_ID]),
+    activeTab: 'overview',
+    yearReport: null
+  }
+  renderGame()
+}
+
+function currentSaveInput(name: string): {
+  game: GameState
+  maxYears: number
+  difficultyId: string
+  rivals: Array<{ playerId: string; personalityId: string }>
+  name: string
+} {
+  if (!session) throw new Error('No active session to save')
+  return {
+    game: session.state,
+    maxYears: session.maxYears,
+    difficultyId: session.difficulty.id,
+    rivals: [...session.rivals.entries()].map(([playerId, personality]) => ({
+      playerId,
+      personalityId: personality.id
+    })),
+    name
+  }
+}
+
+function renderSaveSlotsCard(opts: { mode: 'load' | 'save' }): HTMLElement {
+  const host = el('div', { class: 'card save-slots' })
+  const status = el('p', { class: 'help-text' })
+  const nameInput = el('input', {
+    type: 'text',
+    class: 'save-name-input',
+    placeholder: 'Save name (optional)',
+    maxLength: 48
+  } as never) as HTMLInputElement
+
+  const rerender = () => {
+    const typedName = nameInput.value
+    clear(host)
+    host.appendChild(el('h2', {}, opts.mode === 'load' ? 'Continue a reign' : 'Save to a slot'))
+    host.appendChild(el('p', { class: 'help-text' },
+      opts.mode === 'load'
+        ? 'Three local slots on this device. Export a .json file to move a reign to another phone or computer; Import puts it into a slot here.'
+        : 'Name the save, then pick a slot. Export from the title screen later to carry it across devices.'
+    ))
+
+    if (opts.mode === 'save') {
+      nameInput.value = typedName
+      host.appendChild(el('label', { class: 'save-name-label' }, 'Save name', nameInput))
+    }
+
+    for (const summary of listSlotSummaries(HUMAN_ID)) {
+      const label = formatSlotLabel(summary, getRankName)
+      const row = el('div', { class: 'save-slot-row' },
+        el('div', { class: 'save-slot-meta' },
+          el('strong', {}, `Slot ${summary.index + 1}`),
+          el('span', { class: 'help-text' }, label)
+        )
+      )
+      const actions = el('div', { class: 'save-slot-actions' })
+
+      if (opts.mode === 'load') {
+        const loadBtn = el('button', { textContent: summary.empty || summary.error ? 'Empty' : 'Load' })
+        if (summary.empty || summary.error) loadBtn.setAttribute('disabled', 'true')
+        loadBtn.addEventListener('click', () => {
+          try {
+            const payload = readSlot(summary.index)
+            if (!payload) {
+              status.textContent = 'That slot is empty.'
+              return
+            }
+            resumeFromSave(payload)
+          } catch (err) {
+            status.textContent = `Could not load: ${(err as Error).message}`
+          }
+        })
+        actions.appendChild(loadBtn)
+        if (!summary.empty && !summary.error) {
+          const exportBtn = el('button', { textContent: 'Export' })
+          exportBtn.addEventListener('click', () => {
+            try {
+              const payload = readSlot(summary.index)
+              if (!payload) return
+              downloadSaveFile(payload)
+              status.textContent = `Exported slot ${summary.index + 1}.`
+            } catch (err) {
+              status.textContent = (err as Error).message
+            }
+          })
+          actions.appendChild(exportBtn)
+          const delBtn = el('button', { textContent: 'Delete' })
+          delBtn.addEventListener('click', () => {
+            clearSlot(summary.index)
+            status.textContent = `Slot ${summary.index + 1} cleared.`
+            rerender()
+          })
+          actions.appendChild(delBtn)
+        }
+      } else {
+        const saveBtn = el('button', { class: 'primary', textContent: summary.empty ? 'Save here' : 'Overwrite' })
+        saveBtn.addEventListener('click', () => {
+          try {
+            const payload = writeSlot(summary.index, currentSaveInput(nameInput.value))
+            status.textContent = payload.name
+              ? `Saved “${payload.name}” to slot ${summary.index + 1}.`
+              : `Saved to slot ${summary.index + 1}.`
+            rerender()
+          } catch (err) {
+            status.textContent = (err as Error).message
+          }
+        })
+        actions.appendChild(saveBtn)
+      }
+
+      row.appendChild(actions)
+      host.appendChild(row)
+    }
+
+    if (opts.mode === 'load') {
+      const importRow = el('div', { class: 'save-import-row' })
+      const fileInput = el('input', {
+        type: 'file',
+        accept: 'application/json,.json',
+        class: 'hidden-file-input'
+      } as never) as HTMLInputElement
+      const importBtn = el('button', { class: 'full', textContent: 'Import save file…' })
+      importBtn.addEventListener('click', () => fileInput.click())
+      fileInput.addEventListener('change', () => {
+        const file = fileInput.files?.[0]
+        fileInput.value = ''
+        if (!file) return
+        void readSaveFile(file)
+          .then((payload) => {
+            const empty = listSlotSummaries(HUMAN_ID).find((s) => s.empty)
+            const target = empty?.index ?? 0
+            const overwriting = !empty
+            if (overwriting && !window.confirm(`All slots are full. Overwrite slot ${target + 1}?`)) return
+            writeSlotPayload(target, payload)
+            status.textContent = payload.name
+              ? `Imported “${payload.name}” into slot ${target + 1}.`
+              : `Imported into slot ${target + 1}.`
+            rerender()
+          })
+          .catch((err: Error) => {
+            status.textContent = `Import failed: ${err.message}`
+          })
+      })
+      importRow.append(importBtn, fileInput)
+      host.appendChild(importRow)
+    }
+
+    host.appendChild(status)
+  }
+
+  rerender()
+  return host
+}
+
+function openSaveModal(): void {
+  const overlay = el('div', { class: 'modal-overlay' })
+  const close = () => overlay.remove()
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close() })
+  const sheet = el('div', { class: 'modal-sheet' },
+    renderSaveSlotsCard({ mode: 'save' }),
+    el('button', { class: 'full', textContent: 'Close' })
+  )
+  sheet.lastChild!.addEventListener('click', close)
+  overlay.appendChild(sheet)
+  document.body.appendChild(overlay)
 }
 
 // ---------------------------------------------------------------------------
@@ -309,6 +524,15 @@ function renderGame(): void {
 
   const endYearBtn = el('button', { class: 'primary full', textContent: `End Year ${state.year + 1}` })
   endYearBtn.addEventListener('click', () => runYear())
+  const saveBtn = el('button', { class: 'full', textContent: 'Save game' })
+  saveBtn.addEventListener('click', () => openSaveModal())
+  const menuBtn = el('button', { class: 'full', textContent: 'Main menu' })
+  menuBtn.addEventListener('click', () => {
+    // Session stays in memory until a new game/load replaces it; leaving without
+    // saving is intentional — the three slots are the durable store.
+    session = null
+    renderSetup()
+  })
 
   root.append(
     el('div', { class: 'screen' },
@@ -317,7 +541,7 @@ function renderGame(): void {
       statGrid(player, state),
       tabbar,
       content,
-      el('div', { class: 'sticky-footer' }, endYearBtn)
+      el('div', { class: 'sticky-footer' }, saveBtn, endYearBtn, menuBtn)
     )
   )
 
@@ -419,6 +643,9 @@ function renderOverviewTab(): HTMLElement {
   const player = state.players[HUMAN_ID]
   const rivals = rivalOptions(state, HUMAN_ID)
   return el('div', {},
+    el('div', { class: 'scene-banner' },
+      spriteImg('scenes', 'kingdom_overview', 'Your principality', 'scene-full')
+    ),
     renderRankProgress(player),
     el('h2', {}, 'Rival standings'),
     el('div', { class: 'rival-list' },
@@ -824,7 +1051,11 @@ function resolveYear(): void {
   const result = advanceYear(state, decisions, seed)
   session.state = result.state
 
-  session.yearReport = { entries: buildReportEntries(result.chronicle, result.state), outcome: null }
+  session.yearReport = {
+    entries: buildReportEntries(result.chronicle, result.state),
+    outcome: null,
+    sceneId: firstEventSceneId(result.chronicle)
+  }
 
   // Check end conditions.
   for (const id of result.state.activePlayerIds) {
@@ -881,6 +1112,16 @@ function buildIncomeBreakdown(report: Chronicle['playerReports'][string]): HTMLE
       el('span', { class: net >= 0 ? 'good' : 'bad' }, `${net >= 0 ? '+' : ''}${net.toFixed(0)}`)
     )
   )
+}
+
+function firstEventSceneId(chronicle: Chronicle): string | null {
+  const report = chronicle.playerReports[HUMAN_ID]
+  if (!report) return null
+  for (const event of report.events) {
+    const sceneId = EVENT_SCENE_ID[event.type]
+    if (sceneId) return sceneId
+  }
+  return null
 }
 
 function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement[] {
@@ -974,7 +1215,7 @@ function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement
 function renderYearReport(): void {
   if (!session?.yearReport) return
   clear(root)
-  const { entries, outcome } = session.yearReport
+  const { entries, outcome, sceneId } = session.yearReport
   const player = session.state.players[HUMAN_ID]
 
   const continueBtn = el('button', { class: 'primary full', textContent: outcome ? 'See Final Standings' : 'Continue' })
@@ -983,8 +1224,13 @@ function renderYearReport(): void {
     else renderGame()
   })
 
+  const sceneBanner = sceneId
+    ? el('div', { class: 'scene-banner' }, spriteImg('eventScenes', sceneId, sceneId, 'scene-full'))
+    : null
+
   root.append(
     el('div', { class: 'screen' },
+      sceneBanner,
       el('h1', {}, `Year ${session.state.year}`),
       el('p', { class: 'subtitle' }, `${getRankName(player.rank)} · ${player.taler.toFixed(0)} Taler · ${player.population.peasants.toFixed(0)} peasants`),
       el('div', { class: 'log' }, ...entries),

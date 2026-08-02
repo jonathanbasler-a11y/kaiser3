@@ -1,7 +1,7 @@
 # Cursor Lane Plan — Graphics + Non-Claude Backlog
 
-**Status:** ComfyUI running (`http://127.0.0.1:8188`, RTX 3070, SDXL).  
-**Branch:** `cursor-graphics-crests` (isolated from Claude’s Phase 18 work).  
+**Status:** Safe backlog pass on `cursor-safe-backlog` (B5 + PLAN sync + crest/well regen).  
+**Branch:** `cursor-safe-backlog` (isolated from Claude’s Phase 18 work).  
 **Rule:** Do not touch Phase 18 critical files while Claude owns that plan.
 
 ---
@@ -56,6 +56,11 @@ npm run gen-art -- --filter crests --assets margrave,archbishop,king,kaiser
 
 **Deliverable:** commit on `cursor-graphics-crests`:
 `graphics: rank crests + procedural crest fallback`
+
+**Status (2026-08-02):** ComfyUI crests still ignore literal charges for most ranks.
+Kept only readable PNGs (`prince`, `count`, `king`). Missing ranks use
+`drawCrestProcedural` (correct plow/key/tower/mitre/eagle ladder). Further
+Comfy re-rolls optional; not blocking.
 
 ---
 

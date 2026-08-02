@@ -47,7 +47,7 @@ const ASSET_SPECS: Record<string, Record<string, string>> = {
     palace_stage_16: `Full five-story grand palace with four corner towers, central spire with flag, heraldic banners, manicured courtyard and gardens, ornate gates. Seat of power, complete.`,
     cathedral: `Grand Gothic cathedral with a high central spire, flying buttresses, rose window visible. Lighter stone (pale gray/cream). Intricate masonry. Sacred, imposing, complete.`,
     hospital: `A single simple rectangular building with ONE gabled roof (not a castle, not towers, not battlements), plain stone walls, a red cross flag mounted above its single front door, a few large windows. Small herb garden boxes at its base. Nothing else in the frame — just this one plain civic building alone on grass.`,
-    well: `A tiny prop-scale object study of a village wishing-well: a short circular ring of stacked round stones no taller than knee-height, topped by two thin wooden posts holding up a small peaked wood shingle roof no bigger than an umbrella, with a rope and wooden bucket hanging beneath it. The whole object is small and simple like a garden ornament — it has no walls, no door, no windows, no floor, no interior, nothing a person could stand inside. Sitting alone on plain grass.`,
+    well: `Isometric game prop: ONE open circular stone water well only. Short knee-high ring of stacked round cobblestones, TWO thin wooden posts, tiny peaked shingle canopy the size of an umbrella, rope and wooden bucket hanging in the open center. Plain grass pedestal. Absolutely not a house, cottage, barn, or hut.`,
     granary: `A single large timber-frame building with a sloped roof, small ventilation windows along its side, an external staircase, and grain sacks stacked at its door. One isolated storage building, nothing else in the background.`,
     garrison: `A single fortified stone structure with narrow defensive windows, one guard tower on its corner, and a small catapult beside it. One isolated martial building standing alone, nothing else in the background.`,
     trading_house: `A single ornate merchant's house with fancy tiled walls, silk banners hanging from its front, and imported goods displayed at its entrance. One isolated, ostentatiously wealthy building standing alone, nothing else in the background.`
@@ -88,15 +88,16 @@ const ASSET_SPECS: Record<string, Record<string, string>> = {
   // (Baron -> Kaiser), each crest visibly grander than the last so the title
   // change on promotion reads at a glance, not just via the text label.
   crests: {
-    // Ultra-literal one-liner subjects — SDXL ignores soft rank language.
-    baron: `simple flat icon of a brown medieval heater shield with a black plow symbol painted on it, plain iron rim, empty dark brown background, minimalist heraldry, no crown no flowers no frame`,
-    duke: `simple flat icon of a quartered heater shield olive and gray with a small key symbol, thin gold open circlet floating above the shield, empty dark brown background, minimalist heraldry, no picture frame`,
-    prince: `simple flat icon of a blue heater shield with one silver fleur-de-lis, three-pointed gold coronet above shield, empty dark brown background, minimalist heraldry`,
-    count: `simple flat icon of a black and gold diagonally divided heater shield with one golden lion rampant correct anatomy, pearl coronet above, empty dark brown background, minimalist heraldry`,
-    margrave: `simple flat icon of a red heater shield with a gray stone tower with battlements as the only symbol on the shield, banded coronet above, two thin ribbons, empty dark brown background, minimalist heraldry, no lion no animal`,
-    archbishop: `simple flat ecclesiastical coat of arms icon: purple heater shield white cross, tall pointed bishop mitre hat with ribbons sitting above the shield, golden crozier behind shield, empty dark brown background, no royal crown`,
-    king: `simple flat royal coat of arms icon: blue heater shield, one golden lion rampant correct four legs one head, jeweled arched crown above, red gold mantling sides, empty dark brown background, minimalist heraldry`,
-    kaiser: `simple flat imperial coat of arms icon: black heater shield, golden eagle with TWO heads facing left and right, closed crown with cross on top, orb and sceptre behind, empty dark brown background, Holy Roman Empire style`
+    // Subject-first literal icons. SDXL ignores soft "rank" language — name the
+    // charge first, then the shield, then ornamentation allowed for that rank.
+    baron: `black plowshare farming tool charge on a plain brown heater shield, iron rim only, flat vector heraldic icon, empty dark brown square background`,
+    duke: `golden skeleton key charge on a quartered olive-and-gray heater shield, thin open gold circlet above the shield, flat vector heraldic icon, empty dark brown square background`,
+    prince: `silver fleur-de-lis charge on a blue heater shield, three-pointed open gold coronet above the shield, flat vector heraldic icon, empty dark brown square background`,
+    count: `golden lion rampant charge on a black-and-gold per-bend heater shield, pearl coronet above the shield, flat vector heraldic icon, empty dark brown square background`,
+    margrave: `gray stone battlement tower keep charge on a red heater shield, banded gold coronet above, two thin side ribbons, flat vector heraldic icon, empty dark brown square background`,
+    archbishop: `white Latin cross on a purple heater shield, tall pointed bishop mitre with twin ribbons resting ON TOP of the shield, golden crozier crossed behind, flat vector heraldic icon, empty dark brown square background`,
+    king: `golden lion rampant charge on a blue heater shield, jeweled arched royal crown above the shield, red-and-gold mantling draping both sides, flat vector heraldic icon, empty dark brown square background`,
+    kaiser: `Holy Roman Empire double-headed eagle Reichsadler with two eagle heads facing opposite directions on a black heater shield, closed imperial crown with cross above, orb and sceptre behind, flat vector heraldic icon, empty dark brown square background`
   }
 }
 
@@ -143,14 +144,14 @@ const EXTRA_NEGATIVE: Record<string, string> = {
 // Per-crest negatives: stop low ranks from growing crowns/mantling, and keep
 // Archbishop sacred (mitre) rather than royal (crown).
 const EXTRA_NEGATIVE_BY_CREST: Record<string, string> = {
-  baron: 'crown, coronet, mitre, mantling, wreath, vines, flowers, tree of life, filigree tree, spears, weapons, supporters, banners, ermine, jewels, ornate, baroque',
-  duke: 'arched crown, closed crown, heavy mantling, wreath, spears, supporters, ermine, jewels, outer frame, wood picture frame, corner filigree',
-  prince: 'closed crown, imperial crown, heavy ermine mantle, outer frame, circular gemmed rim, wood frame',
-  count: 'imperial crown, double-headed eagle, outer frame, circular gemmed rim, oak leaves filling shield, deformed lion, extra limbs',
-  margrave: 'lion, eagle, cross, mitre, outer frame, landscape castle, town, oak sprig, leaves, plant, foliage charge',
-  archbishop: 'royal crown, arched crown, closed crown, ermine mantle, lion, eagle, secular king, outer frame, circular gold plaque, corner seals',
-  king: 'double-headed eagle, mitre, crozier, outer frame, circular gemmed rim, extra paws, mutated limbs, two-tone split lion body',
-  kaiser: 'outer frame, corner seals, square border, circular gemmed plaque, single-headed eagle alone, one head only'
+  baron: 'crown, coronet, mitre, mantling, wreath, vines, flowers, tree of life, filigree, spears, weapons, supporters, banners, ermine, jewels, ornate, baroque, nested shield, inner shield, empty shield, blank field',
+  duke: 'arched crown, closed crown, heavy mantling, wreath, spears, supporters, ermine, jewels, outer frame, wood picture frame, corner filigree, empty shield, blank field, no charge',
+  prince: 'closed crown, imperial crown, heavy ermine mantle, outer frame, circular gemmed rim, wood frame, nested shields',
+  count: 'imperial crown, double-headed eagle, outer frame, circular gemmed rim, oak leaves filling shield, deformed lion, extra limbs, horse, unicorn',
+  margrave: 'lion, eagle, cross, mitre, outer frame, landscape castle, town, oak sprig, leaves, plant, foliage charge, crossed swords, sword, animal',
+  archbishop: 'royal crown, arched crown, closed crown, ermine mantle, lion, eagle, secular king, outer frame, circular gold plaque, corner seals, no mitre',
+  king: 'double-headed eagle, mitre, crozier, outer frame, circular gemmed rim, extra paws, mutated limbs, horse, unicorn, stag, deer, pony',
+  kaiser: 'outer frame, corner seals, square border, circular gemmed plaque, single-headed eagle, one head only, foliage charge, oak leaves, antlers, no eagle'
 }
 
 // Per-asset negative overrides for cases the category-level rule doesn't fit

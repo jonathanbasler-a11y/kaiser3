@@ -76,6 +76,14 @@ const FALLBACK_RENDERERS: Record<string, (ctx: CanvasRenderingContext2D, w: numb
     ctx.font = '14px sans-serif'
     ctx.textAlign = 'center'
     ctx.fillText(`[Scene: ${id}]`, w / 2, h / 2)
+  },
+  eventScenes: (ctx, w, h, id) => {
+    ctx.fillStyle = '#2a1810'
+    ctx.fillRect(0, 0, w, h)
+    ctx.fillStyle = '#f1e6d3'
+    ctx.font = '14px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText(`[Event: ${id}]`, w / 2, h / 2)
   }
 }
 
