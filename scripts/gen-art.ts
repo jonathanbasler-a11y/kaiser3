@@ -26,7 +26,8 @@ const SHARED_PREAMBLES: Record<string, string> = {
   buildings: `Medieval architecture, isometric three-quarter view, semi-transparent shadow beneath. Painterly texture, earth tones (ochre, sienna, grays). A single isolated building standing alone on plain ground with no town, village, or skyline behind it — just the one structure and open grass/earth around it. No people, no text. Roof and facing visible, shading suggests 3D form.`,
   eventIcons: `Medieval icon style, symbolic rather than realistic. Bold, clear silhouette of the literal described object/symbol, not a portrait of a person. Warm or dark background to suggest the event's tone. Oil painting texture, gold leaf accents where appropriate. Fits in a square, centered. No text, no human figures unless explicitly described.`,
   scenes: `Medieval illustration, oil painting style, rich detail, warm lighting.`,
-  terrain: `Top-down/isometric single farmland plot tile, close overhead view of soil and crops filling the frame — not a wide landscape, not a distant town or castle. Semi-transparent shadow beneath. Painterly, textured. Natural palette. No people, no buildings. Shows land fertility/state via color/pattern.`
+  terrain: `Top-down/isometric single farmland plot tile, close overhead view of soil and crops filling the frame — not a wide landscape, not a distant town or castle. Semi-transparent shadow beneath. Painterly, textured. Natural palette. No people, no buildings. Shows land fertility/state via color/pattern.`,
+  crests: `Heraldic coat-of-arms crest, painted illuminated-manuscript style, centered on a plain dark parchment background, symmetrical, no people, no landscape, no buildings, no text or letters of any kind — only heraldic shapes, a shield outline, and rank-appropriate ornamentation. Gold leaf accents, rich medieval pigments.`
 }
 
 const ASSET_SPECS: Record<string, Record<string, string>> = {
@@ -71,6 +72,19 @@ const ASSET_SPECS: Record<string, Record<string, string>> = {
     farmland_blighted: `Diseased or drought-affected crops: yellowed, withered, sparse. Dull khaki and brown. Desperate, poor yield.`,
     forest: `Dense trees, dark green canopy, tree trunks visible beneath. Cool, shadowed tones. Wild, untamed.`,
     river: `Flowing water, blue-gray tones, banks on either side. Slight current suggested by water flow. Splits/divides hexagons on a map.`
+  },
+  // Escalating ornamentation with rank — the same 8-tier ladder as data/ranks.json
+  // (Baron -> Kaiser), each crest visibly grander than the last so the title
+  // change on promotion reads at a glance, not just via the text label.
+  crests: {
+    baron: `A plain single-color shield, one simple charge (a single tower or plow), no crown, no mantling, unadorned iron rim. Modest, minor-nobility crest.`,
+    duke: `A quartered shield with two charges, a simple circlet coronet above it, light gold trim beginning to appear at the edges. Ambitious but still restrained.`,
+    prince: `A shield with three charges and a fleur-de-lis motif, a princely coronet with visible points above it, gold filigree bordering the shield. Youthful, rising nobility.`,
+    count: `An ornate shield split diagonally with a rampant beast (lion or eagle) charge, a count's coronet with pearls above it, heavier gold scrollwork bordering the whole crest.`,
+    margrave: `A shield bearing a fortified tower or border-march motif (this rank guards a frontier), a wide banded coronet above it, twin supporter banners flanking the shield, rich gold and crimson.`,
+    archbishop: `A shield combined with a bishop's mitre above it and a crozier crossed behind it, deep purple and gold, small radiating halo-like gold rays behind the mitre. Sacred and civil authority combined.`,
+    king: `A large elaborate shield with a rampant lion or double-headed eagle, a full jeweled royal crown with arches above it, heavy gold mantling draping down both sides, red velvet lining visible.`,
+    kaiser: `The grandest possible crest: a large shield bearing an imperial double-headed eagle, a closed imperial crown with a cross atop it, an orb and sceptre crossed behind the shield, elaborate gold mantling and jewels covering the whole frame, radiant gold background glow. Absolute summit of splendor.`
   }
 }
 
@@ -80,7 +94,8 @@ const RESOLUTIONS: Record<string, [number, number]> = {
   portraits: [256, 256],
   eventIcons: [96, 96],
   terrain: [128, 96],
-  scenes: [1280, 720]
+  scenes: [1280, 720],
+  crests: [96, 96]
 }
 
 // SDXL is trained at ~1024²; sampling straight to a 96×96 latent yields noise, not
@@ -88,6 +103,7 @@ const RESOLUTIONS: Record<string, [number, number]> = {
 const GEN_SIZES: Record<string, [number, number]> = {
   buildings: [1152, 896],
   portraits: [1024, 1024],
+  crests: [1024, 1024],
   eventIcons: [1024, 1024],
   terrain: [1152, 896],
   scenes: [1344, 768]
@@ -104,7 +120,8 @@ const NEGATIVE_PROMPT =
 const EXTRA_NEGATIVE: Record<string, string> = {
   portraits: 'multiple people, group portrait, crowd, several figures, two people, three people, four people',
   buildings: 'village, town, city, skyline, many buildings, rooftops, distant buildings, multiple structures',
-  terrain: 'village, town, city, castle, wide landscape, valley view, distant buildings, horizon'
+  terrain: 'village, town, city, castle, wide landscape, valley view, distant buildings, horizon',
+  crests: 'people, face, portrait, figure, landscape, building, castle, sky, horizon, photo, realistic texture, text, letters, numbers'
 }
 
 // Per-asset negative overrides for cases the category-level rule doesn't fit
