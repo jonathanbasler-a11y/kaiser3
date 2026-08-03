@@ -165,3 +165,28 @@ describe('pending war attacker includes same-turn army', () => {
     expect(selectedWarSnapshot.populationAfter).toBe(noWarPreview.populationAfter)
   })
 })
+
+describe('previewYear surfaces population components (bug report #28)', () => {
+  it('births/deaths/immigration/emigration are present and net to the before/after delta', () => {
+    const state = createStarterState([
+      { id: 'human', name: 'You' },
+      { id: 'rival1', name: 'Rival' }
+    ])
+    const rivals = new Map<string, Personality>([['rival1', getPersonality('builder')]])
+    const difficulty = getDifficultyPreset('standard')
+    const draft = defaultDraft(state.players.human)
+
+    const preview = previewYear(state, 'human', draft, rivals, difficulty)!
+
+    expect(preview.births).toBeGreaterThanOrEqual(0)
+    expect(preview.deaths).toBeGreaterThanOrEqual(0)
+    expect(preview.immigration).toBeGreaterThanOrEqual(0)
+    expect(preview.emigration).toBeGreaterThanOrEqual(0)
+
+    // Same components the engine actually applied (population.ts), so the
+    // forecast and the year-end report can never show a breakdown that
+    // disagrees with the net delta both already display.
+    const net = preview.births - preview.deaths + preview.immigration - preview.emigration
+    expect(Math.round(preview.populationAfter - preview.populationBefore)).toBe(Math.round(net))
+  })
+})

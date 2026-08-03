@@ -759,7 +759,7 @@ Three real in-game reports came in via `/api/bug-report` during this session
 (issues #27–#29, all iPhone/mobile). Root-caused against the current code below;
 not fixed, per this pass's document-only instruction.
 
-### B14. Grain sold this turn can never fund a same-turn build (issue #27)
+### ~~B14. Grain sold this turn can never fund a same-turn build~~ ✅ FIXED (issue #27)
 > "I build without gold and then sold a lot of grain but it did not build? Error
 > message that there was only 14k left at time of build" — Tab: grain, Year 1.
 
@@ -780,7 +780,18 @@ or make this specific case legible (an explicit note when a construction shortfa
 coincides with a same-turn grain sale: "grain sale proceeds land after
 construction this turn — queue the sale a turn ahead").
 
-### B15. Tax rates silently reset to default every single turn (issue #29)
+Fixed via the legibility route (kept the pipeline order, which every other
+step-numbered test depends on): `year.ts` now peeks at the queued grain
+decision before construction's shortfall checks, and if a construction
+shortfall occurred *and* a grain sale was queued the same turn, appends
+`"This turn's grain sale settles after construction, so its proceeds didn't
+count toward the build above — queue the sale a turn ahead if you're relying
+on it to fund one."` to `report.shortfalls`. Covered by
+`tests/integration.test.ts` (`describe('same-turn spending order (bug report
+#27)')`) — one test confirming the note appears alongside a genuine shortfall,
+one confirming it does NOT appear when there's no shortfall to explain.
+
+### ~~B15. Tax rates silently reset to default every single turn~~ ✅ FIXED (issue #29)
 > "Goes back to default every turn" — Tab: tax, Year 3.
 
 Root cause, confirmed at `src/ui/app.ts:1428`:
@@ -799,7 +810,14 @@ the player stops re-entering it. Fix shape: carry `vat`/`incomeTax`/`tariff`/
 `justiceGraft` forward from the previous draft into the new one at line 1428,
 rather than sourcing them from `defaultDraft()`.
 
-### B16. Population change has no visible breakdown anywhere in the UI (issue #28)
+Fixed exactly as described: `app.ts:1428` now captures the previous draft's
+four tax fields before rebuilding from `defaultDraft()`, then spreads them back
+in — every other field (land, construction, recruitment, military, grain
+trade, war) still resets as before. Browser-verified: set VAT to 30% on the
+Tax tab, ended the year, and the next year's Tax tab still showed 30% instead
+of reverting to the 15% default.
+
+### ~~B16. Population change has no visible breakdown anywhere in the UI~~ ✅ FIXED (issue #28)
 > "Unclear where growth and shrinking is coming from - should be seen at end
 > turn stats and during turn in forecast" — Tab: overview, Year 1.
 
@@ -815,3 +833,14 @@ exists end-to-end, it's just never surfaced. Straightforward fix: a births/
 deaths/emigration/immigration line in the year-report log (same pattern as the
 existing emigration entry) and/or a components tooltip on the population
 projection.
+
+Fixed both places, from one shared `populationBreakdownText()` helper so the
+forecast and the report can't disagree: `preview.ts`'s `YearPreview` now
+carries `births`/`deaths`/`emigration`/`immigration` straight from the
+chronicle; the Grain tab's forward projection appends the breakdown inline;
+and the year-end report replaces the old emigration-only line with a full
+"Population: +38 born, −17 died, +3 immigrated (net +24)" line, keeping the
+"unrest is taking its toll" framing when emigration is significant. Covered by
+`tests/uiCoherence.test.ts` (asserts the components sum to the same delta the
+footer already shows) and browser-verified: the year-end report's breakdown
+matched the footer's net exactly.

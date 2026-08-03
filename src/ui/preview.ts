@@ -63,6 +63,13 @@ export interface YearPreview {
   unrestAfter: number
   shortfalls: string[]
   rankPromoted: boolean
+  /** Population components (bug report #28: neither the forecast nor the
+   *  year-end report broke down WHY population changed — only the net delta
+   *  was shown anywhere). Same chronicle fields buildReportEntries uses. */
+  births: number
+  deaths: number
+  emigration: number
+  immigration: number
   /** Chronicle fields so Grain tiles can share the same harvest oracle as the footer. */
   harvestYield: number
   spoilage: number
@@ -120,6 +127,10 @@ export function previewYear(
     unrestAfter: humanAfter.population.unrest,
     shortfalls: report.shortfalls,
     rankPromoted: report.rankPromoted,
+    births: report.births,
+    deaths: report.deaths,
+    emigration: report.emigration,
+    immigration: report.immigration,
     harvestYield: report.harvestYield,
     spoilage: report.spoilage,
     grainOverflowLost: report.grainOverflowLost
