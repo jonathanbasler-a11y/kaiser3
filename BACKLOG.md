@@ -525,14 +525,17 @@ deliberate discipline two files over — `events.ts:287-297` ("Draw BOTH the
 occurrence roll and the severity roll unconditionally") and
 `positiveEvents.ts:48-53` ("Draws exactly 3 values … UNCONDITIONALLY").
 
-### R2. `population.ts:62` is the highest-frequency conditional draw in the pipeline
-Immigration is gated by `population.ts:61`
-(`unrest < 15 && feedAdequacy >= 0.95 && feedAdequacy <= 1.3`). Measured: a
-3-player year draws 60 values; setting one player's unrest to 50 makes it 59. A
-single point of unrest shifts every subsequent weather/event/war roll for **every
-remaining player that year**. Two further conditional draws: `succession.ts:39`
-and `espionage.ts:85`, plus a variable-length one at `war.ts:143` (one per
-surviving requested ally).
+### R2. `population.ts:62` was the highest-frequency conditional draw in the pipeline — partially fixed
+Immigration now draws its roll unconditionally in `population.ts`, then applies it
+only if the thriving gate passes (`unrest < 15 && feedAdequacy >= 0.95 &&
+feedAdequacy <= 1.3`). This removes the measured high-frequency drift where a
+3-player year drew 60 values, but setting one player's unrest to 50 made it 59.
+
+Residual conditional draws remain and need separate, scoped fixes: `succession.ts`
+still skips its death roll before `minReignYears`, `espionage.ts` still skips its
+strike roll when no saboteurs are committed, and the ally-join loop at `war.ts`
+still draws once per surviving requested ally. The ally loop is deliberately left
+unchanged here.
 
 ### ~~R3. `clonePlayerState` does not coerce NaN, and a comment says it does~~ ✅ FIXED (PR1 silent branch)
 `src/engine/state.ts:23-25` claims both `clonePlayerState()` and `persist.ts`'s

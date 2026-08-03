@@ -56,10 +56,12 @@ export function applyPopulationDynamics(
     emigration = population.peasants * POP_ECONOMY.emigrationRate * excess
   }
 
-  // Immigration: only when the principality is genuinely thriving (low unrest, adequate feeding).
+  // Immigration: only applied when the principality is genuinely thriving, but the draw
+  // is unconditional so gated immigration does not shift downstream seeded rolls.
   let immigration = 0
+  const immigrationRoll = rng.next()
   if (unrest < 15 && feeding.feedAdequacy >= 0.95 && feeding.feedAdequacy <= 1.3) {
-    immigration = population.peasants * POP_ECONOMY.immigrationRate * rng.next()
+    immigration = population.peasants * POP_ECONOMY.immigrationRate * immigrationRoll
   }
 
   const newPeasants = Math.max(0, population.peasants + births - deaths - emigration + immigration)
