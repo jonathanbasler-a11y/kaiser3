@@ -7,7 +7,7 @@ import buildingsData from '../../data/buildings.json'
 import economyData from '../../data/economy.json'
 import eventsData from '../../data/events.json'
 import { GameState, Decision, Chronicle, PlayerState, EspionageMode, PlayerChronicle, GrainDecision } from '../engine/state.ts'
-import { eventLossMagnitudeText } from '../engine/events/events.ts'
+import { eventLossMagnitudeText, calculateEventProbability, getEventCatalog } from '../engine/events/events.ts'
 import { createStarterState, applyStartingMultiplier } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
 import { getRankName, isFeatureUnlocked, getNextRank, groupProgress, getAllRanks, getTopRank, RankRequirement } from '../engine/ranks.ts'
@@ -95,6 +95,15 @@ const HUMAN_ID = 'human'
 
 type Tab = 'overview' | 'grain' | 'land' | 'tax' | 'build' | 'spy' | 'war'
 
+interface EventCard {
+  kind: 'negative' | 'positive'
+  sceneId: string | null
+  title: string
+  body: string
+  magnitude: string
+  rewardType?: string
+}
+
 interface Session {
   state: GameState
   rivals: Map<string, Personality>
@@ -102,7 +111,12 @@ interface Session {
   difficulty: DifficultyPreset
   draft: DecisionDraft
   activeTab: Tab
-  yearReport: { entries: HTMLElement[]; outcome: Outcome | null; sceneId: string | null } | null
+  yearReport: {
+    entries: HTMLElement[]
+    outcome: Outcome | null
+    eventCards: EventCard[]
+    cardIndex: number
+  } | null
 }
 
 type Outcome =
@@ -808,7 +822,7 @@ function renderRankProgress(player: PlayerState): HTMLElement | null {
 }
 
 function renderOverviewTab(): HTMLElement {
-  const { state, rivals: rivalPersonalities } = session!
+  const { state, rivals: rivalPersonalities, draft } = session!
   const player = state.players[HUMAN_ID]
   const rivals = rivalOptions(state, HUMAN_ID)
   return el('div', {},
@@ -817,6 +831,8 @@ function renderOverviewTab(): HTMLElement {
     ),
     renderRankLadder(player),
     renderRankProgress(player),
+    renderEventRiskPanel(player, draft),
+    renderEventCatalogPanel(),
     el('h2', {}, 'Rival standings'),
     el('div', { class: 'rival-list' },
       ...rivals.map(({ id, name }) => {
@@ -833,6 +849,53 @@ function renderOverviewTab(): HTMLElement {
     ),
     el('p', { class: 'help-text' }, `Year ${state.year} of up to ${session!.maxYears} · ${session!.difficulty.name} difficulty. Corn: ${state.kaizerTradePrices.corn.toFixed(2)}/unit · Farmland: ${state.kaizerTradePrices.farmland.toFixed(0)}/ha`)
   )
+}
+
+/** Live per-event risk using the engine's calculateEventProbability (one oracle). */
+function renderEventRiskPanel(player: PlayerState, draft: DecisionDraft): HTMLElement {
+  const feeding = resolveFeeding(
+    { type: 'grain', feedLevel: draft.feedLevel },
+    player.population,
+    player.grainStock
+  )
+  const ctx = { feedAdequacy: feeding.feedAdequacy }
+  const rows = getEventCatalog().map((event) => {
+    const p = calculateEventProbability(event, player, ctx)
+    const pct = `${(p * 100).toFixed(0)}%`
+    const mit = event.mitigation.building
+    const owned = Number((player.buildings as unknown as Record<string, number>)[mit] ?? 0) > 0
+    return el('div', { class: 'row between event-risk-row' },
+      el('span', {}, event.name),
+      el('span', { class: p >= 0.25 ? 'bad' : p >= 0.1 ? 'help-text' : 'good' },
+        `${pct}${owned ? '' : ` · needs ${mit}`}`)
+    )
+  })
+  return el('div', { class: 'card' },
+    el('h2', {}, 'This year\'s risks'),
+    el('p', { class: 'help-text' },
+      'Live odds from the same probability function the year uses. Feeding and buildings change them. Telegraphs appear when an event fires.'
+    ),
+    ...rows
+  )
+}
+
+function renderEventCatalogPanel(): HTMLElement {
+  const details = el('details', { class: 'event-catalog' },
+    el('summary', {}, 'What can happen (event catalog)'),
+    ...getEventCatalog().map((event) =>
+      el('div', { class: 'event-catalog-entry' },
+        el('strong', {}, event.name),
+        el('p', { class: 'help-text' },
+          `Driven by ${event.exposure.driver}. Mitigate with ${event.mitigation.building} `
+          + `(risk −${Math.round(event.mitigation.probabilityReduction * 100)}%, `
+          + `severity −${Math.round(event.mitigation.severityReduction * 100)}%).`
+        ),
+        el('p', { class: 'help-text' }, `Unmitigated: ${event.telegraph.unmitigated}`),
+        el('p', { class: 'help-text' }, `Mitigated: ${event.telegraph.mitigated}`)
+      )
+    )
+  )
+  return el('div', { class: 'card' }, details)
 }
 
 // A6: projected next-year population — MUST match the sticky footer's
@@ -1478,7 +1541,8 @@ function resolveYear(): void {
   session.yearReport = {
     entries: buildReportEntries(result.chronicle, result.state),
     outcome: null,
-    sceneId: firstEventSceneId(result.chronicle)
+    eventCards: collectEventCards(result.chronicle),
+    cardIndex: 0
   }
 
   // Check end conditions.
@@ -1556,14 +1620,33 @@ function buildIncomeBreakdown(report: Chronicle['playerReports'][string]): HTMLE
   )
 }
 
-function firstEventSceneId(chronicle: Chronicle): string | null {
+function collectEventCards(chronicle: Chronicle): EventCard[] {
+  const cards: EventCard[] = []
   const report = chronicle.playerReports[HUMAN_ID]
-  if (!report) return null
+  if (!report) return cards
+
   for (const event of report.events) {
-    const sceneId = EVENT_SCENE_ID[event.type]
-    if (sceneId) return sceneId
+    cards.push({
+      kind: 'negative',
+      sceneId: EVENT_SCENE_ID[event.type] ?? null,
+      title: event.type.charAt(0).toUpperCase() + event.type.slice(1),
+      body: event.telegraphText,
+      magnitude: eventLossMagnitudeText(event)
+    })
   }
-  return null
+
+  if (report.positiveEvent) {
+    cards.push({
+      kind: 'positive',
+      sceneId: null,
+      title: 'A fortunate turn',
+      body: report.positiveEvent.text,
+      magnitude: positiveEventMagnitudeText(report.positiveEvent),
+      rewardType: report.positiveEvent.rewardType
+    })
+  }
+
+  return cards
 }
 
 // EXHAUSTIVE over PositiveRewardType — mirrors eventLossMagnitudeText's own
@@ -1689,8 +1772,42 @@ function renderYearReport(): void {
   clearPreviewSchedule()
   previewPanelEl = null
   clear(root)
-  const { entries, outcome, sceneId } = session.yearReport
+  const report = session.yearReport
+  const { entries, outcome, eventCards, cardIndex } = report
   const player = session.state.players[HUMAN_ID]
+
+  // Phase 20.3: one dismissible full-bleed card per fired event, then the report.
+  if (cardIndex < eventCards.length) {
+    const card = eventCards[cardIndex]
+    const nextBtn = el('button', {
+      class: 'primary full',
+      textContent: cardIndex + 1 < eventCards.length ? 'Next' : 'See the year'
+    })
+    nextBtn.addEventListener('click', () => {
+      report.cardIndex += 1
+      renderYearReport()
+    })
+
+    const art = card.sceneId
+      ? el('div', { class: 'event-card-art' }, spriteImg('eventScenes', card.sceneId, card.sceneId, 'scene-full'))
+      : el('div', { class: `event-card-parchment reward-${card.rewardType ?? 'taler'}` },
+          el('p', { class: 'event-card-reward-label' }, (card.rewardType ?? 'fortune').toUpperCase())
+        )
+
+    root.append(
+      el('div', { class: 'screen event-card-screen' },
+        el('div', { class: `event-card ${card.kind}` },
+          art,
+          el('h1', {}, card.title),
+          el('p', {}, card.body),
+          el('p', { class: card.kind === 'negative' ? 'bad' : 'good', style: 'font-weight:700;font-size:1.15rem' } as never, card.magnitude),
+          el('p', { class: 'help-text' }, `${cardIndex + 1} of ${eventCards.length}`)
+        ),
+        el('div', { class: 'sticky-footer' }, nextBtn)
+      )
+    )
+    return
+  }
 
   const continueBtn = el('button', { class: 'primary full', textContent: outcome ? 'See Final Standings' : 'Continue' })
   continueBtn.addEventListener('click', () => {
@@ -1698,13 +1815,8 @@ function renderYearReport(): void {
     else renderGame()
   })
 
-  const sceneBanner = sceneId
-    ? el('div', { class: 'scene-banner' }, spriteImg('eventScenes', sceneId, sceneId, 'scene-full'))
-    : null
-
   root.append(
     el('div', { class: 'screen' },
-      sceneBanner,
       el('h1', {}, `Year ${session.state.year}`),
       el('p', { class: 'subtitle' }, `${getRankName(player.rank)} · ${player.taler.toFixed(0)} Taler · ${player.population.peasants.toFixed(0)} peasants`),
       el('div', { class: 'log' }, ...entries),
