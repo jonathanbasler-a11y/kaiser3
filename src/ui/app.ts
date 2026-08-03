@@ -6,7 +6,7 @@
 import buildingsData from '../../data/buildings.json'
 import economyData from '../../data/economy.json'
 import eventsData from '../../data/events.json'
-import { GameState, Decision, Chronicle, PlayerState, EspionageMode, GrainDecision } from '../engine/state.ts'
+import { GameState, Decision, Chronicle, PlayerState, EspionageMode, GrainDecision, PlayerChronicle } from '../engine/state.ts'
 import { eventLossMagnitudeText } from '../engine/events/events.ts'
 import { createStarterState, applyStartingMultiplier } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
@@ -1383,6 +1383,18 @@ function firstEventSceneId(chronicle: Chronicle): string | null {
   return null
 }
 
+// EXHAUSTIVE over PositiveRewardType — mirrors eventLossMagnitudeText's own
+// exhaustiveness discipline (events.ts) so a new reward type is a compile
+// error here, not a silently blank magnitude.
+function positiveEventMagnitudeText(outcome: NonNullable<PlayerChronicle['positiveEvent']>): string {
+  switch (outcome.rewardType) {
+    case 'taler': return `+${outcome.amount.toFixed(0)} Taler`
+    case 'population': return `+${outcome.amount.toFixed(0)} peasants`
+    case 'grain': return `+${outcome.amount.toFixed(0)} grain`
+    case 'unrest': return `unrest −${outcome.amount.toFixed(0)}`
+  }
+}
+
 function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement[] {
   const entries: HTMLElement[] = []
   const report = chronicle.playerReports[HUMAN_ID]
@@ -1411,6 +1423,12 @@ function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement
     entries.push(el('div', { class: 'log-entry bad with-icon' },
       iconId ? spriteImg('eventIcons', iconId, event.type, 'event-sm') : null,
       el('span', {}, `${event.telegraphText} (${magnitude})`)
+    ))
+  }
+
+  if (report.positiveEvent) {
+    entries.push(el('div', { class: 'log-entry good' },
+      `${report.positiveEvent.text} (${positiveEventMagnitudeText(report.positiveEvent)})`
     ))
   }
 

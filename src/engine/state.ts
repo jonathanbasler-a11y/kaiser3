@@ -145,6 +145,21 @@ export interface PlayerChronicle {
   // the "I built it then it vanished" bug's real cause (it was never built)
   // instead of leaving it silent.
   shortfalls: string[]
+  // Phase 18D: at most one small, flavorful positive event per player per
+  // year (src/engine/events/positiveEvents.ts) — null on a year where none
+  // fired, which is most years by design (chancePerYear is small).
+  positiveEvent: PositiveEventOutcome | null
+}
+
+// Phase 18D. Lives here rather than positiveEvents.ts because PlayerChronicle
+// (above) needs it and state.ts is the shared contract every other module
+// already imports from — same reasoning PlayerEvent gets defined here rather
+// than in events.ts.
+export interface PositiveEventOutcome {
+  id: string
+  text: string
+  rewardType: 'taler' | 'population' | 'grain' | 'unrest'
+  amount: number
 }
 
 // The events shipped in data/events.json. Flood and drought (F6) are

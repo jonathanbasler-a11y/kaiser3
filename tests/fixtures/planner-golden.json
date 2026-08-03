@@ -223,7 +223,7 @@
       {
         "type": "grain",
         "feedLevel": "required",
-        "sellGrain": 2268
+        "sellGrain": 2236
       },
       {
         "type": "land_trade",
@@ -266,7 +266,7 @@
       {
         "type": "grain",
         "feedLevel": "required",
-        "sellGrain": 2504
+        "sellGrain": 2503
       },
       {
         "type": "land_trade",
