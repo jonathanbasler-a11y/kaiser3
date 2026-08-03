@@ -9,7 +9,8 @@ import {
   drawPortraitProcedural,
   drawEventIconProcedural,
   drawTerrainProcedural,
-  drawCrestProcedural
+  drawCrestProcedural,
+  drawUiIconProcedural
 } from './render.ts'
 import tilesetData from '../../data/tileset.json'
 
@@ -68,6 +69,7 @@ const FALLBACK_RENDERERS: Record<string, (ctx: CanvasRenderingContext2D, w: numb
   eventIcons: drawEventIconProcedural,
   terrain: drawTerrainProcedural,
   crests: drawCrestProcedural,
+  uiIcons: drawUiIconProcedural,
   scenes: (ctx, w, h, id) => {
     // Scenes are too large for a simple procedural fallback; just fill with a color
     ctx.fillStyle = '#2f2318'
@@ -94,7 +96,8 @@ const RESOLUTIONS: Record<string, [number, number]> = {
   terrain: [128, 96],
   scenes: [1280, 720],
   eventScenes: [1280, 720],
-  crests: [256, 256]
+  crests: [256, 256],
+  uiIcons: [96, 96]
 }
 
 export async function loadSprite(category: string, assetId: string, sourceCanvas?: HTMLCanvasElement): Promise<Sprite> {

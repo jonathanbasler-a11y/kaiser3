@@ -355,3 +355,21 @@ export function drawCrestProcedural(ctx: CanvasRenderingContext2D, w: number, h:
     ctx.stroke()
   }
 }
+
+// Optional hub / requirement icons (docs/kaiser2-inspired-features.md).
+// Letter marks only — no emoji dependency; PNGs replace these when generated.
+export function drawUiIconProcedural(ctx: CanvasRenderingContext2D, w: number, h: number, assetId: string): void {
+  ctx.fillStyle = '#2a2218'
+  ctx.fillRect(0, 0, w, h)
+  ctx.strokeStyle = '#c9a84a'
+  ctx.lineWidth = Math.max(1, w * 0.04)
+  ctx.strokeRect(w * 0.08, h * 0.08, w * 0.84, h * 0.84)
+
+  const label = assetId.replace(/^req_/, '').replace(/_/g, ' ').slice(0, 8)
+  ctx.fillStyle = '#e8d5a3'
+  ctx.font = `bold ${Math.max(10, Math.floor(w * 0.18))}px sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(label, w / 2, h / 2)
+}
+

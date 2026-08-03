@@ -183,13 +183,27 @@ input[type="range"] {
   margin-bottom: 10px;
   -webkit-overflow-scrolling: touch;
 }
-.tabbar button {
+.tabbar button,
+.tabbar .tab-btn {
   flex-shrink: 0;
   background: var(--bg-panel);
-  font-size: 0.9rem;
-  padding: 10px 14px;
+  font-size: 0.75rem;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 64px;
 }
-.tabbar button.active { background: var(--accent); color: #241a12; font-weight: 600; }
+.tabbar button.active,
+.tabbar .tab-btn.active { background: var(--accent); color: #241a12; font-weight: 600; }
+.tab-label { line-height: 1.1; }
+.sprite-thumb.tab-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.2);
+}
 
 .log {
   display: flex;
@@ -417,8 +431,79 @@ span.bad { color: var(--bad); font-weight: 600; }
 }
 .rank-progress-row.leading .progress-fill { background: var(--accent); }
 
+.req-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+.req-tile {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border);
+  font-size: 0.78rem;
+}
+.req-tile.ok { border-color: var(--good); }
+.req-tile.deficit { border-color: var(--bad); }
+.req-tile-label { flex: 1; color: var(--ink-dim); min-width: 0; }
+.req-tile-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.25);
+}
+.req-tile.ok .req-tile-value { color: var(--good); }
+.req-tile.deficit .req-tile-value { color: var(--bad); }
+.sprite-thumb.req-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.rank-ladder {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.rank-ladder-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border-radius: 10px;
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border);
+  opacity: 0.45;
+  text-align: center;
+}
+.rank-ladder-cell.attained { opacity: 1; border-color: var(--good); }
+.rank-ladder-cell.current {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.rank-ladder-name {
+  font-size: 0.68rem;
+  line-height: 1.15;
+  color: var(--ink-dim);
+}
+.rank-ladder-cell.attained .rank-ladder-name,
+.rank-ladder-cell.current .rank-ladder-name { color: var(--ink); font-weight: 600; }
+.sprite-thumb.crest-ladder {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+}
+
 @media (min-width: 640px) {
   .screen { padding: 24px 20px; }
+  .req-tile-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 /* Bug report: a floating trigger + modal, appended outside #app so it survives
