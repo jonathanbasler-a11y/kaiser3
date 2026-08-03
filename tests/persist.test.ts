@@ -172,4 +172,36 @@ describe('persist / save-load', () => {
     rawReign.players.human.reignYears = Number.NaN
     expect(() => deserializeGameState(JSON.stringify(rawReign))).toThrow(/reignYears/)
   })
+
+  it('round-trips truces and warWeariness; defaults when absent', () => {
+    const state = createStarterState([
+      { id: 'human', name: 'You' },
+      { id: 'rival1', name: 'The Builder' }
+    ])
+    state.truces = { 'human|rival1': 40 }
+    state.players.human.warWeariness = 12
+    state.players.rival1.warWeariness = 3
+
+    const mid = parseSavePayload(stringifySavePayload(buildSavePayload({
+      game: state,
+      maxYears: 60,
+      difficultyId: 'standard',
+      rivals: [{ playerId: 'rival1', personalityId: 'builder' }],
+      name: 'Truce save'
+    })))
+    expect(mid.game.truces?.['human|rival1']).toBe(40)
+    expect(mid.game.players.human.warWeariness).toBe(12)
+    expect(mid.game.players.rival1.warWeariness).toBe(3)
+
+    const legacy = createStarterState([{ id: 'human', name: 'You' }])
+    const raw = JSON.parse(serializeGameState(legacy)) as {
+      players: { human: Record<string, unknown> }
+      truces?: unknown
+    }
+    delete raw.players.human.warWeariness
+    delete raw.truces
+    const restored = deserializeGameState(JSON.stringify(raw))
+    expect(restored.players.human.warWeariness).toBe(0)
+    expect(restored.truces).toEqual({})
+  })
 })

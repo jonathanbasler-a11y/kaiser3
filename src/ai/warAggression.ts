@@ -15,7 +15,7 @@
 
 import economyData from '../../data/economy.json'
 import { GameState, PlayerState, WarDecision } from '../engine/state.ts'
-import { warStrength, warWinProbability, militaryMultiplier, landTransferAmount } from '../engine/war.ts'
+import { warStrength, warWinProbability, militaryMultiplier, landTransferAmount, isTruceActive } from '../engine/war.ts'
 import { totalLand } from '../engine/land.ts'
 import { compareStanding } from './sim.ts'
 import { PersonalityWeights } from './evaluator.ts'
@@ -190,6 +190,8 @@ export function planWar(
   let bestScore = -Infinity
   for (const rivalId of rivals) {
     const rival = state.players[rivalId]
+    if (isTruceActive(state.truces, selfId, rivalId, state.year)) continue
+
     const winProbability = estimatedWinProbability(self, rival)
     if (winProbability < MIN_WIN_PROBABILITY) continue
 
@@ -218,6 +220,11 @@ export function planWar(
     const peopleAtStake = rival.population.peasants * WARFARE.populationTransferFraction
     const ownPeopleAtStake = self.population.peasants * WARFARE.populationTransferFraction
 
+    // Phase 19A: both sides take wearinessPerWar unrest burden regardless of
+    // outcome — price it as a flat EV debit, not only on the loss branch.
+    const wearinessUnrestCost =
+      WARFARE.wearinessPerWar * WARFARE.wearinessUnrestMultiplier * weights.unrest
+
     const gain =
       landAtStake * weights.land +
       talerAtStake * weights.wealth +
@@ -230,7 +237,7 @@ export function planWar(
       ownPeopleAtStake * weights.population +
       self.population.peasants * WARFARE.casualtyFractionLoser * weights.population
 
-    const expectedValue = (winProbability * gain - (1 - winProbability) * loss)
+    const expectedValue = (winProbability * gain - (1 - winProbability) * loss - wearinessUnrestCost)
       * (1 + (compareStanding(rival, self) > 0 ? profile.leaderFocus : 0))
 
     if (expectedValue > bestScore) {

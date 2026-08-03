@@ -1537,7 +1537,7 @@ function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement
     `${report.weatherName}: harvest ${report.harvestYield.toFixed(0)}. ${traded}`
   ))
   if (report.grainOverflowLost > 100) {
-    entries.push(el('div', { class: 'log-entry' }, `${report.grainOverflowLost.toFixed(0)} grain rotted — the barns were full.`))
+    entries.push(el('div', { class: 'log-entry' }, `${report.grainOverflowLost.toFixed(0)} bushels rotted in the yard — the barns could hold no more.`))
   }
   entries.push(buildIncomeBreakdown(report))
 
@@ -1566,15 +1566,15 @@ function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement
       const attackerName = state.players[strike.attackerId]?.name ?? strike.attackerId
       entries.push(el('div', { class: `log-entry ${strike.succeeded ? 'bad' : 'good'}` },
         strike.succeeded
-          ? `${attackerName} succeeded with a ${verb} against you — ${strike.talerStolen.toFixed(0)} Taler taken.`
-          : `${attackerName} attempted a ${verb} — your guards drove them off.`
+          ? `${attackerName}'s ${verb} succeeded. ${strike.talerStolen.toFixed(0)} Taler taken before your guards arrived.`
+          : `${attackerName} tried a ${verb}; your guards drove them off without loss.`
       ))
     } else if (strike.attackerId === HUMAN_ID) {
       const defenderName = state.players[strike.defenderId]?.name ?? strike.defenderId
       entries.push(el('div', { class: `log-entry ${strike.succeeded ? 'good' : 'bad'}` },
         strike.succeeded
-          ? `Your ${verb} against ${defenderName} succeeded — ${strike.talerStolen.toFixed(0)} Taler taken.`
-          : `Your ${verb} against ${defenderName} failed — ${strike.saboteursLost} saboteurs lost.`
+          ? `Your ${verb} against ${defenderName} succeeded. ${strike.talerStolen.toFixed(0)} Taler taken.`
+          : `Your ${verb} against ${defenderName} failed — ${strike.saboteursLost} saboteur${strike.saboteursLost === 1 ? '' : 's'} lost.`
       ))
     }
   }
@@ -1604,12 +1604,12 @@ function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement
 
   if (report.succession) {
     entries.push(el('div', { class: 'log-entry' },
-      `The reign ends; your heir succeeds you on the same throne. Territory and rank are undisturbed, but your reign's accumulated score resets to zero.`
+      `Your reign ends. Your heir takes the same throne, the same land, the same rank — and begins the count again from nothing.`
     ))
   }
 
   if (report.rankPromoted) {
-    entries.push(el('div', { class: 'log-entry good' }, `Promoted to ${getRankName(report.newRank!)}!`))
+    entries.push(el('div', { class: 'log-entry good' }, `Raised to the rank of ${getRankName(report.newRank!)}.`))
   }
   const popBreakdown = populationBreakdownText(report.births, report.deaths, report.immigration, report.emigration)
   if (popBreakdown) {
@@ -1622,7 +1622,7 @@ function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement
   }
 
   if (entries.length === 0) {
-    entries.push(el('div', { class: 'log-entry' }, 'A quiet year.'))
+    entries.push(el('div', { class: 'log-entry' }, 'A quiet year. The accounts balance, the rooftops hold, and nobody revolts. This is rarer than it sounds.'))
   }
   return entries
 }
@@ -1668,12 +1668,12 @@ function renderGameOver(outcome: Outcome): void {
   let headline: string
   if (outcome.kind === 'victory') {
     headline = outcome.winnerId === HUMAN_ID
-      ? 'You have been crowned Kaiser!'
-      : `${state.players[outcome.winnerId].name} was crowned Kaiser.`
+      ? 'You have been crowned Kaiser of the Holy Roman Empire.'
+      : `${state.players[outcome.winnerId].name} was crowned Kaiser before you reached the throne.`
   } else if (outcome.kind === 'collapse') {
-    headline = 'Your realm has collapsed.'
+    headline = 'Your realm is gone. The peasants have left, the fields lie unclaimed. It ends here.'
   } else {
-    headline = 'The years have run their course.'
+    headline = 'The years allotted have run their course. No Kaiser was made — only the nearest to one.'
   }
 
   // Standings sorted the same way the game itself decides a winner.

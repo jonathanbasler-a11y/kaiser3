@@ -11,7 +11,7 @@
     {
       "id": "standard",
       "name": "Standard",
-      "description": "Rivals plan and start exactly as the balance harness measures them. The baseline every ai-bench/balance number in this repo is reported against.",
+      "description": "Rivals plan and start at full strength — no handicap, no head start, no mercy. The game as it is meant to be played.",
       "rivalEvaluationSeeds": 2,
       "rivalStartingMultiplier": { "taler": 1.0, "farmland": 1.0, "population": 1.0 }
     },

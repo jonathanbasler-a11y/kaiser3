@@ -21,6 +21,39 @@ import { totalLand } from './land.ts'
 
 const WARFARE = economyData.warfare
 
+/** Canonical pair key — order-independent so A→B and B→A share one truce. */
+export function trucePairKey(a: string, b: string): string {
+  return a < b ? `${a}|${b}` : `${b}|${a}`
+}
+
+/** True while `year` is strictly before the stored expiry year. */
+export function isTruceActive(
+  truces: Record<string, number> | undefined,
+  a: string,
+  b: string,
+  year: number
+): boolean {
+  if (!truces) return false
+  const expiry = truces[trucePairKey(a, b)]
+  return typeof expiry === 'number' && Number.isFinite(expiry) && year < expiry
+}
+
+/**
+ * Register (or refresh) a mutual truce. `warYear` is the year currently being
+ * resolved (pre-increment). Expiry is warYear + truceYears, so the pair may
+ * fight again when `state.year >= warYear + truceYears`.
+ */
+export function registerTruce(
+  truces: Record<string, number>,
+  a: string,
+  b: string,
+  warYear: number,
+  truceYears: number = WARFARE.truceYears
+): void {
+  const years = Number.isFinite(truceYears) ? Math.max(0, truceYears) : 0
+  truces[trucePairKey(a, b)] = warYear + years
+}
+
 // Total military strength a ruler can field: garrison (a real fortification, worth
 // the most per point), a standing watch of guards (worth less — the same secret
 // -service force that also stops sabotage, so it isn't purely military), and a

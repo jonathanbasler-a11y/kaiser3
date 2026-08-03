@@ -81,6 +81,7 @@ export function createStarterState(playerIds: Array<{ id: string; name: string }
       corn: PRICES.cornBasePrice,
       farmland: PRICES.farmlandBasePrice,
       buildingLand: PRICES.buildingLandBasePrice
-    }
+    },
+    truces: {}
   }
 }

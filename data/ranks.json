@@ -4,6 +4,7 @@
     {
       "id": 0,
       "name": "Baron",
+      "description": "The lowest rung of the noble ladder — but a rung, which is more than most will ever hold.",
       "requirements": [
         { "wealthMin": 15000, "populationMin": 1000, "palaceStages": 0 }
       ]
@@ -11,6 +12,7 @@
     {
       "id": 1,
       "name": "Duke",
+      "description": "A lord of substance. Men of lower rank look up; equals keep a careful eye.",
       "requirements": [
         { "wealthMin": 20000, "populationMin": 1300, "palaceStages": 4 },
         { "wealthMin": 28000, "populationMin": 1900 }
@@ -19,6 +21,7 @@
     {
       "id": 2,
       "name": "Prince",
+      "description": "A prince commands real deference. The road to Kaiser has narrowed to a few serious contenders.",
       "requirements": [
         { "wealthMin": 30000, "populationMin": 1700, "palaceStages": 8 },
         { "wealthMin": 42000, "populationMin": 2300 }
@@ -27,6 +30,7 @@
     {
       "id": 3,
       "name": "Count",
+      "description": "A count holds enough territory and trading power to be taken seriously at the Imperial Diet.",
       "requirements": [
         { "wealthMin": 50000, "populationMin": 2100, "palaceStages": 12 },
         { "wealthMin": 65000, "populationMin": 2700 }
@@ -36,6 +40,7 @@
     {
       "id": 4,
       "name": "Margrave",
+      "description": "A margrave holds a march — border territory, real authority, and enough power to make enemies at court.",
       "requirements": [
         { "wealthMin": 75000, "populationMin": 2400, "palaceStages": 14 },
         { "wealthMin": 95000, "populationMin": 2900 },
@@ -45,6 +50,7 @@
     {
       "id": 5,
       "name": "Archbishop",
+      "description": "An archbishop walks between earthly power and divine authority. Both carry weight in the Empire.",
       "requirements": [
         { "wealthMin": 100000, "populationMin": 2600, "cathedral": true },
         { "wealthMin": 160000, "populationMin": 1800, "tradingHousesMin": 2 }
@@ -53,6 +59,7 @@
     {
       "id": 6,
       "name": "King",
+      "description": "A king is one step from the throne. Every rival in the Empire knows it. So does the Kaiser.",
       "requirements": [
         { "wealthMin": 150000, "populationMin": 2800, "palaceStages": 15 },
         { "wealthMin": 240000, "populationMin": 2000, "tradingHousesMin": 3 }
