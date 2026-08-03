@@ -58,6 +58,10 @@ export interface YearPreview {
   unrestAfter: number
   shortfalls: string[]
   rankPromoted: boolean
+  /** Chronicle fields so Grain tiles can share the same harvest oracle as the footer. */
+  harvestYield: number
+  spoilage: number
+  grainOverflowLost: number
 }
 
 // Runs the real advanceYear() with the human's IN-PROGRESS draft and rivals'
@@ -95,6 +99,9 @@ export function previewYear(
     populationAfter: humanAfter.population.peasants,
     unrestAfter: humanAfter.population.unrest,
     shortfalls: report.shortfalls,
-    rankPromoted: report.rankPromoted
+    rankPromoted: report.rankPromoted,
+    harvestYield: report.harvestYield,
+    spoilage: report.spoilage,
+    grainOverflowLost: report.grainOverflowLost
   }
 }

@@ -137,8 +137,9 @@ export function draftToDecisions(draft: DecisionDraft): Decision[] {
   ]
 }
 
-export function maxSellableGrain(player: PlayerState): number {
-  return Math.floor(player.grainStock)
+/** Max sell units given stock left AFTER feeding (year.ts settles trade after feed). */
+export function maxSellableGrain(stockAfterFeeding: number): number {
+  return Math.max(0, Math.floor(stockAfterFeeding))
 }
 
 export function maxAffordableGrainBuy(player: PlayerState, cornBuyPrice: number): number {
