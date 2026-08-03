@@ -85,7 +85,8 @@ const MAX_MILITARY_LEVELS_PER_YEAR = 1
 export function planMilitaryInvestment(
   state: GameState,
   selfId: string,
-  profile: AggressionProfile
+  profile: AggressionProfile,
+  priorSpendTalers: number = 0
 ): Pick<WarDecision, 'trainingInvest' | 'equipmentInvest'> {
   const self = state.players[selfId]
   // No rivals means nothing to attack and nothing to defend against, so an
@@ -144,7 +145,9 @@ export function planMilitaryInvestment(
   ].sort((a, b) => b.value - a.value)
 
   const bought = { trainingInvest: 0, equipmentInvest: 0 }
+  const priorSpend = Number.isFinite(priorSpendTalers) ? Math.max(0, priorSpendTalers) : 0
   let spendable = self.taler
+    - priorSpend
     - (isAggressor ? MILITARY_RESERVE_AGGRESSOR_TALER : MILITARY_RESERVE_DEFENDER_TALER)
 
   for (const track of tracks) {

@@ -15,8 +15,13 @@
 //     picks a plan that is robust rather than one that happens to win under a
 //     single roll of the dice.
 
-import { GameState, PlayerState, Decision, TaxDecision, ConstructionDecision, LandTradeDecision, clonePlayerState } from '../engine/state.ts'
+import {
+  GameState, PlayerState, Decision, TaxDecision, ConstructionDecision,
+  LandTradeDecision, EspionageDecision, clonePlayerState
+} from '../engine/state.ts'
 import { advanceYear } from '../engine/year.ts'
+import { applyLandTrade } from '../engine/land.ts'
+import { applyRecruitment } from '../engine/espionage.ts'
 import { evaluateState, projectedFeedAdequacy, projectedHarvestShortfall, projectedHarvestExcess, PersonalityWeights } from './evaluator.ts'
 import { annualGrainRequirement } from '../engine/economy.ts'
 import { Personality } from './personalities.ts'
@@ -246,6 +251,25 @@ function scoreCandidate(
   return total / evaluationSeeds.length
 }
 
+function priorSpendBeforeMilitary(
+  player: PlayerState,
+  state: GameState,
+  candidate: Decision[],
+  espionage: EspionageDecision
+): number {
+  const land = candidate.find((decision) => decision.type === 'land_trade') as LandTradeDecision | undefined
+  const landResult = land
+    ? applyLandTrade(player.land, player.taler, land, state.kaizerTradePrices)
+    : undefined
+  const landSpend = Math.max(0, -(landResult?.talerDelta ?? 0))
+
+  const recruited = clonePlayerState(player)
+  recruited.taler = landResult?.newTaler ?? player.taler
+  const recruitment = applyRecruitment(recruited, espionage.guardHire, espionage.saboteurHire)
+
+  return landSpend + recruitment.spent
+}
+
 export function planYear(
   state: GameState,
   playerId: string,
@@ -272,18 +296,6 @@ export function planYear(
     ...planAggression(state, playerId, personality.aggression, personality.weights)
   }
 
-  // War is decided the same way espionage is: priced directly against the real
-  // rivals, since an isolated one-year lookahead cannot see them at all. The
-  // training/equipment investment rides on the same decision for the same
-  // reason: its entire value is realised against a rival the isolated
-  // evaluator cannot see, so scoring it as an ordinary candidate would price
-  // it at pure cost and no ruler would ever buy it.
-  const war: Decision = {
-    type: 'war',
-    ...planWar(state, playerId, personality.aggression, personality.weights),
-    ...planMilitaryInvestment(state, playerId, personality.aggression)
-  }
-
   // Fixed per-turn evaluation seeds: every candidate this turn sees identical
   // weather and identical event rolls, so differences in score come from the
   // decisions rather than from luck.
@@ -300,6 +312,20 @@ export function planYear(
       bestScore = score
       best = candidate
     }
+  }
+
+  const priorSpendTalers = priorSpendBeforeMilitary(player, state, best, espionage)
+  // War is decided the same way espionage is: priced directly against the real
+  // rivals, since an isolated one-year lookahead cannot see them at all. The
+  // training/equipment investment rides on the same decision for the same
+  // reason, but it is planned only after the best land order and espionage
+  // recruitment are known. That mirrors year.ts's treasury order through
+  // recruitment; construction still spends after military and remains
+  // engine-clamped there.
+  const war: Decision = {
+    type: 'war',
+    ...planWar(state, playerId, personality.aggression, personality.weights),
+    ...planMilitaryInvestment(state, playerId, personality.aggression, priorSpendTalers)
   }
 
   return [...best, espionage, war]

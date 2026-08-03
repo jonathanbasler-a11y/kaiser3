@@ -5,7 +5,8 @@ import {
 } from '../src/engine/war.ts'
 import { SeededRng } from '../src/engine/rng.ts'
 import { runMatch, aiCompetitor } from '../src/ai/sim.ts'
-import { PlayerState } from '../src/engine/state.ts'
+import { planMilitaryInvestment } from '../src/ai/warAggression.ts'
+import { GameState, PlayerState } from '../src/engine/state.ts'
 import economyData from '../data/economy.json'
 
 const WARFARE = economyData.warfare
@@ -282,6 +283,33 @@ describe('applyMilitaryInvestment', () => {
     expect(p.trainingLevel).toBe(0)
     expect(p.equipmentLevel).toBe(0)
     expect(p.taler).toBe(20000)
+  })
+})
+
+describe('planMilitaryInvestment', () => {
+  it('subtracts prior land spend before buying training levels', () => {
+    const landSpend = 30
+    const state: GameState = {
+      year: 1500,
+      players: {
+        ai: makePlayer({
+          id: 'ai',
+          taler: 8000 + landSpend + WARFARE.trainingCostPerLevel - 1
+        }),
+        rival: makePlayer({ id: 'rival' })
+      },
+      activePlayerIds: ['ai', 'rival'],
+      kaizerTradePrices: { corn: 3.2, farmland: 30, buildingLand: 50 }
+    }
+
+    const investment = planMilitaryInvestment(
+      state,
+      'ai',
+      { aggression: 1, preferredMode: 'raid', leaderFocus: 0 },
+      landSpend
+    )
+
+    expect(investment.trainingInvest).toBe(0)
   })
 })
 
