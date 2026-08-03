@@ -72,17 +72,30 @@ describe('checkPromotion', () => {
     expect(result.newRank).toBe(5)
   })
 
-  it('reports the unlocked feature when crossing the Margrave (trading houses) threshold', () => {
+  it('reports the unlocked feature when crossing the Count (trading houses) threshold', () => {
     const player = makePlayer({
-      rank: 3,
-      taler: 80000,
-      population: { peasants: 8000, unrest: 0 },
-      buildings: { markets: 0, mills: 0, palace: 14, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 0 }
+      rank: 2,
+      taler: 70000,
+      population: { peasants: 2800, unrest: 0 },
+      buildings: { markets: 0, mills: 0, palace: 12, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 0 }
     })
     const result = checkPromotion(player)
     expect(result.promoted).toBe(true)
-    expect(result.newRank).toBe(4)
+    expect(result.newRank).toBeGreaterThanOrEqual(3)
     expect(result.unlockedFeatures).toContain('tradingHouses')
+  })
+
+  it('can promote via the Margrave Commerce path without palace stages', () => {
+    const player = makePlayer({
+      rank: 3,
+      taler: 120000,
+      population: { peasants: 1800, unrest: 0 },
+      tradingHouses: 1,
+      buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 0 }
+    })
+    const result = checkPromotion(player)
+    expect(result.promoted).toBe(true)
+    expect(result.newRank).toBeGreaterThanOrEqual(4)
   })
 })
 
@@ -92,9 +105,9 @@ describe('getRankName / isFeatureUnlocked', () => {
     expect(getRankName(7)).toBe('Kaiser')
   })
 
-  it('trading houses are unlocked at Margrave and above, not below', () => {
-    expect(isFeatureUnlocked(3, 'tradingHouses')).toBe(false)
-    expect(isFeatureUnlocked(4, 'tradingHouses')).toBe(true)
+  it('trading houses are unlocked at Count and above, not below', () => {
+    expect(isFeatureUnlocked(2, 'tradingHouses')).toBe(false)
+    expect(isFeatureUnlocked(3, 'tradingHouses')).toBe(true)
     expect(isFeatureUnlocked(7, 'tradingHouses')).toBe(true)
   })
 })

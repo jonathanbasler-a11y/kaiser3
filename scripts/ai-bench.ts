@@ -34,10 +34,10 @@ for (const personality of getPersonalities()) {
 }
 
 console.log('\n=== Archetype end-state profiles (mean over 12 solo matches) ===')
-console.log('Archetype          |    Taler | Peasants |   Land | Mkt+Mill | Palace | Mitig | Rank')
-console.log('-------------------|----------|----------|--------|----------|--------|-------|-----')
+console.log('Archetype          |    Taler | Peasants |   Land | Mkt+Mill | Houses | Palace | Mitig | Rank')
+console.log('-------------------|----------|----------|--------|----------|--------|--------|-------|-----')
 for (const personality of getPersonalities()) {
-  const totals = { taler: 0, peasants: 0, land: 0, production: 0, palace: 0, mitigation: 0, rank: 0 }
+  const totals = { taler: 0, peasants: 0, land: 0, production: 0, houses: 0, palace: 0, mitigation: 0, rank: 0 }
   const RUNS = 12
   for (let i = 0; i < RUNS; i++) {
     const result = runMatch([aiCompetitor('ai', personality.id)], 500 + i * 131, MAX_YEARS)
@@ -46,6 +46,7 @@ for (const personality of getPersonalities()) {
     totals.peasants += p.population.peasants
     totals.land += p.land.farmland + p.land.buildingLand
     totals.production += p.buildings.markets + p.buildings.mills
+    totals.houses += p.tradingHouses
     totals.palace += p.buildings.palace
     totals.mitigation += p.buildings.hospital + p.buildings.well + p.buildings.granary + p.buildings.garrison
     totals.rank += p.rank
@@ -53,7 +54,8 @@ for (const personality of getPersonalities()) {
   console.log(
     `${personality.name.padEnd(18)} | ${(totals.taler / RUNS).toFixed(0).padStart(8)} | ` +
     `${(totals.peasants / RUNS).toFixed(0).padStart(8)} | ${(totals.land / RUNS).toFixed(0).padStart(6)} | ` +
-    `${(totals.production / RUNS).toFixed(1).padStart(8)} | ${(totals.palace / RUNS).toFixed(1).padStart(6)} | ` +
+    `${(totals.production / RUNS).toFixed(1).padStart(8)} | ${(totals.houses / RUNS).toFixed(1).padStart(6)} | ` +
+    `${(totals.palace / RUNS).toFixed(1).padStart(6)} | ` +
     `${(totals.mitigation / RUNS).toFixed(2).padStart(5)} | ${(totals.rank / RUNS).toFixed(2).padStart(4)}`
   )
 }

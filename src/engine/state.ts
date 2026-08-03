@@ -240,7 +240,7 @@ export interface ConstructionDecision {
   hospitalBuild: number
   granaryBuild: number
   garrisonBuild: number
-  tradingHouseBuild: number        // Rank-gated (Margrave+) — see data/buildings.json commerce.tradingHouse
+  tradingHouseBuild: number        // Rank-gated (Count+) — see data/buildings.json commerce.tradingHouse
   dikeBuild?: number               // F6: flood mitigation. Optional — see BuildingState.dike
 }
 
