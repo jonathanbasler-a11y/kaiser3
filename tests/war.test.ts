@@ -537,4 +537,21 @@ describe('truces and war weariness (Phase 19A)', () => {
     const decision = planWar(state, 'self', raider.aggression, raider.weights)
     expect(decision.declare).toBe(false)
   })
+
+  it('notes a shortfall when a truce blocks a declared war', () => {
+    let state = createStarterState([
+      { id: 'a', name: 'A' },
+      { id: 'b', name: 'B' }
+    ])
+    state.players.a.buildings.garrison = 5
+    state.players.a.guards = 40
+    state.players.a.population.peasants = 8000
+    state.players.b.population.peasants = 800
+
+    const war: WarDecision = { type: 'war', declare: true, targetPlayerId: 'b' }
+    state = advanceYear(state, { a: [war], b: [] }, 7).state
+    const blocked = advanceYear(state, { a: [war], b: [] }, 8)
+    expect(blocked.chronicle.wars).toHaveLength(0)
+    expect(blocked.chronicle.playerReports.a.shortfalls.some((s) => /Truce/.test(s))).toBe(true)
+  })
 })

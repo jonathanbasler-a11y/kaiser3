@@ -33,6 +33,7 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **19B** | Sonnet | Medium | Medieval CSS reskin (fonts, parchment palette, ornament) | Self-hosted OFL fonts; readable at 375×812; no new art |
 | **19C** | Sonnet | Medium | Flavor pass — events/ranks/difficulty voice | Combinatorial fluff rewritten; mechanical UI text untouched |
 | **19D** | Opus→Sonnet | High | Economy depth design spike (trade routes / guilds vs NPCs) | Spec approved; not F2 bilateral trade |
+| **20.1** | Sonnet | Medium | PR #35 regressions — truce/weariness UI, contrast, rival names | Truce targets disabled; AA contrast; epithet names |
 
 ## Phase 0: Scaffold & Ground Rules ✓
 
@@ -1133,4 +1134,16 @@ machinery), then D1 (requires new data file, RNG stream extension, 19A interacti
 
 ---
 
-**Last updated:** Phase 19 A–D on branch (A war brakes, B reskin, C flavor, D design-only). Deferred still: F2, F7; D1/D2 implementation is a future phase.
+**Last updated:** Phase 20.1 (PR #35 regressions) in progress on `cursor-phase20-1-regressions`. Deferred still: F2, F7; D1/D2 implementation; Phase 20.2–20.5.
+
+---
+
+## Phase 20.1: PR #35 Regressions ✓
+
+Truce/weariness UI surface, parchment contrast repair, and medieval rival names in the live UI path.
+
+### Acceptance Criteria
+- ✓ Truce-bound War tab targets disabled with expiry year; engine shortfall if declaration still arrives
+- ✓ `warWeariness` shown on War tab + unrest tile contribution
+- ✓ Dark scrims / weak gilt text contrast repaired for parchment
+- ✓ Rivals named e.g. `Heinrich, the Builder` (not archetype alone)
