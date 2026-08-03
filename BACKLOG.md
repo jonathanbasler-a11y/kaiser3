@@ -414,9 +414,14 @@ a maximal decision sheet; save/load round-trip — confirmed byte-identical, no
 `PlayerState` field dropped by `persist.ts`; Decision-field NaN sanitization — no
 unsanitized numeric Decision read found anywhere in the engine.
 
+**PR2 stream closeout:** B7, B10, R1, the high-frequency part of R2, and T3 are
+fixed on the PR2 stream branch. S1 and the remaining S/T entries are still open.
+R2 still has separately documented residual conditional draws in succession,
+espionage, and the ally-join loop.
+
 ## Bugs
 
-### B7. All rivals share one planning seed — `id.length` doesn't differentiate them
+### ~~B7. All rivals share one planning seed — `id.length` doesn't differentiate them~~ ✅ FIXED (PR2 stream branch)
 `src/ai/sim.ts:156`, `src/ui/app.ts:1401`, `src/ui/preview.ts:46`:
 ```ts
 const planningSeed = seed + year * 104729 + competitor.id.length
@@ -441,6 +446,12 @@ Not a crash — rivals still differ by personality and by their own state — bu
 intended decorrelation of evaluation noise is simply absent. **Fixing this will
 shift the golden fixture and the ai-bench baseline**, so it needs a deliberate,
 reviewed regeneration, not an incidental one.
+
+Fixed by replacing the length-based salt with deterministic per-id planning seed
+salts everywhere the planner stream is derived (`sim`, UI preview/app paths,
+golden generation/tests, and hardening measurement). T3 now guards same-length id
+decorrelation, and `tests/fixtures/planner-golden.json` was deliberately
+regenerated after the stream shift.
 
 ### ~~B8. The War tab computes odds from a treasury the engine will have already spent~~ ✅ FIXED (PR1 silent branch)
 `src/ui/app.ts:857-868` (`pendingWarAttacker`) re-implements `year.ts` steps
@@ -474,7 +485,7 @@ start-of-turn treasury while `year.ts` has already spent on land trade (step 1)
 and recruitment (step 2). `applyMilitaryInvestment` then silently clamps. Unlike
 the human, no one reads the AI's shortfall — the investment just doesn't happen.
 
-### B10. `resolveWar` floors casualties but not population transfer
+### ~~B10. `resolveWar` floors casualties but not population transfer~~ ✅ FIXED (PR2 stream branch)
 `src/engine/war.ts:196-197` vs `:230-232`:
 ```ts
 const winnerCasualties = Math.floor(winner.population.peasants * WARFARE.casualtyFractionWinner)
@@ -485,6 +496,9 @@ Casualties are floored; the transfer is not. Every war therefore leaves both sid
 with a fractional peasant count, which then flows into `annualGrainRequirement`,
 `laborGatedFarmland`, rank `populationMin` checks and the UI. Inconsistent within
 a single function — whichever convention is right, both should follow it.
+
+Population transfer now follows the same integer-peasant convention as war
+casualties.
 
 ### ~~B11. Grain "available" has two different definitions depending on preview state~~ ✅ FIXED (PR1 silent branch)
 `src/ui/app.ts:887-890`:
@@ -515,7 +529,7 @@ three caps, none derived from the data.
 
 ## Correctness and robustness (latent — currently masked, still real)
 
-### R1. `war.ts:242` advances the RNG stream conditionally, inside a short-circuit
+### ~~R1. `war.ts:242` advances the RNG stream conditionally, inside a short-circuit~~ ✅ FIXED (PR2 stream branch)
 ```ts
 if (loser.buildings.garrison > 0 && rng.next() < WARFARE.garrisonDestructionChanceLoser) {
 ```
@@ -525,7 +539,10 @@ deliberate discipline two files over — `events.ts:287-297` ("Draw BOTH the
 occurrence roll and the severity roll unconditionally") and
 `positiveEvents.ts:48-53` ("Draws exactly 3 values … UNCONDITIONALLY").
 
-### R2. `population.ts:62` was the highest-frequency conditional draw in the pipeline — partially fixed
+The garrison-destruction roll is now drawn unconditionally, then applied only when
+the loser has a garrison.
+
+### ~~R2. `population.ts:62` was the highest-frequency conditional draw in the pipeline~~ ✅ FIXED (PR2 stream branch)
 Immigration now draws its roll unconditionally in `population.ts`, then applies it
 only if the thriving gate passes (`unrest < 15 && feedAdequacy >= 0.95 &&
 feedAdequacy <= 1.3`). This removes the measured high-frequency drift where a
@@ -709,10 +726,12 @@ already averages over `SEEDS = [500, 3000, 9000, 15000, 21000]` for that reason.
 The rest of the suite is in good shape here: most stochastic tests already loop
 200–500 seeds.
 
-### T3. Nothing guards against a same-length-id planning-seed collision
+### ~~T3. Nothing guards against a same-length-id planning-seed collision~~ ✅ FIXED (PR2 stream branch)
 B7 above went undetected because no test asserts that two rulers in the same match
 receive different planning seeds. A direct assertion would have caught it in the
 5-ruler balance configuration.
+
+Covered by a direct same-length-id planning-seed decorrelation regression test.
 
 ## Platform / infra
 
