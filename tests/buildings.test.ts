@@ -64,19 +64,19 @@ describe('applyConstruction', () => {
     expect(both.newBuildings.cathedral).toBe(1)
   })
 
-  it('cannot build a trading house below Margrave rank (4)', () => {
+  it('cannot build a trading house below Count rank (3)', () => {
     const land: LandHolding = { farmland: 0, buildingLand: 10000 }
     const population: PopulationState = { peasants: 5000, unrest: 0 }
     const decision: ConstructionDecision = { ...noOpDecision, tradingHouseBuild: 1 }
-    const result = applyConstruction(land, population, emptyBuildings, 100000, 3, 0, decision)
+    const result = applyConstruction(land, population, emptyBuildings, 100000, 2, 0, decision)
     expect(result.newTradingHouses).toBe(0)
   })
 
-  it('can build a trading house at Margrave rank and beyond, capped at maxCount', () => {
+  it('can build a trading house at Count rank and beyond, capped at maxCount', () => {
     const land: LandHolding = { farmland: 0, buildingLand: 10000 }
     const population: PopulationState = { peasants: 5000, unrest: 0 }
     const decision: ConstructionDecision = { ...noOpDecision, tradingHouseBuild: 10 }
-    const result = applyConstruction(land, population, emptyBuildings, 1000000, 4, 0, decision)
+    const result = applyConstruction(land, population, emptyBuildings, 1000000, 3, 0, decision)
     expect(result.newTradingHouses).toBe(3) // data/buildings.json commerce.tradingHouse.maxCount
   })
 

@@ -151,9 +151,12 @@ function usableLand(player: PlayerState): number {
 
 // Everything the ruler is worth right now, ignoring future risk.
 export function intrinsicUtility(player: PlayerState, weights: PersonalityWeights): number {
-  const productionBuildings = player.buildings.markets + player.buildings.mills
+  const productionBuildings = player.buildings.markets + player.buildings.mills + player.tradingHouses
   // A cathedral represents a comparable investment to a completed palace, so it is
   // valued as a full palace's worth of prestige rather than as a single stage.
+  // Trading houses count as production (D2 commerce calibration): Merchant's
+  // production weight was wasted on a path keystone the evaluator never scored,
+  // so wealth-heavy archetypes banked cash instead of leasing houses.
   const prestigeStages = player.buildings.palace + player.buildings.cathedral * 16
 
   let utility = 0

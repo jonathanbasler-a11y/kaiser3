@@ -94,7 +94,7 @@ all**, with three consequences already measured:
 
 Requires re-running the balance gate — it adds a whole income channel.
 
-### F2. Inter-ruler trade — deferred, its justification is now known false
+### F2. Inter-ruler trade — deferred, cannot ship without a rank-gate redesign
 Buying and selling between rulers with per-ruler pricing, and the original's
 in-fiction decree that at least 10% of goods be offered for sale. No longer blocked
 on F1 (grain has a real price since Phase 8), but deferred anyway: F2's stated
@@ -108,8 +108,11 @@ was taken instead: `prices.cornPriceBands` (previously dead data — defined,
 referenced nowhere) is now wired into a real corn-price drift (Phase 12,
 `driftCornPrice()` in `src/engine/economy.ts`) — field-wide harvest scarcity nudges
 the Kaiser's price, the Hanse-style "price + weather" uncertainty
-`docs/kaiser-research.md` calls for. Re-open F2 only alongside a genuine rank-gate
-redesign that would actually use it, not as a D2 fix.
+`docs/kaiser-research.md` calls for. **Session decision (Cursor, post-Phase 18):**
+still cannot ship — would re-add complexity that measured data says does not fix
+archetype convergence; re-open only alongside a genuine further rank-gate redesign
+that would actually use bilateral trade, not as a D2 fix. D2 commerce calibration
+(unlock/floors/evaluator) is the correct lever for commerce-path underuse.
 
 ### ~~F3. Multi-season grain storage~~ ✅ DONE (Phase 8)
 Spoilage at 18%/yr (roughly half a reserve survives three years) plus a hard storage
@@ -167,7 +170,10 @@ which is also what would make bluffing and misdirection possible. Deliberately
 deferred past the hardening phase (Phase 12 planning pass): leader-focused
 targeting is the anti-snowball lever `src/ai/balance.ts` criteria 2 and 3 measure,
 and it works precisely because AIs can see who is leading — hiding that information
-would predictably regress the gate, not just add a feature.
+would predictably regress the gate, not just add a feature. **Session decision
+(Cursor, post-Phase 18):** still cannot ship — any fog that blinds AI standings
+breaks the measured anti-snowball criteria unless the balance harness and AI
+targeting are redesigned together (out of scope for a feature-only pass).
 
 ---
 
@@ -263,10 +269,15 @@ instead of merely underperforming them — a genuinely different strategy (accum
 wealth via the alt paths) rather than a worse version of the same one. Land is no
 longer a flat, identical ceiling across every archetype. Palace-stage separation is
 real but modest (Merchant 12.2 vs. Builder/Expansionist 13.3); the Commerce path's
-`tradingHousesMin` groups (ranks 5-7) see little use in this run because most
-archetypes plateau below Margrave before wealth-only paths matter — **flagged for a
-follow-up calibration pass, not blocking**, per the design doc's own dominant-path-
-risk and path-count-dilution warnings. Balance gate re-passes unchanged
+`tradingHousesMin` groups (ranks 5-7) saw little use because most archetypes
+plateaued below Margrave before wealth-only paths mattered — **calibrated** in a
+follow-up pass: trading-house unlock moved Count←Margrave; Margrave gained a
+Commerce rung; senior commerce population/wealth floors lowered toward
+Merchant/Raider's high-treasury low-pop profile; evaluator scores trading houses
+as production so Merchant's production weight points at them. Re-measured
+(`npm run ai-bench` profile, 12 solo × 60y): Merchant mean rank **5.17** (was 3.00)
+with **2.0** trading houses (was ~0); Raider **6.08** / 2.5 houses; all five
+archetypes now lease houses. Balance gate re-passes unchanged
 (margin flatness, loss persistence, lead volatility, no-death-spiral all PASS).
 
 ### ~~D5. The balance gate is one-sided~~ ✅ ADDRESSED (Phases 11.5 + 13)
