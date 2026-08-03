@@ -181,7 +181,7 @@ export function segmented<T extends string>(opts: {
 export function statTile(
   label: string,
   value: string,
-  tone?: 'good' | 'bad',
+  tone?: 'good' | 'bad' | 'warn',
   tip?: string | Node
 ): HTMLElement {
   return el('div', { class: 'stat' },

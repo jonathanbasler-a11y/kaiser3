@@ -17,6 +17,7 @@
   --accent-bright:  #8b6914;   /* mid gilt for borders / rules (not body text) */
   --accent-rule:    #b8860b;   /* bright gilt for decorative rules only */
   --good:           #2d5a1e;   /* forest-green positive */
+  --warn:           #8a5a00;   /* amber — AA on parchment */
   --bad:            #7a1a1a;   /* deep-crimson negative */
   --border:         #b8a070;   /* warm tan rule / border */
   --ink-on-accent:  #f2e8ce;   /* parchment ink on dark gilt buttons */
@@ -439,10 +440,28 @@ canvas#banner {
 
 .help-text { font-size: 0.8rem; color: var(--ink-dim); }
 .help-text.bad { color: var(--bad); }
+.help-text.good { color: var(--good); }
+.help-text.warn { color: var(--warn); }
+.stat .value.warn { color: var(--warn); }
+
+.terrain-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.sprite-thumb.terrain-tile {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
 
 /* Generic text-color utilities — used for standalone good/bad figures (e.g.
    the income & spending breakdown) that aren't inside a .stat or .log-entry. */
 span.good { color: var(--good); font-weight: 600; }
+span.warn { color: var(--warn); font-weight: 600; }
 span.bad { color: var(--bad); font-weight: 600; }
 
 /* Tap-to-toggle info tooltip (dom.ts's tooltip()) — deliberately not a hover
@@ -498,7 +517,7 @@ span.bad { color: var(--bad); font-weight: 600; }
   color: var(--ink-dim);
   margin-bottom: 4px;
 }
-.rank-progress-row.leading .rank-progress-label { color: var(--accent-bright); font-weight: 600; }
+.rank-progress-row.leading .rank-progress-label { color: var(--accent); font-weight: 600; }
 .progress-track {
   height: 10px;
   border-radius: 6px;

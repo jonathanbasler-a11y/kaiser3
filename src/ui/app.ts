@@ -32,6 +32,7 @@ import {
   roundedSurplus,
   roundedBreakdown
 } from './displayCoherence.ts'
+import { tone, helpToneClass, GRAIN_YEARS_TONE, UNREST_TONE, WAR_ODDS_TONE, IDLE_LAND_SHARE_TONE, RISK_PROB_TONE } from './statusTone.ts'
 import { drawBanner } from './render.ts'
 import { spriteImg } from './spriteLoader.ts'
 import { SavePayload } from '../engine/persist.ts'
@@ -694,8 +695,8 @@ function updatePreviewPanel(panel: HTMLElement, preview: YearPreview | null): vo
 
 function statGrid(player: PlayerState, _state: GameState): HTMLElement {
   const grainYears = Number(yearsOfFoodLabel(player))
-  const grainTone = grainYears < 0.5 ? 'bad' : grainYears >= 1 ? 'good' : undefined
-  const unrestTone = player.population.unrest > 60 ? 'bad' : player.population.unrest < 20 ? 'good' : undefined
+  const grainTone = tone(grainYears, GRAIN_YEARS_TONE)
+  const unrestTone = tone(player.population.unrest, UNREST_TONE)
   const weariness = player.warWeariness ?? 0
   const wearinessUnrest = weariness * WARFARE.wearinessUnrestMultiplier
   const unrestLabel = weariness > 0
@@ -703,8 +704,8 @@ function statGrid(player: PlayerState, _state: GameState): HTMLElement {
     : `${player.population.unrest.toFixed(0)}/100`
 
   return el('div', { class: 'stat-grid' },
-    statTile('Taler', player.taler.toFixed(0)),
-    statTile('Population', player.population.peasants.toFixed(0)),
+    statTile('Taler', player.taler.toFixed(0), undefined, 'Treasury after last year. End-year preview breaks down the next delta.'),
+    statTile('Population', player.population.peasants.toFixed(0), undefined, 'Peasants. Plague severity rises with size — see hospital on Build.'),
     statTile('Grain', `${player.grainStock.toFixed(0)} (${yearsOfFoodLabel(player)}y)`, grainTone),
     statTile('Unrest', unrestLabel, unrestTone),
     statTile('Land', `${totalLand(player.land).toFixed(0)} ha`),
@@ -898,7 +899,7 @@ function renderEventRiskPanel(player: PlayerState, draft: DecisionDraft): HTMLEl
     const owned = Number((player.buildings as unknown as Record<string, number>)[mit] ?? 0) > 0
     return el('div', { class: 'row between event-risk-row' },
       el('span', {}, event.name),
-      el('span', { class: p >= 0.25 ? 'bad' : p >= 0.1 ? 'help-text' : 'good' },
+      el('span', { class: tone(p, RISK_PROB_TONE) ?? '' },
         `${pct}${owned ? '' : ` · needs ${mit}`}`)
     )
   })
@@ -1008,7 +1009,11 @@ function warOddsText(attacker: PlayerState, defender: PlayerState, hasAllyReques
 
 function renderGrainTab(player: GameState['players'][string], state: GameState): HTMLElement {
   const draft = session!.draft
-  const container = el('div', {})
+  const container = el('div', {},
+    el('div', { class: 'scene-banner' },
+      spriteImg('terrain', 'farmland_ripe', 'Harvest', 'scene-full')
+    )
+  )
 
   const demand = annualGrainRequirement(player.population)
   // Prefer the same harvest oracle as the footer (previewYear / advanceYear).
@@ -1097,9 +1102,16 @@ function renderLandTab(player: GameState['players'][string], state: GameState): 
   // tradeoff visible instead of only findable by reading the source.
   const workedFarmland = laborGatedFarmland(player.land, player.population)
   const { worked, idle, farmland } = roundedLandSplit(player.land.farmland, workedFarmland)
-  const idleTone = idle > farmland * 0.15 ? 'bad' : undefined
+  const idleShare = farmland > 0 ? idle / farmland : 0
+  const idleTone = tone(idleShare, IDLE_LAND_SHARE_TONE)
 
   return el('div', {},
+    el('div', { class: 'terrain-strip' },
+      spriteImg('terrain', idle > 0 ? 'farmland_fallow' : 'farmland_planted', 'Fields', 'terrain-tile'),
+      spriteImg('terrain', 'farmland_ripe', 'Ripe fields', 'terrain-tile'),
+      spriteImg('terrain', 'forest', 'Woods', 'terrain-tile'),
+      spriteImg('terrain', 'river', 'River', 'terrain-tile')
+    ),
     el('div', { class: 'stat-grid' },
       statTile('Farmland worked', `${worked} ha`),
       statTile('Farmland idle', `${idle} ha`, idleTone),
@@ -1134,13 +1146,16 @@ function renderTaxTab(draft: DecisionDraft): HTMLElement {
           statTile('Tax', `+${Math.round(preview.taxIncome)}`),
           statTile('Tariffs', `+${Math.round(preview.tariffIncome)}`),
           statTile('Graft', `+${Math.round(preview.tributeIncome)}`),
-          statTile('Unrest after', preview.unrestAfter.toFixed(0), preview.unrestAfter > 60 ? 'bad' : undefined)
+          statTile('Unrest after', preview.unrestAfter.toFixed(0), tone(preview.unrestAfter, UNREST_TONE))
         ),
         el('p', { class: 'help-text' }, 'Same advanceYear preview as the footer — not a second estimate.')
       )
     : el('p', { class: 'help-text' }, 'End-year preview unavailable.')
 
   return el('div', {},
+    el('div', { class: 'scene-banner' },
+      spriteImg('buildings', 'market', 'Taxation', 'scene-full')
+    ),
     projected,
     sliderField({
       label: 'VAT', value: draft.vat, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.vat = v; session!.activeTab = 'tax'; renderGame() },
@@ -1325,6 +1340,9 @@ function renderSpyTab(player: GameState['players'][string], state: GameState, dr
   // lands.
   const availableSaboteurs = player.saboteurs + Math.max(0, draft.saboteurHire)
   const container = el('div', {},
+    el('div', { class: 'scene-banner' },
+      spriteImg('uiIcons', 'stats', 'Spies', 'scene-full')
+    ),
     el('div', { class: 'stat-grid' },
       statTile('Guards (standing)', player.guards.toFixed(0)),
       statTile('Saboteurs (standing)', player.saboteurs.toFixed(0))
@@ -1378,7 +1396,7 @@ function renderSpyTab(player: GameState['players'][string], state: GameState, dr
       if (defender) {
         const p = strikeSuccessProbability(draft.saboteursCommitted, defender.guards)
         container.appendChild(el('p', {
-          class: `help-text ${p >= 0.5 ? 'good' : 'bad'}`
+          class: helpToneClass(tone(p, WAR_ODDS_TONE))
         }, `Strike success chance: ${Math.round(p * 100)}% (engine formula — same odds the year will roll).`))
       }
     }
@@ -1391,6 +1409,9 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
   const rivals = rivalOptions(state, HUMAN_ID)
   const player = state.players[HUMAN_ID]
   const container = el('div', {},
+    el('div', { class: 'scene-banner' },
+      spriteImg('scenes', 'battlefield_backdrop', 'Battlefield', 'scene-full')
+    ),
     el('p', { class: 'help-text' },
       'Declaring war is the biggest risk in the game — both sides take real casualties even in victory, but the winner takes land and reparations from the loser. Requesting allies costs nothing; each one decides for itself whether to join.'
     )
@@ -1432,7 +1453,7 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
         const hasAllyRequests = draft.warAlliesRequested.length > 0
         const text = warOddsText(pending, defender, hasAllyRequests)
         const winProbability = warWinProbability(warStrength(pending), warStrength(defender))
-        oddsLine.className = `help-text ${winProbability >= 0.5 ? 'good' : 'bad'}`
+        oddsLine.className = helpToneClass(tone(winProbability, WAR_ODDS_TONE))
         oddsLine.textContent = text
       }
     }
@@ -1521,7 +1542,7 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
     if (defender) {
       const hasAllyRequests = draft.warAlliesRequested.length > 0
       const winProbability = warWinProbability(warStrength(pending), warStrength(defender))
-      oddsLine = el('p', { class: `help-text ${winProbability >= 0.5 ? 'good' : 'bad'}` },
+      oddsLine = el('p', { class: helpToneClass(tone(winProbability, WAR_ODDS_TONE)) },
         warOddsText(pending, defender, hasAllyRequests)
       )
       container.appendChild(oddsLine)
@@ -1876,6 +1897,9 @@ function renderYearReport(): void {
 
   root.append(
     el('div', { class: 'screen' },
+      el('div', { class: 'scene-banner' },
+        spriteImg('scenes', 'chronicle_parchment', 'Chronicle', 'scene-full')
+      ),
       el('h1', {}, `Year ${session.state.year}`),
       el('p', { class: 'subtitle' }, `${getRankName(player.rank)} · ${player.taler.toFixed(0)} Taler · ${player.population.peasants.toFixed(0)} peasants`),
       el('div', { class: 'log' }, ...entries),
@@ -1922,7 +1946,9 @@ function renderGameOver(outcome: Outcome): void {
 
   const sceneBanner = outcome.kind === 'victory'
     ? el('div', { class: 'scene-banner' }, spriteImg('scenes', 'coronation_tableau', 'Coronation', 'scene-full'))
-    : null
+    : outcome.kind === 'collapse'
+      ? el('div', { class: 'scene-banner' }, spriteImg('terrain', 'farmland_blighted', 'Collapse', 'scene-full'))
+      : el('div', { class: 'scene-banner' }, spriteImg('scenes', 'chronicle_parchment', 'Timeout', 'scene-full'))
 
   root.append(
     el('div', { class: 'screen' },

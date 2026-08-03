@@ -360,17 +360,62 @@ export function drawCrestProcedural(ctx: CanvasRenderingContext2D, w: number, h:
 // Optional hub / requirement icons (docs/kaiser2-inspired-features.md).
 // Letter marks only — no emoji dependency; PNGs replace these when generated.
 export function drawUiIconProcedural(ctx: CanvasRenderingContext2D, w: number, h: number, assetId: string): void {
-  ctx.fillStyle = '#2a2218'
+  // Parchment-aware fallback (Phase 20.5) — deliberate glyph, not a dark gold box.
+  ctx.fillStyle = '#e8dab8'
   ctx.fillRect(0, 0, w, h)
-  ctx.strokeStyle = '#c9a84a'
-  ctx.lineWidth = Math.max(1, w * 0.04)
-  ctx.strokeRect(w * 0.08, h * 0.08, w * 0.84, h * 0.84)
+  ctx.strokeStyle = '#6b4f0a'
+  ctx.lineWidth = Math.max(1.5, w * 0.05)
+  ctx.strokeRect(w * 0.1, h * 0.1, w * 0.8, h * 0.8)
 
-  const label = assetId.replace(/^req_/, '').replace(/_/g, ' ').slice(0, 8)
-  ctx.fillStyle = '#e8d5a3'
-  ctx.font = `bold ${Math.max(10, Math.floor(w * 0.18))}px "EB Garamond", Georgia, serif`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(label, w / 2, h / 2)
+  ctx.fillStyle = '#1a1008'
+  const cx = w / 2
+  const cy = h / 2
+  const s = Math.min(w, h) * 0.22
+
+  switch (assetId) {
+    case 'people':
+    case 'req_population':
+      ctx.beginPath()
+      ctx.arc(cx, cy - s * 0.55, s * 0.45, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.beginPath()
+      ctx.moveTo(cx - s, cy + s * 0.2)
+      ctx.quadraticCurveTo(cx, cy + s * 1.4, cx + s, cy + s * 0.2)
+      ctx.fill()
+      break
+    case 'taler':
+    case 'req_wealth':
+    case 'income':
+      ctx.beginPath()
+      ctx.arc(cx, cy, s, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.font = `bold ${Math.max(10, Math.floor(w * 0.28))}px "Cinzel", Georgia, serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText('T', cx, cy + 1)
+      break
+    case 'grain':
+      ctx.beginPath()
+      ctx.moveTo(cx, cy + s)
+      ctx.quadraticCurveTo(cx - s * 1.1, cy, cx, cy - s)
+      ctx.quadraticCurveTo(cx + s * 1.1, cy, cx, cy + s)
+      ctx.fill()
+      break
+    case 'spy':
+      ctx.beginPath()
+      ctx.ellipse(cx, cy, s * 1.1, s * 0.65, 0, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.arc(cx, cy, s * 0.35, 0, Math.PI * 2)
+      ctx.fill()
+      break
+    default: {
+      const label = assetId.replace(/^req_/, '').replace(/_/g, ' ').slice(0, 6)
+      ctx.font = `bold ${Math.max(9, Math.floor(w * 0.16))}px "EB Garamond", Georgia, serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(label, cx, cy)
+    }
+  }
 }
 
