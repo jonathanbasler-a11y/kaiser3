@@ -68,6 +68,17 @@ export interface YearPreview {
   grainOverflowLost: number
 }
 
+// War-tab odds need the army AFTER same-turn spending, but BEFORE the selected
+// war itself applies casualties, transfers, or reparations.
+export function warSnapshotDraft(draft: DecisionDraft): DecisionDraft {
+  return {
+    ...draft,
+    declareWar: false,
+    warTargetPlayerId: null,
+    warAlliesRequested: []
+  }
+}
+
 // Runs the real advanceYear() with the human's IN-PROGRESS draft and rivals'
 // real planned decisions, on a cloned state, and discards everything except
 // the human's before/after numbers and any shortfalls — never touches the

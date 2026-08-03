@@ -19,7 +19,7 @@ import { compareStanding } from '../ai/sim.ts'
 import { annualGrainRequirement, storageCapacity, grainBuybackPrice, laborGatedFarmland, resolveFeeding } from '../engine/economy.ts'
 import { el, clear, stepper, sliderField, segmented, statTile, tooltip } from './dom.ts'
 import { DecisionDraft, defaultDraft, draftToDecisions, rivalOptions, affordableHectares, maxSellableGrain, maxAffordableGrainBuy, yearsOfFoodLabel, maxNewHires } from './decisions.ts'
-import { previewYear, YearPreview } from './preview.ts'
+import { previewYear, warSnapshotDraft, YearPreview } from './preview.ts'
 import {
   feedStockFromChronicle,
   roundedDelta,
@@ -1235,7 +1235,7 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
   // strength first, then find it has moved the odds below.
   const trainingLevel = player.trainingLevel ?? 0
   const equipmentLevel = player.equipmentLevel ?? 0
-  let armyPreview = previewYear(session!.state, HUMAN_ID, draft, session!.rivals, session!.difficulty)
+  let armyPreview = previewYear(session!.state, HUMAN_ID, warSnapshotDraft(draft), session!.rivals, session!.difficulty)
   let pending = previewWarAttacker(player, armyPreview)
   const strengthShown = roundedStrength(warStrength(pending), militaryMultiplier(pending))
   const strengthGrid = el('div', { class: 'stat-grid' },
@@ -1245,7 +1245,7 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
   )
 
   const refreshArmyDisplay = () => {
-    armyPreview = previewYear(session!.state, HUMAN_ID, draft, session!.rivals, session!.difficulty)
+    armyPreview = previewYear(session!.state, HUMAN_ID, warSnapshotDraft(draft), session!.rivals, session!.difficulty)
     pending = previewWarAttacker(player, armyPreview)
     const shown = roundedStrength(warStrength(pending), militaryMultiplier(pending))
     clear(strengthGrid)

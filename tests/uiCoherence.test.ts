@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest'
 import { createStarterState } from '../src/engine/starter.ts'
 import { getDifficultyPreset } from '../src/ai/difficulty.ts'
 import { getPersonality } from '../src/ai/personalities.ts'
-import { previewYear } from '../src/ui/preview.ts'
+import { previewYear, warSnapshotDraft } from '../src/ui/preview.ts'
 import { defaultDraft } from '../src/ui/decisions.ts'
 import {
   feedStockFromChronicle,
@@ -134,5 +134,34 @@ describe('pending war attacker includes same-turn army', () => {
     const preview = previewYear(state, 'human', draft, new Map(), getDifficultyPreset('standard'))!
 
     expect(preview.trainingLevelAfter).toBe(player.trainingLevel)
+  })
+
+  it('War tab army snapshot matches no-war preview even when a war target is selected', () => {
+    const state = createStarterState([
+      { id: 'human', name: 'You' },
+      { id: 'rival1', name: 'Rival' }
+    ])
+    const player = state.players.human
+    player.taler = 50_000
+    player.trainingLevel = 0
+    player.guards = 0
+    const rivals = new Map<string, Personality>([['rival1', getPersonality('builder')]])
+    const difficulty = getDifficultyPreset('standard')
+
+    const noWarDraft = defaultDraft(player)
+    noWarDraft.trainingInvest = 1
+    noWarDraft.guardHire = 3
+
+    const selectedWarDraft = { ...noWarDraft }
+    selectedWarDraft.declareWar = true
+    selectedWarDraft.warTargetPlayerId = 'rival1'
+    selectedWarDraft.warAlliesRequested = ['rival1']
+
+    const noWarPreview = previewYear(state, 'human', noWarDraft, rivals, difficulty)!
+    const selectedWarSnapshot = previewYear(state, 'human', warSnapshotDraft(selectedWarDraft), rivals, difficulty)!
+
+    expect(selectedWarSnapshot.trainingLevelAfter).toBe(noWarPreview.trainingLevelAfter)
+    expect(selectedWarSnapshot.guardsAfter).toBe(noWarPreview.guardsAfter)
+    expect(selectedWarSnapshot.populationAfter).toBe(noWarPreview.populationAfter)
   })
 })
