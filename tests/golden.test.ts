@@ -12,6 +12,7 @@
 import { describe, it, expect } from 'vitest'
 import { getPersonalities } from '../src/ai/personalities.ts'
 import { planYear } from '../src/ai/planner.ts'
+import { planningSeed } from '../src/ai/planningSeed.ts'
 import { advanceYear } from '../src/engine/year.ts'
 import { createStarterState } from '../src/engine/starter.ts'
 import { aiCompetitor } from '../src/ai/sim.ts'
@@ -36,13 +37,13 @@ describe('planner golden (year 20, developed state)', () => {
       let state = createStarterState([{ id: 'ai', name: personality.name }])
       const seed = 4242
       for (let year = 0; year < 19; year++) {
-        const planningSeed = seed + year * 104729 + competitor.id.length
-        const sheet = planYear(state, 'ai', personality, planningSeed)
+        const planSeed = planningSeed(seed, year, competitor.id)
+        const sheet = planYear(state, 'ai', personality, planSeed)
         const result = advanceYear(state, { ai: sheet }, seed + year * 1000)
         state = result.state
       }
-      const planningSeed = seed + 19 * 104729 + competitor.id.length
-      const decisions = planYear(state, 'ai', personality, planningSeed)
+      const planSeed = planningSeed(seed, 19, competitor.id)
+      const decisions = planYear(state, 'ai', personality, planSeed)
       expect(decisions).toEqual((golden as any).year20[personality.id])
     })
   }

@@ -15,6 +15,7 @@ import { warStrength, warWinProbability, militaryMultiplier } from '../engine/wa
 import { getPersonalities, Personality } from '../ai/personalities.ts'
 import { getDifficultyPresets, getDifficultyPreset, DEFAULT_DIFFICULTY_ID, DifficultyPreset } from '../ai/difficulty.ts'
 import { planYear } from '../ai/planner.ts'
+import { planningSeed } from '../ai/planningSeed.ts'
 import { compareStanding } from '../ai/sim.ts'
 import { annualGrainRequirement, storageCapacity, grainBuybackPrice, laborGatedFarmland, resolveFeeding } from '../engine/economy.ts'
 import { el, clear, stepper, sliderField, segmented, statTile, tooltip } from './dom.ts'
@@ -1393,7 +1394,7 @@ function resolveYear(): void {
   const year = state.year
   for (const [id, personality] of rivals) {
     if (!state.activePlayerIds.includes(id)) continue
-    const seed = 5000 + year * 104729 + id.length
+    const seed = planningSeed(5000, year, id)
     decisions[id] = planYear(state, id, personality, seed, difficulty.rivalEvaluationSeeds)
   }
 

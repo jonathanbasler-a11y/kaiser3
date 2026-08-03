@@ -21,6 +21,15 @@ function makePlayer(o: Partial<PlayerState> = {}): PlayerState {
   }
 }
 
+class CountingRng extends SeededRng {
+  calls = 0
+
+  override next(): number {
+    this.calls++
+    return super.next()
+  }
+}
+
 describe('warStrength', () => {
   it('scales with garrison, guards, and population', () => {
     const bare = makePlayer()
@@ -35,6 +44,19 @@ describe('warStrength', () => {
 })
 
 describe('resolveWar', () => {
+  it('draws the garrison destruction roll even when the loser has no garrison', () => {
+    const strong = makePlayer({ id: 'strong', buildings: { ...makePlayer().buildings, garrison: 5 }, guards: 25 })
+    const weakWithoutGarrison = makePlayer({ id: 'weak' })
+    const weakWithGarrison = makePlayer({ id: 'weak', buildings: { ...makePlayer().buildings, garrison: 1 } })
+    const rngWithoutGarrison = new CountingRng(3)
+    const rngWithGarrison = new CountingRng(3)
+
+    resolveWar(JSON.parse(JSON.stringify(strong)), weakWithoutGarrison, [], rngWithoutGarrison)
+    resolveWar(JSON.parse(JSON.stringify(strong)), weakWithGarrison, [], rngWithGarrison)
+
+    expect(rngWithoutGarrison.calls).toBe(rngWithGarrison.calls)
+  })
+
   it('the winner takes land, reparations, and inflicts a garrison-destruction chance on the loser', () => {
     const rng = new SeededRng(1)
     const strong = makePlayer({ id: 'strong', buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 3 }, guards: 20 })
@@ -72,6 +94,17 @@ describe('resolveWar', () => {
     const outcome = resolveWar(strong, weak, [], rng)
     expect(outcome.attackerWon).toBe(true)
     expect(outcome.defenderCasualties).toBeGreaterThan(outcome.attackerCasualties)
+  })
+
+  it('population transfer is floored like casualties — both sides keep integer peasants', () => {
+    const rng = new SeededRng(3)
+    const strong = makePlayer({ id: 'strong', buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 5 }, guards: 25 })
+    const weak = makePlayer({ id: 'weak', population: { peasants: 1001, unrest: 0 } })
+
+    resolveWar(strong, weak, [], rng)
+
+    expect(Number.isInteger(strong.population.peasants)).toBe(true)
+    expect(Number.isInteger(weak.population.peasants)).toBe(true)
   })
 
   it('conquered territory carries its people — the winner annexes subjects, the loser forfeits them', () => {

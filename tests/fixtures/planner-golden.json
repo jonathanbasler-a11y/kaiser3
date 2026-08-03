@@ -223,7 +223,7 @@
       {
         "type": "grain",
         "feedLevel": "required",
-        "sellGrain": 2236
+        "sellGrain": 5941
       },
       {
         "type": "land_trade",
@@ -242,7 +242,7 @@
         "type": "construction",
         "marketBuild": 0,
         "millBuild": 0,
-        "palaceStages": 3,
+        "palaceStages": 0,
         "cathedralBuild": false,
         "wellBuild": 0,
         "hospitalBuild": 0,
@@ -266,7 +266,7 @@
       {
         "type": "grain",
         "feedLevel": "required",
-        "sellGrain": 2503
+        "sellGrain": 0
       },
       {
         "type": "land_trade",
@@ -285,7 +285,7 @@
         "type": "construction",
         "marketBuild": 0,
         "millBuild": 0,
-        "palaceStages": 1,
+        "palaceStages": 0,
         "cathedralBuild": false,
         "wellBuild": 0,
         "hospitalBuild": 0,
@@ -309,7 +309,7 @@
       {
         "type": "grain",
         "feedLevel": "required",
-        "sellGrain": 0
+        "sellGrain": 3040
       },
       {
         "type": "land_trade",
@@ -352,7 +352,7 @@
       {
         "type": "grain",
         "feedLevel": "required",
-        "sellGrain": 4097
+        "sellGrain": 7784
       },
       {
         "type": "land_trade",
@@ -362,9 +362,9 @@
       },
       {
         "type": "tax",
-        "vat": 45,
-        "incomeTax": 45,
-        "tariff": 15,
+        "vat": 60,
+        "incomeTax": 60,
+        "tariff": 20,
         "justiceGraft": 0
       },
       {
@@ -395,7 +395,7 @@
       {
         "type": "grain",
         "feedLevel": "required",
-        "sellGrain": 0
+        "sellGrain": 7784
       },
       {
         "type": "land_trade",

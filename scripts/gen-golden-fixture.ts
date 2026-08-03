@@ -7,6 +7,7 @@
 
 import { getPersonalities } from '../src/ai/personalities.ts'
 import { planYear } from '../src/ai/planner.ts'
+import { planningSeed } from '../src/ai/planningSeed.ts'
 import { advanceYear } from '../src/engine/year.ts'
 import { createStarterState } from '../src/engine/starter.ts'
 import { aiCompetitor } from '../src/ai/sim.ts'
@@ -32,13 +33,13 @@ for (const personality of getPersonalities()) {
   let state = createStarterState([{ id: 'ai', name: personality.name }])
   const seed = 4242
   for (let year = 0; year < 19; year++) {
-    const planningSeed = seed + year * 104729 + competitor.id.length
-    const sheet = planYear(state, 'ai', personality, planningSeed)
+    const planSeed = planningSeed(seed, year, competitor.id)
+    const sheet = planYear(state, 'ai', personality, planSeed)
     const result = advanceYear(state, { ai: sheet }, seed + year * 1000)
     state = result.state
   }
-  const planningSeed = seed + 19 * 104729 + competitor.id.length
-  year20[personality.id] = planYear(state, 'ai', personality, planningSeed)
+  const planSeed = planningSeed(seed, 19, competitor.id)
+  year20[personality.id] = planYear(state, 'ai', personality, planSeed)
 }
 
 console.log(JSON.stringify({ year1, year20 }, null, 2))

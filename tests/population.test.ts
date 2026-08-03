@@ -4,6 +4,15 @@ import { resolveFeeding } from '../src/engine/economy.ts'
 import { SeededRng } from '../src/engine/rng.ts'
 import { PopulationState, GrainDecision } from '../src/engine/state.ts'
 
+class CountingRng extends SeededRng {
+  draws = 0
+
+  next(): number {
+    this.draws += 1
+    return super.next()
+  }
+}
+
 describe('applyPopulationDynamics', () => {
   it('sustained under-feeding drives unrest up and eventually triggers emigration', () => {
     let population: PopulationState = { peasants: 1000, unrest: 0 }
@@ -58,5 +67,23 @@ describe('applyPopulationDynamics', () => {
       population = result.newPopulation
       expect(population.peasants).toBeGreaterThanOrEqual(0)
     }
+  })
+
+  it('draws immigration RNG even when unrest blocks immigration', () => {
+    const thrivingPopulation: PopulationState = { peasants: 1000, unrest: 0 }
+    const highUnrestPopulation: PopulationState = { peasants: 1000, unrest: 20 }
+    const thrivingRng = new CountingRng(11)
+    const highUnrestRng = new CountingRng(11)
+
+    const thrivingFeeding = resolveFeeding({ type: 'grain', feedLevel: 'required' }, thrivingPopulation, 100000)
+    const highUnrestFeeding = resolveFeeding({ type: 'grain', feedLevel: 'required' }, highUnrestPopulation, 100000)
+
+    const thrivingResult = applyPopulationDynamics(thrivingPopulation, thrivingFeeding, thrivingRng)
+    const highUnrestResult = applyPopulationDynamics(highUnrestPopulation, highUnrestFeeding, highUnrestRng)
+
+    expect(thrivingResult.immigration).toBeGreaterThan(0)
+    expect(highUnrestResult.immigration).toBe(0)
+    expect(highUnrestRng.draws).toBe(thrivingRng.draws)
+    expect(highUnrestRng.draws).toBe(1)
   })
 })
