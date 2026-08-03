@@ -74,6 +74,17 @@ describe('resolveWar', () => {
     expect(outcome.defenderCasualties).toBeGreaterThan(outcome.attackerCasualties)
   })
 
+  it('population transfer is floored like casualties — both sides keep integer peasants', () => {
+    const rng = new SeededRng(3)
+    const strong = makePlayer({ id: 'strong', buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 5 }, guards: 25 })
+    const weak = makePlayer({ id: 'weak', population: { peasants: 1001, unrest: 0 } })
+
+    resolveWar(strong, weak, [], rng)
+
+    expect(Number.isInteger(strong.population.peasants)).toBe(true)
+    expect(Number.isInteger(weak.population.peasants)).toBe(true)
+  })
+
   it('conquered territory carries its people — the winner annexes subjects, the loser forfeits them', () => {
     const rng = new SeededRng(3)
     const strong = makePlayer({ id: 'strong', buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 5 }, guards: 25 })

@@ -227,7 +227,9 @@ export function resolveWar(
   //
   // Applied AFTER casualties so the transferred share is measured against the
   // population that actually survived the fighting.
-  const populationTransferred = loser.population.peasants * WARFARE.populationTransferFraction
+  const populationTransferred = Math.floor(
+    loser.population.peasants * WARFARE.populationTransferFraction
+  )
   loser.population.peasants = Math.max(0, loser.population.peasants - populationTransferred)
   winner.population.peasants += populationTransferred
 
