@@ -6,6 +6,7 @@
 interface VercelRequest {
   method?: string
   body: unknown
+  headers?: Record<string, string | string[] | undefined>
 }
 
 interface VercelResponse {
@@ -20,15 +21,42 @@ interface BugReportPayload {
   year?: number
   rank?: string
   userAgent?: string
+  website?: string
 }
 
 const MAX_SUMMARY = 200
 const MAX_DETAILS = 4000
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000
+const RATE_LIMIT_MAX_POSTS = 5
+const rateLimitByIp = new Map<string, number[]>()
 
 function isBugReportPayload(body: unknown): body is BugReportPayload {
   if (typeof body !== 'object' || body === null) return false
   const b = body as Record<string, unknown>
   return typeof b.summary === 'string' && b.summary.trim().length > 0
+}
+
+function headerValue(headers: VercelRequest['headers'], name: string): string | undefined {
+  const value = headers?.[name] ?? headers?.[name.toLowerCase()]
+  return Array.isArray(value) ? value[0] : value
+}
+
+function requestIp(req: VercelRequest): string {
+  const forwarded = headerValue(req.headers, 'x-forwarded-for')
+  if (forwarded) return forwarded.split(',')[0].trim() || 'unknown'
+  return headerValue(req.headers, 'x-real-ip')?.trim() || 'unknown'
+}
+
+function isRateLimited(ip: string, now: number): boolean {
+  const cutoff = now - RATE_LIMIT_WINDOW_MS
+  const recent = (rateLimitByIp.get(ip) ?? []).filter((time) => time > cutoff)
+  if (recent.length >= RATE_LIMIT_MAX_POSTS) {
+    rateLimitByIp.set(ip, recent)
+    return true
+  }
+  recent.push(now)
+  rateLimitByIp.set(ip, recent)
+  return false
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -39,6 +67,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   if (!isBugReportPayload(req.body)) {
     res.status(400).json({ error: 'A non-empty "summary" field is required.' })
+    return
+  }
+
+  if (typeof req.body.website === 'string' && req.body.website.trim().length > 0) {
+    res.status(400).json({ error: 'Invalid bug report.' })
+    return
+  }
+
+  if (isRateLimited(requestIp(req), Date.now())) {
+    res.status(429).json({ error: 'Too many bug reports. Please try again later.' })
     return
   }
 
