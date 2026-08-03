@@ -822,18 +822,6 @@ function renderOverviewTab(): HTMLElement {
   )
 }
 
-// A7: expected (weather-averaged, no RNG) harvest yield for the clarity
-// breakdown below — display-only, reuses the same laborGatedFarmland/
-// baseYieldPerHectare terms calculateHarvest() rolls for real, just without
-// the weather draw and jitter, so a player can see roughly what's coming
-// without the number claiming false precision.
-function expectedHarvestYield(player: GameState['players'][string]): number {
-  const bands = economyData.harvest.weatherBands as Array<{ multiplier: number; weight: number }>
-  const totalWeight = bands.reduce((sum, b) => sum + b.weight, 0)
-  const avgWeatherMultiplier = bands.reduce((sum, b) => sum + b.multiplier * b.weight, 0) / totalWeight
-  return laborGatedFarmland(player.land, player.population) * economyData.harvest.baseYieldPerHectare * avgWeatherMultiplier
-}
-
 // A6: projected next-year population — MUST match the sticky footer's
 // "If you end the year now" population delta. That footer is previewYear()
 // (real advanceYear on a clone). An earlier feed-only estimate disagreed
@@ -884,21 +872,22 @@ function renderGrainTab(player: GameState['players'][string], state: GameState):
   const demand = annualGrainRequirement(player.population)
   // Prefer the same harvest oracle as the footer (previewYear / advanceYear).
   const preview = previewYear(session!.state, HUMAN_ID, draft, session!.rivals, session!.difficulty)
-  const projectedHarvest = preview?.harvestYield ?? expectedHarvestYield(player)
   const available = preview
     ? feedStockFromChronicle(player.grainStock, preview.spoilage, preview.harvestYield, preview.grainOverflowLost)
-    : player.grainStock + projectedHarvest
+    : player.grainStock
   const { demand: demandShown, available: availableShown, surplus: surplusShown } = roundedSurplus(demand, available)
   container.appendChild(el('div', { class: 'stat-grid' },
     statTile('Demand this year', `${demandShown}`),
-    statTile('At feeding (after harvest)', `${availableShown}`),
+    statTile(preview ? 'At feeding (after harvest)' : 'Barn stock (preview unavailable)', `${availableShown}`),
     statTile(surplusShown >= 0 ? 'Surplus vs demand' : 'Deficit vs demand', `${Math.abs(surplusShown)}`, surplusShown >= 0 ? 'good' : 'bad')
   ))
-  container.appendChild(el('p', { class: 'help-text' },
-    `Barn now: ${player.grainStock.toFixed(0)} of ${storageCapacity(player.population, player.buildings.granary).toFixed(0)} capacity. ` +
-    `Harvest this preview: ${projectedHarvest.toFixed(0)}${preview ? ` (−${preview.spoilage.toFixed(0)} spoilage` + (preview.grainOverflowLost > 0 ? `, −${preview.grainOverflowLost.toFixed(0)} overflow` : '') + ')' : ' (weather-averaged estimate)'}. ` +
-    `“At feeding” is stock after spoilage/harvest/cap — what Custom/Min/Max percentages apply to.`
-  ))
+  const barnLine = `Barn now: ${player.grainStock.toFixed(0)} of ${storageCapacity(player.population, player.buildings.granary).toFixed(0)} capacity.`
+  const helpText = preview
+    ? `${barnLine} Harvest this preview: ${preview.harvestYield.toFixed(0)} (−${preview.spoilage.toFixed(0)} spoilage` +
+      (preview.grainOverflowLost > 0 ? `, −${preview.grainOverflowLost.toFixed(0)} overflow` : '') +
+      `). "At feeding" is stock after spoilage/harvest/cap — what Custom/Min/Max percentages apply to.`
+    : `${barnLine} Year preview unavailable — "At feeding" shows barn stock only; feed percentages apply to this figure until preview loads.`
+  container.appendChild(el('p', { class: 'help-text' }, helpText))
   const projectionLine = el('p', { class: 'help-text' }, populationProjectionText(player, draft))
   container.appendChild(projectionLine)
 
