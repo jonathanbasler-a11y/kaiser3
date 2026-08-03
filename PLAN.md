@@ -25,6 +25,10 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **15** | Sonnet | Medium | UI fixes — palace/cathedral land-gate feedback, D2 rank-progress bars | Gate messages + path progress verified in-browser; tests green |
 | **16** | Sonnet | Medium | Legibility from bug reports #9–12 + crest art pipeline prep | Cost/income/rank hints live; crest schema/prompts/UI ready (PNGs optional) |
 | **17** | Sonnet | Medium | Tap-to-toggle info tooltips on every changeable field | Mobile-first ⓘ tooltips; no hover dependency; tests green |
+| **18A** | Sonnet | Medium | UX transparency — spend shortfalls, tooltip overflow, mitigation/war clarity | Shortfalls reported; tooltips stay on-screen; browser-verified |
+| **18B** | Sonnet | Medium | Live spend/outcome preview panel (real `advanceYear` on a clone) | Preview matches End Year; rival `planYear` cached by state identity |
+| **18C** | Sonnet | High | Warfare depth — training, equipment, defender's advantage | Strength multipliers; upkeep; balance gate re-passes |
+| **18D** | Sonnet | Medium | ~200 small positive random events (flavor, gate-neutral) | 10%/yr flavor hits; balance gate unchanged; golden fixture reviewed |
 
 ## Phase 0: Scaffold & Ground Rules ✓
 
@@ -1019,7 +1023,51 @@ rather than restated prose. One bubble open at a time; closes on second tap or o
 
 ---
 
-**Last updated:** Save/load (3 localStorage slots), event-scene / kingdom-overview
-UI wiring, flood/drought icons, B5 cathedral gate, PLAN sync through Phase 17.
-Still open: Claude Phase 18 (if not merged), D2 Commerce calibration, deferred
-F2/F7. Crest Comfy PNGs remain partial (procedural covers the rest).
+## Phase 18A: UX Transparency ✓
+
+Quick playtest follow-ups: `year.ts` reports construction/recruitment shortfalls when the shared treasury is exhausted mid-pipeline (the silent "guards/markets vanish" class of bug); tooltip bubbles flip when they'd overflow the viewport; mitigation and war surfaces cite real numbers.
+
+### Acceptance Criteria
+- ✓ Shortfalls appear on the year report when a queued build/hire is clamped
+- ✓ Tooltips stay readable on narrow viewports
+- ✓ Tests / `tsc` green
+
+---
+
+## Phase 18B: Live Spend/Outcome Preview ✓
+
+`src/ui/preview.ts` runs the real `advanceYear()` on a throwaway clone using the human's in-progress draft plus rivals' planned decisions — so the sticky footer preview cannot disagree with End Year about spend order. Rival `planYear` is cached by `GameState` object identity (the expensive search); the human-side pass is a single deterministic year. Refresh is **debounced after draft edits** (not a 5Hz idle poll).
+
+### Acceptance Criteria
+- ✓ Preview taler/population deltas and shortfalls match a real End Year on the same draft
+- ✓ Rival plans are not recomputed on every keystroke
+- ✓ Idle tabs do not keep simulating years in the background
+
+---
+
+## Phase 18C: Warfare Depth ✓
+
+Training and equipment are proportional strength multipliers (not flat adds), with per-level costs/upkeep and a defender's advantage — answering the playtest ask to "build armies, train, better equipment" with a real defender edge. Persist normalizes `trainingLevel` / `equipmentLevel` (default 0 on legacy saves).
+
+### Acceptance Criteria
+- ✓ Strength math + upkeep wired; AI invests via war aggression
+- ✓ Save/load round-trips the new fields
+- ✓ Balance gate re-passes
+
+---
+
+## Phase 18D: Positive Random Events ✓
+
+~200 small positive flavor events (`data/positiveEvents.json`): flat 10%/year chance per player, modest taler/population/grain/unrest-relief rewards, no exposure/mitigation modeling by design. Gate-neutral magnitudes verified against the Phase C baseline.
+
+### Acceptance Criteria
+- ✓ Flavor events render on the year report
+- ✓ Balance gate criteria unchanged in substance
+- ✓ Stochastic tests adapted (difficulty / archetype) where RNG position shifted
+
+---
+
+**Last updated:** Phase 18 A–D on master; D6 easy-handicap (#22); D2 commerce
+calibration (#23); hardening — preview debounce (replaced 5Hz poll), Phase 18C
+persist round-trip tests, PLAN table sync, measured playthroughs to Kaiser on
+easy/standard/hard. Deferred only: F2, F7.

@@ -90,4 +90,57 @@ describe('persist / save-load', () => {
     const restored = deserializeGameState(JSON.stringify(raw))
     expect(restored.players.human.buildings.dike).toBe(0)
   })
+
+  // Phase 18C warfare depth — training/equipment must survive save → load →
+  // continue → save, including omission on legacy saves (default 0).
+  it('round-trips trainingLevel and equipmentLevel through SavePayload', () => {
+    const state = createStarterState([
+      { id: 'human', name: 'You' },
+      { id: 'rival1', name: 'The Builder' }
+    ])
+    state.players.human.trainingLevel = 2
+    state.players.human.equipmentLevel = 3
+    state.players.rival1.trainingLevel = 1
+    state.players.rival1.equipmentLevel = 0
+
+    const payload = buildSavePayload({
+      game: state,
+      maxYears: 60,
+      difficultyId: 'hard',
+      rivals: [{ playerId: 'rival1', personalityId: 'builder' }],
+      name: 'Trained host'
+    })
+    const mid = parseSavePayload(stringifySavePayload(payload))
+    expect(mid.game.players.human.trainingLevel).toBe(2)
+    expect(mid.game.players.human.equipmentLevel).toBe(3)
+    expect(mid.game.players.rival1.trainingLevel).toBe(1)
+    expect(mid.game.players.rival1.equipmentLevel).toBe(0)
+
+    // Continue → save again (the browser cycle the UI actually does).
+    mid.game.players.human.trainingLevel = 4
+    mid.game.year = 12
+    const again = parseSavePayload(stringifySavePayload(buildSavePayload({
+      game: mid.game,
+      maxYears: mid.maxYears,
+      difficultyId: mid.difficultyId,
+      rivals: mid.rivals,
+      name: mid.name
+    })))
+    expect(again.game.year).toBe(12)
+    expect(again.game.players.human.trainingLevel).toBe(4)
+    expect(again.game.players.human.equipmentLevel).toBe(3)
+    expect(again.difficultyId).toBe('hard')
+  })
+
+  it('defaults missing trainingLevel/equipmentLevel to 0 (pre-18C saves)', () => {
+    const state = createStarterState([{ id: 'human', name: 'You' }])
+    const raw = JSON.parse(serializeGameState(state)) as {
+      players: { human: Record<string, unknown> }
+    }
+    delete raw.players.human.trainingLevel
+    delete raw.players.human.equipmentLevel
+    const restored = deserializeGameState(JSON.stringify(raw))
+    expect(restored.players.human.trainingLevel).toBe(0)
+    expect(restored.players.human.equipmentLevel).toBe(0)
+  })
 })
