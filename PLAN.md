@@ -36,6 +36,7 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **20.1** | Sonnet | Medium | PR #35 regressions — truce/weariness UI, contrast, rival names | Truce targets disabled; AA contrast; epithet names |
 | **20.2** | Opus | High | Population ceiling retune + breakdown fix + profile | Breakdown sums in plague years; balance + pop profile |
 | **20.3** | Sonnet | Medium | Events made visible — cards, live risk, catalog | Per-event cards; calculateEventProbability in UI |
+| **20.4** | Sonnet | Medium | Explain every number (UI pass-through) | Footer breakdowns; Tax outputs; spy %; Breakdown type |
 
 ## Phase 0: Scaffold & Ground Rules ✓
 
@@ -1171,5 +1172,18 @@ Dismissible per-event scene cards (queue, then year report); Overview live risk 
 - ✓ Each fired negative event gets its own lazy-loaded scene card; positives get parchment treatment
 - ✓ Live risk % on Overview from the engine oracle
 - ✓ Catalog lists drivers, mitigation, telegraphs
+
+---
+
+## Phase 20.4: Explain Every Number ✓
+
+UI-only: `tooltip` accepts nodes + bottom overflow; footer Taler/Population tips from preview income + pop components; Tax tab projected outputs; spy success %; war casualties on report; `roundedBreakdown` in displayCoherence.
+
+### Acceptance Criteria
+- ✓ YearPreview passes income fields; footer tooltips reuse them
+- ✓ Tax tab shows projected numbers from the same preview oracle
+- ✓ Breakdown summing invariant tested
+
+---
 
 ---

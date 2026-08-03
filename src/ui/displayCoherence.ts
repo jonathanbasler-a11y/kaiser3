@@ -59,3 +59,18 @@ export function feedStockFromChronicle(
 ): number {
   return Math.max(0, grainStockBefore - spoilage + harvestYield - grainOverflowLost)
 }
+
+/** Label/value parts that must sum (after rounding) to a displayed total. */
+export interface Breakdown {
+  parts: Array<{ label: string; value: number }>
+  total: number
+}
+
+/** Round each part, then set total to the sum of displayed parts. */
+export function roundedBreakdown(parts: Array<{ label: string; value: number }>): Breakdown {
+  const rounded = parts.map((p) => ({ label: p.label, value: Math.round(p.value) }))
+  return {
+    parts: rounded,
+    total: rounded.reduce((sum, p) => sum + p.value, 0)
+  }
+}

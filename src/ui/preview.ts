@@ -72,6 +72,15 @@ export interface YearPreview {
   immigration: number
   /** Event deaths (plague etc.) applied AFTER population dynamics — must be in the UI sum. */
   eventPopulationLoss: number
+  /** Pass-through income fields for footer/tax tooltips (already on the chronicle). */
+  taxIncome: number
+  tariffIncome: number
+  tributeIncome: number
+  marketIncome: number
+  millIncome: number
+  tradingHouseIncome: number
+  grainTradeIncome: number
+  upkeepCost: number
   /** Chronicle fields so Grain tiles can share the same harvest oracle as the footer. */
   harvestYield: number
   spoilage: number
@@ -134,6 +143,14 @@ export function previewYear(
     emigration: report.emigration,
     immigration: report.immigration,
     eventPopulationLoss: report.eventPopulationLoss,
+    taxIncome: report.taxIncome,
+    tariffIncome: report.tariffIncome,
+    tributeIncome: report.tributeIncome,
+    marketIncome: report.marketIncome,
+    millIncome: report.millIncome,
+    tradingHouseIncome: report.tradingHouseIncome,
+    grainTradeIncome: report.grainTradeIncome,
+    upkeepCost: report.upkeepCost,
     harvestYield: report.harvestYield,
     spoilage: report.spoilage,
     grainOverflowLost: report.grainOverflowLost

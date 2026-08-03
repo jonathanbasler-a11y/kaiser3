@@ -13,6 +13,7 @@ import { advanceYear } from '../engine/year.ts'
 import { getRankName, isFeatureUnlocked, getNextRank, groupProgress, getAllRanks, getTopRank, RankRequirement } from '../engine/ranks.ts'
 import { warStrength, warWinProbability, militaryMultiplier, isTruceActive, truceExpiryYear } from '../engine/war.ts'
 import { medievalRivalName } from '../engine/gameLoop.ts'
+import { strikeSuccessProbability } from '../engine/espionage.ts'
 import { totalLand } from '../engine/land.ts'
 import { getPersonalities, Personality } from '../ai/personalities.ts'
 import { getDifficultyPresets, getDifficultyPreset, DEFAULT_DIFFICULTY_ID, DifficultyPreset } from '../ai/difficulty.ts'
@@ -28,7 +29,8 @@ import {
   roundedDelta,
   roundedLandSplit,
   roundedStrength,
-  roundedSurplus
+  roundedSurplus,
+  roundedBreakdown
 } from './displayCoherence.ts'
 import { drawBanner } from './render.ts'
 import { spriteImg } from './spriteLoader.ts'
@@ -645,14 +647,44 @@ function updatePreviewPanel(panel: HTMLElement, preview: YearPreview | null): vo
   clear(panel)
   if (!preview) return
 
-  // Same roundedDelta as Grain-tab population line — never independent toFixed on raw deltas.
   const taler = roundedDelta(preview.talerBefore, preview.talerAfter)
   const pop = roundedDelta(preview.populationBefore, preview.populationAfter)
+  const incomeBreakdown = roundedBreakdown([
+    { label: 'Tax', value: preview.taxIncome },
+    { label: 'Tariffs', value: preview.tariffIncome },
+    { label: 'Graft', value: preview.tributeIncome },
+    { label: 'Markets', value: preview.marketIncome },
+    { label: 'Mills', value: preview.millIncome },
+    { label: 'Trading houses', value: preview.tradingHouseIncome },
+    { label: 'Grain trade', value: preview.grainTradeIncome },
+    { label: 'Upkeep', value: -preview.upkeepCost }
+  ].filter((p) => Math.abs(p.value) >= 0.5))
+  const popParts = [
+    preview.births > 0 ? `+${Math.round(preview.births)} born` : null,
+    preview.deaths > 0 ? `−${Math.round(preview.deaths)} died` : null,
+    preview.immigration > 0 ? `+${Math.round(preview.immigration)} in` : null,
+    preview.emigration > 0 ? `−${Math.round(preview.emigration)} out` : null,
+    preview.eventPopulationLoss > 0 ? `−${Math.round(preview.eventPopulationLoss)} events` : null
+  ].filter(Boolean).join(', ')
+
+  const talerTip = el('div', {},
+    ...incomeBreakdown.parts.map((p) =>
+      el('div', { class: 'row between' },
+        el('span', {}, p.label),
+        el('span', {}, `${p.value >= 0 ? '+' : ''}${p.value}`)
+      )
+    ),
+    el('p', { class: 'help-text' }, `Operating net ${incomeBreakdown.total >= 0 ? '+' : ''}${incomeBreakdown.total} (excludes land/builds/war/events)`)
+  )
+  const popTip = popParts || 'No population movement this year.'
+
   panel.appendChild(el('p', { class: 'help-text preview-line' },
     'If you end the year now: ',
     el('span', { class: taler.delta >= 0 ? 'good' : 'bad' }, `Taler ${taler.delta >= 0 ? '+' : ''}${taler.delta}`),
+    tooltip(talerTip),
     ' · ',
     el('span', { class: pop.delta >= 0 ? 'good' : 'bad' }, `Population ${pop.delta >= 0 ? '+' : ''}${pop.delta}`),
+    tooltip(popTip),
     preview.rankPromoted ? ' · Promotion!' : ''
   ))
   for (const shortfall of preview.shortfalls) {
@@ -1092,21 +1124,38 @@ function renderLandTab(player: GameState['players'][string], state: GameState): 
 }
 
 function renderTaxTab(draft: DecisionDraft): HTMLElement {
+  const preview = session
+    ? previewYear(session.state, HUMAN_ID, draft, session.rivals, session.difficulty)
+    : null
+  const projected = preview
+    ? el('div', { class: 'card' },
+        el('h3', {}, 'Projected this year'),
+        el('div', { class: 'stat-grid' },
+          statTile('Tax', `+${Math.round(preview.taxIncome)}`),
+          statTile('Tariffs', `+${Math.round(preview.tariffIncome)}`),
+          statTile('Graft', `+${Math.round(preview.tributeIncome)}`),
+          statTile('Unrest after', preview.unrestAfter.toFixed(0), preview.unrestAfter > 60 ? 'bad' : undefined)
+        ),
+        el('p', { class: 'help-text' }, 'Same advanceYear preview as the footer — not a second estimate.')
+      )
+    : el('p', { class: 'help-text' }, 'End-year preview unavailable.')
+
   return el('div', {},
+    projected,
     sliderField({
-      label: 'VAT', value: draft.vat, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.vat = v },
+      label: 'VAT', value: draft.vat, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.vat = v; session!.activeTab = 'tax'; renderGame() },
       tooltip: 'Taxes the population\'s economic output — averaged with Income tax to set your base revenue rate. Full unrest weight.'
     }),
     sliderField({
-      label: 'Income tax', value: draft.incomeTax, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.incomeTax = v },
+      label: 'Income tax', value: draft.incomeTax, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.incomeTax = v; session!.activeTab = 'tax'; renderGame() },
       tooltip: 'Taxes the population\'s economic output — averaged with VAT to set your base revenue rate. Full unrest weight.'
     }),
     sliderField({
-      label: 'Tariff', value: draft.tariff, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.tariff = v },
+      label: 'Tariff', value: draft.tariff, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.tariff = v; session!.activeTab = 'tax'; renderGame() },
       tooltip: 'Revenue only in years you buy or sell land (Land tab). Unrest from the tariff rate applies every year at full weight, even when you trade nothing.'
     }),
     sliderField({
-      label: 'Judicial graft', value: draft.justiceGraft, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.justiceGraft = v },
+      label: 'Judicial graft', value: draft.justiceGraft, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.justiceGraft = v; session!.activeTab = 'tax'; renderGame() },
       tooltip: 'Skims an extra ~30% on top of whatever VAT/Income tax/Tariff already earned, at HALF their unrest cost per point — the most unrest-efficient way to squeeze more revenue, but it earns nothing on its own if the other three are at 0.'
     }),
     el('p', { class: 'help-text' }, 'Higher rates raise revenue but push unrest up — past a point, revolt becomes likely.')
@@ -1315,7 +1364,7 @@ function renderSpyTab(player: GameState['players'][string], state: GameState, dr
       container.appendChild(stepper({
         label: `Saboteurs to commit (up to ${availableSaboteurs} including this turn's hires)`,
         value: draft.saboteursCommitted, min: 1, max: maxCommit, step: 1,
-        onChange: (v) => { draft.saboteursCommitted = v },
+        onChange: (v) => { draft.saboteursCommitted = v; session!.activeTab = 'spy'; renderGame() },
         tooltip: 'Success chance = committed ÷ (committed + the target\'s guards + a small base defence). More committed raises your odds but risks more saboteurs if it fails. Same-turn hires are available to commit.'
       }))
       container.appendChild(segmented<EspionageMode>({
@@ -1325,6 +1374,13 @@ function renderSpyTab(player: GameState['players'][string], state: GameState, dr
         title: 'Strike type',
         tooltip: 'Raid: steals a larger share of the target\'s treasury only. Sabotage: steals a smaller share of treasury plus grain, and destroys some of their production buildings — more damage, less coin.'
       }))
+      const defender = state.players[draft.targetPlayerId]
+      if (defender) {
+        const p = strikeSuccessProbability(draft.saboteursCommitted, defender.guards)
+        container.appendChild(el('p', {
+          class: `help-text ${p >= 0.5 ? 'good' : 'bad'}`
+        }, `Strike success chance: ${Math.round(p * 100)}% (engine formula — same odds the year will roll).`))
+      }
     }
   }
 
@@ -1729,13 +1785,16 @@ function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement
     const consequence = humanWon
       ? `${war.landTransferred.toFixed(0)} ha and ${war.populationTransferred.toFixed(0)} subjects annexed, and ${war.reparationsPaid.toFixed(0)} Taler taken from ${rivalName}.`
       : `Lost ${war.landTransferred.toFixed(0)} ha and ${war.populationTransferred.toFixed(0)} subjects to ${rivalName}, and paid ${war.reparationsPaid.toFixed(0)} Taler in reparations${war.garrisonDestroyed ? '; your garrison was destroyed' : ''}.`
+    const ourCasualties = isAttacker ? war.attackerCasualties : war.defenderCasualties
+    const theirCasualties = isAttacker ? war.defenderCasualties : war.attackerCasualties
     entries.push(el('div', { class: `log-entry with-icon ${humanWon ? 'good' : 'bad'}` },
       spriteImg('buildings', 'garrison', 'war', 'event-sm'),
       el('span', {},
         isAttacker
           ? `${humanWon ? 'You defeated' : 'You were defeated by'} ${rivalName} in the war you declared.`
           : `${rivalName} declared war on you and ${humanWon ? 'lost' : 'won'}.`,
-        ` ${consequence}${alliesText}`
+        ` ${consequence}${alliesText}`,
+        ` Casualties: ${ourCasualties.toFixed(0)} of yours, ${theirCasualties.toFixed(0)} of theirs.`
       )
     ))
   }

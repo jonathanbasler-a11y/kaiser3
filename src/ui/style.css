@@ -483,6 +483,8 @@ span.bad { color: var(--bad); font-weight: 600; }
 }
 .tooltip-bubble.hidden { display: none; }
 .tooltip-bubble.align-right { left: auto; right: 0; }
+.tooltip-bubble.align-left { left: 0; right: auto; }
+.tooltip-bubble.align-above { bottom: calc(100% + 6px); top: auto; }
 
 /* D2 rank-progress: one bar per alternative qualifying path toward the next
    rank (docs/d2-rank-gate-design.md) — the leading path is highlighted so a
