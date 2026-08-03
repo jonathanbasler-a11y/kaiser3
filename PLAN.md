@@ -29,6 +29,10 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **18B** | Sonnet | Medium | Live spend/outcome preview panel (real `advanceYear` on a clone) | Preview matches End Year; rival `planYear` cached by state identity |
 | **18C** | Sonnet | High | Warfare depth — training, equipment, defender's advantage | Strength multipliers; upkeep; balance gate re-passes |
 | **18D** | Sonnet | Medium | ~200 small positive random events (flavor, gate-neutral) | 10%/yr flavor hits; balance gate unchanged; golden fixture reviewed |
+| **19A** | Opus | High | War brakes — mutual truces + war weariness | Truce blocks repeats; weariness→unrest; AI prices brakes; gate re-passes |
+| **19B** | Sonnet | Medium | Medieval CSS reskin (fonts, parchment palette, ornament) | Self-hosted OFL fonts; readable at 375×812; no new art |
+| **19C** | Sonnet | Medium | Flavor pass — events/ranks/difficulty voice | Combinatorial fluff rewritten; mechanical UI text untouched |
+| **19D** | Opus→Sonnet | High | Economy depth design spike (trade routes / guilds vs NPCs) | Spec approved; not F2 bilateral trade |
 
 ## Phase 0: Scaffold & Ground Rules ✓
 
@@ -1067,7 +1071,66 @@ Training and equipment are proportional strength multipliers (not flat adds), wi
 
 ---
 
-**Last updated:** Phase 18 A–D on master; D6 easy-handicap (#22); D2 commerce
-calibration (#23); hardening — preview debounce (replaced 5Hz poll), Phase 18C
-persist round-trip tests, PLAN table sync, measured playthroughs to Kaiser on
-easy/standard/hard. Deferred only: F2, F7.
+## Phase 19A: War Brakes
+
+War was memoryless: a defeated neighbour became a *better* repeat target. Mutual absolute truces (`GameState.truces`) plus per-ruler `warWeariness` (feeds unrest, decays in peacetime) brake both rematches and rotating warmongering. AI `planWar` skips truce-bound targets and prices weariness into EV. Save format stays v1 (tolerate absence). Tunables in `economy.json` `warfare`.
+
+### Acceptance Criteria
+- ✓ Engine refuses a declaration while a pair's truce is live; registers a 5-year mutual cooldown on resolution
+- ✓ Weariness accumulates on both sides, feeds unrest, decays for non-belligerents
+- ✓ `cloneGameState` + persist round-trip cover truces/weariness (no shared Record reference)
+- ✓ War-frequency suite asserts no same-pair rematch inside the truce window
+- ✓ Balance gate re-passes (weariness tuned so late/early loss-persistence stays ≥0.6)
+
+---
+
+## Phase 19B: Medieval Reskin ✓
+
+CSS/typography only — self-hosted OFL **EB Garamond** (body) + **Cinzel** (display) in `public/fonts/`, parchment/ink/gilt `:root` tokens, manuscript ornament (drop caps, double-rule cards). Canvas stacks in `render.ts` updated. No new art.
+
+### Acceptance Criteria
+- ✓ Self-hosted `@font-face` (no CDN); theme-color + hardcoded button inks use tokens
+- ✓ Parchment palette + ornament without layout reflow
+- ✓ `tsc` green
+
+---
+
+## Phase 19C: Flavor Pass ✓
+
+Dry chronicle wit across positive-event boilerplate, grim event telegraphs, rank descriptions, player-facing difficulty copy, weather band name polish, narrative chronicle/game-over lines, and deterministic medieval rival names. Mechanical labels/tooltips untouched.
+
+### Acceptance Criteria
+- ✓ Combinatorial positive fluff rewritten; hand-written tone keepers preserved
+- ✓ Event catalog validators still pass; tests green
+- ✓ Rival fallback names are period, not `Rival N`
+
+---
+
+## Phase 19D: Economy Depth (design spike, not committed build)
+
+**Status: design spike DONE (spec written, nothing implemented).**
+Spec: `docs/superpowers/specs/2026-08-03-phase19d-economy-depth-design.md`
+
+Two features designed — explicitly not F2 bilateral trade:
+
+- **D1 — Trade routes / caravans to named NPC powers** (Kaiser, Hanse, Venice,
+  Levant): route establishment cost → recurring income → bandit/storm/war
+  severance events; sub-linear returns via `min(baseIncome, taler × capFraction)`;
+  ties into Phase 19A war-brakes state for severance.
+- **D2 — Guilds / building specialization**: markets and mills specialize via
+  petition events (grant → income multiplier; refuse → unrest spike); reuses
+  `buildings.ts` + `buildings.json`; rank-gated.
+
+Recommended build order: D2 first (contained within existing buildings/event
+machinery), then D1 (requires new data file, RNG stream extension, 19A interaction).
+
+### Acceptance Criteria
+- ✓ Spec written and owner-reviewed
+- ✓ Not F2 bilateral trade
+- ✗ D2 guild implementation (future phase)
+- ✗ D1 trade-route implementation (future phase)
+- ✗ Balance gate re-run after combined D1+D2 (future phase)
+
+---
+
+**Last updated:** Phase 19 A–D on branch (A war brakes, B reskin, C flavor, D design-only). Deferred still: F2, F7; D1/D2 implementation is a future phase.

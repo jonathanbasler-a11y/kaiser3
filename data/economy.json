@@ -26,7 +26,7 @@
       },
       {
         "id": "average",
-        "name": "Ordinary year",
+        "name": "Middling year",
         "multiplier": 1,
         "weight": 25
       },
@@ -98,7 +98,12 @@
     "populationTransferFraction": 0.05,
     "reparationsFraction": 0.15,
     "garrisonDestructionChanceLoser": 0.5,
-    "alliancePowerPeasantWeight": 10
+    "alliancePowerPeasantWeight": 10,
+    "_warBrakesNote": "Phase 19A: without memory, a defeated neighbour is a better repeat target (weaker garrison/levy). truceYears is an absolute mutual cooldown after any war between a pair. Weariness accumulates on both belligerents, feeds unrest each year, and decays only in peacetime — so chaining wars against rotating targets still hurts.",
+    "truceYears": 5,
+    "wearinessPerWar": 8,
+    "wearinessDecayPerYear": 4,
+    "wearinessUnrestMultiplier": 0.25
   },
   "_successionNote": "F5: a ruler's reign occasionally ends and an heir (same seat, same territory/rank/buildings) inherits — only the accumulated `score` resets. No chance of succession before minReignYears, so a new game/heir always gets a fair run before facing it. Chance then rises with reignYears, capped at maxAnnualDeathChance, so an unusually long reign becomes progressively more likely to turn over rather than running indefinitely.",
   "succession": {

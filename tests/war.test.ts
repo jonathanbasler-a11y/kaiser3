@@ -2,12 +2,15 @@ import { describe, it, expect } from 'vitest'
 import {
   warStrength, resolveWar, resolveAllianceRequests,
   warWinProbability, militaryMultiplier, applyMilitaryInvestment, militaryUpkeep,
-  landTransferAmount
+  landTransferAmount, trucePairKey, isTruceActive, registerTruce
 } from '../src/engine/war.ts'
 import { SeededRng } from '../src/engine/rng.ts'
 import { runMatch, aiCompetitor } from '../src/ai/sim.ts'
-import { planMilitaryInvestment } from '../src/ai/warAggression.ts'
-import { GameState, PlayerState } from '../src/engine/state.ts'
+import { planMilitaryInvestment, planWar } from '../src/ai/warAggression.ts'
+import { getPersonality } from '../src/ai/personalities.ts'
+import { advanceYear } from '../src/engine/year.ts'
+import { createStarterState } from '../src/engine/starter.ts'
+import { cloneGameState, GameState, PlayerState, WarDecision } from '../src/engine/state.ts'
 import economyData from '../data/economy.json'
 
 const WARFARE = economyData.warfare
@@ -410,5 +413,128 @@ describe('war frequency stays in a playable band (regression guard)', () => {
     // between them. Generous — the observed figure is ~6.5 — so this catches a
     // structural break, not ordinary tuning drift.
     expect(perMatch).toBeLessThan(30)
+  })
+
+  it('never re-fights the same pair inside the truce window', () => {
+    const MATCHES = 6
+    const MAX_YEARS = 60
+    const truceYears = WARFARE.truceYears
+    const violations: string[] = []
+
+    for (let i = 0; i < MATCHES; i++) {
+      const competitors = [
+        aiCompetitor('builder', 'builder'),
+        aiCompetitor('expansionist', 'expansionist'),
+        aiCompetitor('merchant', 'merchant'),
+        aiCompetitor('schemer', 'schemer'),
+        aiCompetitor('raider', 'raider')
+      ]
+      const lastWarYear = new Map<string, number>()
+      runMatch(competitors, 4242 + i * 7717, MAX_YEARS, (state, chronicle) => {
+        // Chronicle.year is the year that just completed (state.year after advance).
+        const warYear = state.year - 1
+        for (const war of chronicle.wars) {
+          const key = trucePairKey(war.attackerId, war.defenderId)
+          const prev = lastWarYear.get(key)
+          if (prev !== undefined && warYear - prev < truceYears) {
+            violations.push(`${key} at ${warYear} after ${prev}`)
+          }
+          lastWarYear.set(key, warYear)
+        }
+      })
+    }
+
+    expect(violations).toEqual([])
+  })
+})
+
+describe('truces and war weariness (Phase 19A)', () => {
+  it('pair key is order-independent', () => {
+    expect(trucePairKey('a', 'b')).toBe(trucePairKey('b', 'a'))
+    expect(trucePairKey('a', 'b')).not.toBe(trucePairKey('a', 'c'))
+  })
+
+  it('registerTruce / isTruceActive honour the window', () => {
+    const truces: Record<string, number> = {}
+    registerTruce(truces, 'a', 'b', 10, 5)
+    expect(isTruceActive(truces, 'a', 'b', 11)).toBe(true)
+    expect(isTruceActive(truces, 'b', 'a', 14)).toBe(true)
+    expect(isTruceActive(truces, 'a', 'b', 15)).toBe(false)
+    expect(isTruceActive(truces, 'a', 'c', 11)).toBe(false)
+  })
+
+  it('blocks a repeat declaration while a truce is live', () => {
+    let state = createStarterState([
+      { id: 'a', name: 'A' },
+      { id: 'b', name: 'B' }
+    ])
+    // Make A overwhelmingly favoured so the war actually fires.
+    state.players.a.buildings.garrison = 5
+    state.players.a.guards = 40
+    state.players.a.population.peasants = 8000
+    state.players.b.population.peasants = 800
+
+    const war: WarDecision = { type: 'war', declare: true, targetPlayerId: 'b' }
+    const first = advanceYear(state, { a: [war], b: [] }, 7)
+    expect(first.chronicle.wars).toHaveLength(1)
+    state = first.state
+    expect(isTruceActive(state.truces ?? {}, 'a', 'b', state.year)).toBe(true)
+
+    const second = advanceYear(state, { a: [war], b: [] }, 8)
+    expect(second.chronicle.wars).toHaveLength(0)
+  })
+
+  it('accumulates weariness on both sides and decays in peacetime', () => {
+    let state = createStarterState([
+      { id: 'a', name: 'A' },
+      { id: 'b', name: 'B' }
+    ])
+    state.players.a.buildings.garrison = 5
+    state.players.a.guards = 40
+    state.players.a.population.peasants = 8000
+    state.players.b.population.peasants = 800
+
+    const war: WarDecision = { type: 'war', declare: true, targetPlayerId: 'b' }
+    state = advanceYear(state, { a: [war], b: [] }, 11).state
+    expect(state.players.a.warWeariness ?? 0).toBe(WARFARE.wearinessPerWar)
+    expect(state.players.b.warWeariness ?? 0).toBe(WARFARE.wearinessPerWar)
+
+    const unrestBeforePeace = state.players.a.population.unrest
+    state = advanceYear(state, { a: [], b: [] }, 12).state
+    expect(state.players.a.warWeariness ?? 0).toBe(
+      Math.max(0, WARFARE.wearinessPerWar - WARFARE.wearinessDecayPerYear)
+    )
+    // Weariness fed unrest during the peaceful year.
+    expect(state.players.a.population.unrest).toBeGreaterThan(unrestBeforePeace)
+  })
+
+  it('cloneGameState deep-copies truces and keeps weariness', () => {
+    const state = createStarterState([
+      { id: 'a', name: 'A' },
+      { id: 'b', name: 'B' }
+    ])
+    state.truces = { [trucePairKey('a', 'b')]: 42 }
+    state.players.a.warWeariness = 9
+    const clone = cloneGameState(state)
+    clone.truces![trucePairKey('a', 'b')] = 99
+    clone.players.a.warWeariness = 1
+    expect(state.truces![trucePairKey('a', 'b')]).toBe(42)
+    expect(state.players.a.warWeariness).toBe(9)
+  })
+
+  it('planWar skips a truce-bound target', () => {
+    const state = createStarterState([
+      { id: 'self', name: 'Self' },
+      { id: 'rival', name: 'Rival' }
+    ])
+    state.players.self.buildings.garrison = 8
+    state.players.self.guards = 50
+    state.players.self.population.peasants = 12000
+    state.players.rival.population.peasants = 500
+    state.truces = { [trucePairKey('self', 'rival')]: state.year + 5 }
+
+    const raider = getPersonality('raider')
+    const decision = planWar(state, 'self', raider.aggression, raider.weights)
+    expect(decision.declare).toBe(false)
   })
 })

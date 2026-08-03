@@ -3,6 +3,22 @@
 // gate — real AI opponents (evaluator-driven) are Phase 5; these opponents are
 // fixed, simple, deliberately unambitious placeholders.
 
+// HRE-era Germanic and Italianate names for rival rulers. Deterministic: the same
+// opponent slot always gets the same name, so save/load is stable. Names are
+// picked without replacement within a match via index offset so 4-rival games
+// don't get two Heinrichs.
+const MEDIEVAL_RIVAL_NAMES = [
+  'Heinrich', 'Konrad', 'Albrecht', 'Friedrich', 'Ludwig',
+  'Wilhelm', 'Dietrich', 'Gunther', 'Walther', 'Wolfram',
+  'Arnulf', 'Eberhard', 'Ulrich', 'Bertram', 'Lothar',
+  'Reinhard', 'Balduin', 'Siegfried', 'Hartmann', 'Ottfried'
+]
+
+/** Returns a deterministic HRE-era name for the nth rival (0-based). */
+export function medievalRivalName(index: number): string {
+  return MEDIEVAL_RIVAL_NAMES[index % MEDIEVAL_RIVAL_NAMES.length]
+}
+
 import { GameState, Decision, Chronicle, PlayerState } from './state.ts'
 import { advanceYear } from './year.ts'
 import { createStarterState } from './starter.ts'
@@ -73,7 +89,7 @@ export interface PlayGameResult {
 export async function runGame(config: PlayGameConfig): Promise<PlayGameResult> {
   const opponents: OpponentSpec[] = Array.from({ length: config.opponentCount }, (_, i) => ({
     id: `opponent${i + 1}`,
-    name: config.opponentNames?.[i] ?? `Rival ${i + 1}`
+    name: config.opponentNames?.[i] ?? medievalRivalName(i)
   }))
   const playerIds = [{ id: config.humanId, name: config.humanName }, ...opponents]
 

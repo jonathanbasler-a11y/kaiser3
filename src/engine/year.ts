@@ -18,7 +18,10 @@ import { resolveEvents } from './events/events.ts'
 import { rollPositiveEvent } from './events/positiveEvents.ts'
 import { applyRecruitment, espionageUpkeep, resolveStrike } from './espionage.ts'
 import { applySuccession, checkExtinction } from './succession.ts'
-import { resolveAllianceRequests, resolveWar, applyMilitaryInvestment, militaryUpkeep } from './war.ts'
+import { resolveAllianceRequests, resolveWar, applyMilitaryInvestment, militaryUpkeep, isTruceActive, registerTruce } from './war.ts'
+import economyData from '../../data/economy.json'
+
+const WARFARE = economyData.warfare
 
 function findDecision<T extends Decision>(decisions: Decision[], type: T['type']): T | undefined {
   return decisions.find((d) => d.type === type) as T | undefined
@@ -364,6 +367,11 @@ export function advanceYear(
 
   // 12.5. Warfare — same cross-ruler shape as espionage, resolved in
   // activePlayerIds order for the same determinism reason.
+  // Phase 19A: refuse live truces; register mutual cooldown + weariness on
+  // resolution; convert weariness → unrest; decay for non-belligerents.
+  if (!newState.truces) newState.truces = {}
+  const belligerents = new Set<string>()
+
   for (const attackerId of newState.activePlayerIds) {
     const attacker = newState.players[attackerId]
     if (!attacker || attacker.dead) continue
@@ -377,6 +385,7 @@ export function advanceYear(
     // espionage gives a stale strike target.
     if (!defender || defender.dead || defender.id === attackerId) continue
     if (!newState.activePlayerIds.includes(defender.id)) continue
+    if (isTruceActive(newState.truces, attacker.id, defender.id, newState.year)) continue
 
     const requestedAllies = (war.alliesRequested ?? [])
       .map((id) => newState.players[id])
@@ -384,6 +393,12 @@ export function advanceYear(
     const joinedAllies = resolveAllianceRequests(requestedAllies, attacker, defender, rng)
 
     const outcome = resolveWar(attacker, defender, joinedAllies, rng)
+    registerTruce(newState.truces, attacker.id, defender.id, newState.year, WARFARE.truceYears)
+    attacker.warWeariness = (attacker.warWeariness ?? 0) + WARFARE.wearinessPerWar
+    defender.warWeariness = (defender.warWeariness ?? 0) + WARFARE.wearinessPerWar
+    belligerents.add(attacker.id)
+    belligerents.add(defender.id)
+
     chronicle.wars.push({
       attackerId: outcome.attackerId,
       defenderId: outcome.defenderId,
@@ -396,6 +411,21 @@ export function advanceYear(
       reparationsPaid: outcome.reparationsPaid,
       garrisonDestroyed: outcome.garrisonDestroyed
     })
+  }
+
+  for (const playerId of newState.activePlayerIds) {
+    const player = newState.players[playerId]
+    if (!player || player.dead) continue
+    const weariness = player.warWeariness ?? 0
+    if (weariness > 0) {
+      player.population.unrest = Math.min(
+        100,
+        player.population.unrest + weariness * WARFARE.wearinessUnrestMultiplier
+      )
+    }
+    if (!belligerents.has(playerId) && weariness > 0) {
+      player.warWeariness = Math.max(0, weariness - WARFARE.wearinessDecayPerYear)
+    }
   }
 
   // 12.75. Succession (F5) — after strikes and wars so the required unconditional

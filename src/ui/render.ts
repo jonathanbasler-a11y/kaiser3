@@ -47,7 +47,7 @@ export function drawBanner(canvas: HTMLCanvasElement, weatherId: string | undefi
   }
 
   ctx.fillStyle = 'rgba(255,255,255,0.92)'
-  ctx.font = '600 15px -apple-system, BlinkMacSystemFont, Georgia, serif'
+  ctx.font = '600 15px "Cinzel", "EB Garamond", Georgia, serif'
   ctx.textBaseline = 'middle'
   ctx.fillText(rankName, 12, h / 2)
 }
@@ -68,7 +68,7 @@ export function drawPortraitProcedural(ctx: CanvasRenderingContext2D, w: number,
   ctx.fillStyle = color
   ctx.fillRect(0, 0, w, h)
   ctx.fillStyle = '#f1e6d3'
-  ctx.font = 'bold 24px sans-serif'
+  ctx.font = 'bold 24px "EB Garamond", Georgia, serif'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(assetId[0].toUpperCase(), w / 2, h / 2)
@@ -104,7 +104,7 @@ export function drawBuildingProcedural(ctx: CanvasRenderingContext2D, w: number,
   ctx.fill()
 
   ctx.fillStyle = '#f1e6d3'
-  ctx.font = '8px sans-serif'
+  ctx.font = '8px "EB Garamond", Georgia, serif'
   ctx.textAlign = 'center'
   ctx.fillText(assetId, w / 2, h - 3)
 }
@@ -125,7 +125,7 @@ export function drawEventIconProcedural(ctx: CanvasRenderingContext2D, w: number
   ctx.fillRect(0, 0, w, h)
 
   ctx.fillStyle = '#f1e6d3'
-  ctx.font = 'bold 32px sans-serif'
+  ctx.font = 'bold 32px "EB Garamond", Georgia, serif'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
 
@@ -169,7 +169,7 @@ export function drawTerrainProcedural(ctx: CanvasRenderingContext2D, w: number, 
 
   // Small label
   ctx.fillStyle = 'rgba(241, 230, 211, 0.6)'
-  ctx.font = '6px sans-serif'
+  ctx.font = '6px "EB Garamond", Georgia, serif'
   ctx.textAlign = 'center'
   ctx.fillText(assetId.split('_')[0], w / 2, h * 0.85)
 }
@@ -368,7 +368,7 @@ export function drawUiIconProcedural(ctx: CanvasRenderingContext2D, w: number, h
 
   const label = assetId.replace(/^req_/, '').replace(/_/g, ' ').slice(0, 8)
   ctx.fillStyle = '#e8d5a3'
-  ctx.font = `bold ${Math.max(10, Math.floor(w * 0.18))}px sans-serif`
+  ctx.font = `bold ${Math.max(10, Math.floor(w * 0.18))}px "EB Garamond", Georgia, serif`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(label, w / 2, h / 2)

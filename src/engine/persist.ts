@@ -87,10 +87,25 @@ function normalizePlayer(raw: unknown, expectedId: string): PlayerState {
     // is still a valid save, and must load as "invested nothing" rather than
     // being rejected.
     trainingLevel: typeof raw.trainingLevel === 'number' && Number.isFinite(raw.trainingLevel) ? raw.trainingLevel : 0,
-    equipmentLevel: typeof raw.equipmentLevel === 'number' && Number.isFinite(raw.equipmentLevel) ? raw.equipmentLevel : 0
+    equipmentLevel: typeof raw.equipmentLevel === 'number' && Number.isFinite(raw.equipmentLevel) ? raw.equipmentLevel : 0,
+    // Phase 19A. Same tolerate-and-default pattern as trainingLevel — do not
+    // bump SAVE_FORMAT_VERSION. NaN/Infinity must not become 0 via `??`.
+    warWeariness: typeof raw.warWeariness === 'number' && Number.isFinite(raw.warWeariness) ? raw.warWeariness : 0
   }
   if (typeof raw.heir === 'string') player.heir = raw.heir
   return player
+}
+
+function normalizeTruces(raw: unknown): Record<string, number> {
+  if (raw === undefined || raw === null) return {}
+  if (!isRecord(raw)) throw new Error('Invalid save: truces must be an object')
+  const out: Record<string, number> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      out[key] = value
+    }
+  }
+  return out
 }
 
 export function deserializeGameState(json: string): GameState {
@@ -126,7 +141,8 @@ export function deserializeGameState(json: string): GameState {
       corn: finiteNumber(parsed.kaizerTradePrices.corn, 'prices.corn'),
       farmland: finiteNumber(parsed.kaizerTradePrices.farmland, 'prices.farmland'),
       buildingLand: finiteNumber(parsed.kaizerTradePrices.buildingLand, 'prices.buildingLand')
-    }
+    },
+    truces: normalizeTruces(parsed.truces)
   })
 }
 

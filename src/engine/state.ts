@@ -31,6 +31,9 @@ export interface PlayerState {
   // real 0, so neither can silently drop out of a cloned or saved state.
   trainingLevel?: number
   equipmentLevel?: number
+  // Phase 19A: accumulates on each war, decays in peacetime; feeds unrest.
+  // Optional + ?? to 0 for the same reason as trainingLevel.
+  warWeariness?: number
 }
 
 export interface LandHolding {
@@ -69,6 +72,10 @@ export interface GameState {
     farmland: number               // Taler per hectare
     buildingLand: number           // Taler per hectare
   }
+  // Phase 19A: pair-key (`idA|idB`, sorted) → first year the pair may fight again.
+  // Optional so pre-19A saves and hand-built test states still load; clone/persist
+  // always materialise `{}`.
+  truces?: Record<string, number>
 }
 
 export interface Chronicle {
@@ -315,7 +322,8 @@ export function clonePlayerState(player: PlayerState): PlayerState {
     dead: player.dead,
     heir: player.heir,
     trainingLevel: finiteOrZero(player.trainingLevel),
-    equipmentLevel: finiteOrZero(player.equipmentLevel)
+    equipmentLevel: finiteOrZero(player.equipmentLevel),
+    warWeariness: finiteOrZero(player.warWeariness)
   }
 }
 
@@ -328,7 +336,10 @@ export function cloneGameState(state: GameState): GameState {
     year: state.year,
     players,
     activePlayerIds: [...state.activePlayerIds],
-    kaizerTradePrices: { ...state.kaizerTradePrices }
+    kaizerTradePrices: { ...state.kaizerTradePrices },
+    // Real copy — sharing the Record reference would let preview/AI clones
+    // mutate the live truce table (audit R4 class).
+    truces: { ...(state.truces ?? {}) }
   }
 }
 
