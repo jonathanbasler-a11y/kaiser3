@@ -127,7 +127,7 @@ export function militaryUpkeep(player: PlayerState): number {
 // independently runnable with no AI present, the same rule espionage.ts and every
 // other engine module already follows.
 function roughPower(player: PlayerState): number {
-  return player.taler + player.population.peasants * 10
+  return player.taler + player.population.peasants * WARFARE.alliancePowerPeasantWeight
 }
 
 // Whether each requested ally actually joins the attacker. An ally is more willing

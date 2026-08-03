@@ -8,6 +8,7 @@ import { PopulationState } from './state.ts'
 import { FeedingResult } from './economy.ts'
 
 const POP_ECONOMY = economyData.population
+const FEEDING = economyData.feeding
 
 export interface PopulationDynamicsResult {
   births: number
@@ -27,17 +28,17 @@ export function applyPopulationDynamics(
   // it's a slow-moving pressure gauge, not a switch.
   let unrest = population.unrest
   if (feeding.isUnderfed) {
-    const shortfall = Math.max(0, 0.9 - feeding.feedAdequacy)
-    unrest += shortfall * 60 // scaled so severe starvation (feedAdequacy ~0) pushes unrest hard
+    const shortfall = Math.max(0, FEEDING.underfedAdequacy - feeding.feedAdequacy)
+    unrest += shortfall * POP_ECONOMY.unrestShortfallScale
   } else {
-    unrest = Math.max(0, unrest - 5) // gradual decay when adequately fed
+    unrest = Math.max(0, unrest - POP_ECONOMY.unrestDecayPerYear)
   }
   unrest = Math.min(100, Math.max(0, unrest))
 
   // Births: scale with feeding adequacy (capped at 1.0 — overfeeding doesn't boost births further)
   // and dampened by unrest (an unhappy populace has fewer children).
   const birthAdequacyFactor = Math.min(1, feeding.feedAdequacy)
-  const unrestDamping = 1 - unrest / 200 // unrest=100 halves the birth rate
+  const unrestDamping = 1 - unrest / POP_ECONOMY.unrestBirthDampingDivisor
   const births = population.peasants * POP_ECONOMY.birthRateBase * birthAdequacyFactor * unrestDamping
 
   // Deaths: base rate, plus disease mortality if overfed, plus starvation mortality if severely underfed.
@@ -45,7 +46,7 @@ export function applyPopulationDynamics(
   if (feeding.isOverfed) {
     deaths += population.peasants * POP_ECONOMY.diseaseOverfeedMortality
   }
-  if (feeding.feedAdequacy < 0.5) {
+  if (feeding.feedAdequacy < POP_ECONOMY.starvationAdequacyThreshold) {
     deaths += population.peasants * POP_ECONOMY.starvationMortality
   }
 
@@ -60,7 +61,11 @@ export function applyPopulationDynamics(
   // is unconditional so gated immigration does not shift downstream seeded rolls.
   let immigration = 0
   const immigrationRoll = rng.next()
-  if (unrest < 15 && feeding.feedAdequacy >= 0.95 && feeding.feedAdequacy <= 1.3) {
+  if (
+    unrest < POP_ECONOMY.immigrationMaxUnrest
+    && feeding.feedAdequacy >= POP_ECONOMY.immigrationMinAdequacy
+    && feeding.feedAdequacy <= POP_ECONOMY.immigrationMaxAdequacy
+  ) {
     immigration = population.peasants * POP_ECONOMY.immigrationRate * immigrationRoll
   }
 

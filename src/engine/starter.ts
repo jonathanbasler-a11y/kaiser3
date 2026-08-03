@@ -6,40 +6,40 @@ import economyData from '../../data/economy.json'
 import { GameState, PlayerState } from './state.ts'
 
 const PRICES = economyData.prices
+const STARTER = economyData.starter
 
 export function createStarterPlayer(id: string, name: string): PlayerState {
   return {
     id,
     name,
-    taler: 15000,
-    land: { farmland: 10000, buildingLand: 0 },
-    // A little over one year's food for 1,000 peasants — enough to survive a
-    // single bad harvest, not enough to ignore the weather.
-    grainStock: 11000,
-    population: { peasants: 1000, unrest: 0 },
+    taler: STARTER.taler,
+    land: { farmland: STARTER.farmland, buildingLand: STARTER.buildingLand },
+    // A little over one year's food for the starter peasant count — enough to
+    // survive a single bad harvest, not enough to ignore the weather.
+    grainStock: STARTER.grainStock,
+    population: { peasants: STARTER.peasants, unrest: STARTER.unrest },
     buildings: {
       markets: 0, mills: 0, palace: 0, cathedral: 0,
       hospital: 0, well: 0, granary: 0, garrison: 0
     },
-    rank: 0,
-    guards: 0,
-    saboteurs: 0,
-    tradingHouses: 0,
-    score: 0,
-    reignYears: 0,
+    rank: STARTER.rank,
+    guards: STARTER.guards,
+    saboteurs: STARTER.saboteurs,
+    tradingHouses: STARTER.tradingHouses,
+    score: STARTER.score,
+    reignYears: STARTER.reignYears,
     dead: false
   }
 }
 
 // Difficulty presets (Phase 13, src/ai/difficulty.ts) apply a head-start or
 // handicap to RIVALS only, never the human — the research doc's baseline
-// (15,000 Taler, 10,000 ha, 1,000 peasants) is the fixed human starting point
-// every preset is measured relative to. Deliberately a separate step from
-// createStarterPlayer rather than a parameter on it: every other caller
-// (tests, ai-bench, the balance harness, the golden fixture) must keep
-// constructing the exact same starter player with zero new arguments, or
-// their committed baselines drift for reasons that have nothing to do with
-// what they're testing.
+// (economy.json starter) is the fixed human starting point every preset is
+// measured relative to. Deliberately a separate step from createStarterPlayer
+// rather than a parameter on it: every other caller (tests, ai-bench, the
+// balance harness, the golden fixture) must keep constructing the exact same
+// starter player with zero new arguments, or their committed baselines drift
+// for reasons that have nothing to do with what they're testing.
 //
 // Population is part of the multiplier (D6): taler/farmland cuts alone that
 // stay above laborGatedFarmland's capacity do not reduce early productive

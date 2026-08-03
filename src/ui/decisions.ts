@@ -6,6 +6,9 @@
 
 import { GameState, Decision, EspionageMode, PlayerState } from '../engine/state.ts'
 import { annualGrainRequirement } from '../engine/economy.ts'
+import economyData from '../../data/economy.json'
+
+const FEEDING = economyData.feeding
 
 export interface DecisionDraft {
   feedLevel: 'min' | 'max' | 'required' | 'custom'
@@ -48,7 +51,7 @@ export interface DecisionDraft {
 export function defaultDraft(player: PlayerState): DecisionDraft {
   return {
     feedLevel: 'required',
-    customPercentage: 50,
+    customPercentage: FEEDING.customDefaultPercentage,
     sellGrain: 0,
     buyGrain: 0,
     farmlanbuy: 0,
