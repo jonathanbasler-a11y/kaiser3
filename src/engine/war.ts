@@ -241,7 +241,11 @@ export function resolveWar(
   // A defeated garrison has a real chance of being destroyed in the fighting —
   // the fortification investment that should have prevented this loss.
   let garrisonDestroyed = false
-  if (loser.buildings.garrison > 0 && rng.next() < WARFARE.garrisonDestructionChanceLoser) {
+  const garrisonDestructionRoll = rng.next()
+  if (
+    loser.buildings.garrison > 0
+    && garrisonDestructionRoll < WARFARE.garrisonDestructionChanceLoser
+  ) {
     loser.buildings.garrison = 0
     garrisonDestroyed = true
   }
