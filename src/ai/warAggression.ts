@@ -15,7 +15,7 @@
 
 import economyData from '../../data/economy.json'
 import { GameState, PlayerState, WarDecision } from '../engine/state.ts'
-import { warStrength } from '../engine/war.ts'
+import { warStrength, warWinProbability, militaryMultiplier } from '../engine/war.ts'
 import { compareStanding } from './sim.ts'
 import { PersonalityWeights } from './evaluator.ts'
 import { AggressionProfile } from './aggression.ts'
@@ -39,10 +39,125 @@ const MIN_AGGRESSION_TO_CONSIDER_WAR = 0.5
 // match — and the real go/no-go is now a proper expected value.
 const MIN_WIN_PROBABILITY = 0.55
 
+// Delegates to the engine's own formula rather than restating it — this used
+// to be a third hand-written copy of the same expression (alongside
+// resolveWar and the UI's risk indicator), which Phase 18C's defender
+// advantage would have silently left behind in exactly one of them.
 function estimatedWinProbability(self: PlayerState, target: PlayerState): number {
-  const selfStrength = warStrength(self)
-  const targetStrength = warStrength(target)
-  return selfStrength / (selfStrength + targetStrength + WARFARE.baseDefenceConstant)
+  return warWinProbability(warStrength(self), warStrength(target))
+}
+
+// AI POLICY constants, not game rules — the same distinction the two
+// thresholds above already draw. Costs, strength bonuses and caps are game
+// rules and live in data/economy.json; how cautious a given AI is about
+// spending on them is behaviour, and belongs here.
+//
+// Rivals MUST be able to invest in training/equipment, not just the human.
+// The balance harness measures AI-vs-AI play, so an AI that never touched
+// this mechanic would make the gate blind to it while the human quietly held
+// a lever nobody else in the measured game had — the exact "silently reshape
+// archetype behaviour" failure Phase 12's D2 measurement warns about.
+// An aggressor is buying the ability to attack, and starts as soon as it can
+// keep the lights on. A defender is buying insurance, and only once genuinely
+// comfortable — so the two move at different speeds.
+const MILITARY_RESERVE_AGGRESSOR_TALER = 8000
+const MILITARY_RESERVE_DEFENDER_TALER = 30000
+// One level per track per year: a gradual buildup a rival can see coming and
+// react to, rather than a treasury dumped into a one-turn strength spike.
+const MAX_MILITARY_LEVELS_PER_YEAR = 1
+
+// EVERY archetype invests, not only the aggressive ones — measured the hard
+// way. Gating this on aggression alone produced a predator/prey field: the
+// Schemer and Raider reached 5/5 while the Builder, Merchant and Expansionist
+// sat at 0/0 forever, so a declaration was favourable literally every year and
+// war fired 84 times per 60-year match (against roughly zero before Phase
+// 18C). Every one of the balance gate's five criteria still PASSED through
+// that, which is precisely why it was worth measuring separately: the gate
+// scores the shape of the economy, not whether a mechanic has become spam.
+//
+// Letting defenders arm too is what makes economy.json's own
+// _warfareDepthNote true rather than aspirational — "mutual escalation
+// converges back toward the defender" only holds if the defender is allowed
+// to escalate. The two reserve thresholds above are what keep it from
+// collapsing into permanent parity: aggressors arm early and cheaply,
+// defenders only once rich, so windows of real asymmetry open and close over
+// a match instead of everyone sitting at the same level forever.
+export function planMilitaryInvestment(
+  state: GameState,
+  selfId: string,
+  profile: AggressionProfile
+): Pick<WarDecision, 'trainingInvest' | 'equipmentInvest'> {
+  const self = state.players[selfId]
+  // No rivals means nothing to attack and nothing to defend against, so an
+  // army here is pure upkeep against no threat. Worth the explicit check
+  // rather than leaving it to the reserve thresholds: solo matches are how
+  // `npm run ai-bench` profiles each archetype and how the cross-process
+  // golden fixture is generated, and without this an aggressive archetype
+  // burnt its purchase price plus upkeep every year of every solo run,
+  // polluting the one measurement meant to isolate an archetype's economy
+  // from conflict.
+  const rivalIds = state.activePlayerIds.filter((id) => id !== selfId)
+  if (!self || rivalIds.length === 0) return { trainingInvest: 0, equipmentInvest: 0 }
+
+  const isAggressor = profile.aggression >= MIN_AGGRESSION_TO_CONSIDER_WAR
+
+  // A defender arms in RESPONSE to a rival who has armed, not merely because
+  // rivals exist. Training and equipment levels are public state, so this is
+  // information a ruler legitimately has — no peeking at hidden personality.
+  //
+  // Reacting rather than pre-arming is what keeps this from becoming a
+  // universal tax: a field with no aggressor in it never buys an army nobody
+  // needs. That was not a hypothetical — arming on "a rival exists" alone
+  // made two peaceful Builders each burn their treasury on troops neither
+  // would ever march, and because the spend scales with wealth it erased a
+  // deliberate starting handicap outright (tests/difficulty.test.ts). It also
+  // gives the arms race its shape: an aggressor's buildup is visible, and the
+  // response lags it by design, so the window it opens is real but closes.
+  if (!isAggressor) {
+    const strongestRival = Math.max(...rivalIds.map((id) => militaryMultiplier(state.players[id])))
+    if (strongestRival <= militaryMultiplier(self)) {
+      return { trainingInvest: 0, equipmentInvest: 0 }
+    }
+  }
+
+  // Which track to fill first is DERIVED from the data (strength bought per
+  // Taler of purchase price plus a year of upkeep) rather than asserted, so
+  // retuning economy.json's costs moves the AI's preference with it instead
+  // of leaving a stale hardcoded ordering behind.
+  const tracks = [
+    {
+      key: 'training' as const,
+      level: self.trainingLevel ?? 0,
+      max: WARFARE.maxTrainingLevel,
+      cost: WARFARE.trainingCostPerLevel,
+      value: WARFARE.trainingStrengthBonusPerLevel
+        / (WARFARE.trainingCostPerLevel + WARFARE.trainingUpkeepPerLevelPerYear)
+    },
+    {
+      key: 'equipment' as const,
+      level: self.equipmentLevel ?? 0,
+      max: WARFARE.maxEquipmentLevel,
+      cost: WARFARE.equipmentCostPerLevel,
+      value: WARFARE.equipmentStrengthBonusPerLevel
+        / (WARFARE.equipmentCostPerLevel + WARFARE.equipmentUpkeepPerLevelPerYear)
+    }
+  ].sort((a, b) => b.value - a.value)
+
+  const bought = { trainingInvest: 0, equipmentInvest: 0 }
+  let spendable = self.taler
+    - (isAggressor ? MILITARY_RESERVE_AGGRESSOR_TALER : MILITARY_RESERVE_DEFENDER_TALER)
+
+  for (const track of tracks) {
+    if (track.level >= track.max) continue
+    if (spendable < track.cost) continue
+    const levels = Math.min(MAX_MILITARY_LEVELS_PER_YEAR, track.max - track.level, Math.floor(spendable / track.cost))
+    if (levels <= 0) continue
+    spendable -= levels * track.cost
+    if (track.key === 'training') bought.trainingInvest = levels
+    else bought.equipmentInvest = levels
+  }
+
+  return bought
 }
 
 export function planWar(

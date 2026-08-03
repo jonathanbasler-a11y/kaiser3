@@ -11,7 +11,7 @@ import { eventLossMagnitudeText } from '../engine/events/events.ts'
 import { createStarterState, applyStartingMultiplier } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
 import { getRankName, isFeatureUnlocked, getNextRank, groupProgress, getAllRanks, RankRequirement } from '../engine/ranks.ts'
-import { warStrength } from '../engine/war.ts'
+import { warStrength, warWinProbability, militaryMultiplier } from '../engine/war.ts'
 import { getPersonalities, Personality } from '../ai/personalities.ts'
 import { getDifficultyPresets, getDifficultyPreset, DEFAULT_DIFFICULTY_ID, DifficultyPreset } from '../ai/difficulty.ts'
 import { planYear } from '../ai/planner.ts'
@@ -1150,10 +1150,39 @@ function renderSpyTab(player: GameState['players'][string], state: GameState, dr
 
 function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
   const rivals = rivalOptions(state, HUMAN_ID)
+  const player = state.players[HUMAN_ID]
   const container = el('div', {},
     el('p', { class: 'help-text' },
       'Declaring war is the biggest risk in the game — both sides take real casualties even in victory, but the winner takes land and reparations from the loser. Requesting allies costs nothing; each one decides for itself whether to join.'
     )
+  )
+
+  // Phase 18C: the standing army. Shown before the declare-war controls
+  // because that is the order it actually gets used in — you build the
+  // strength first, then find it has moved the odds below.
+  const trainingLevel = player.trainingLevel ?? 0
+  const equipmentLevel = player.equipmentLevel ?? 0
+  container.append(
+    el('h3', { class: 'row' }, 'Your army', tooltip(
+      `Base strength comes from your garrison, guards and a levy drawn from your population. Training and equipment MULTIPLY that base — every level of training adds ${Math.round(WARFARE.trainingStrengthBonusPerLevel * 100)}% and every level of equipment ${Math.round(WARFARE.equipmentStrengthBonusPerLevel * 100)}%, so they are worth the same proportionally whether your realm is small or large. Both carry annual upkeep forever, so an army you never use is a permanent drain.`
+    )),
+    el('div', { class: 'stat-grid' },
+      statTile('Base strength', (warStrength(player) / militaryMultiplier(player)).toFixed(0)),
+      statTile('Army multiplier', `${militaryMultiplier(player).toFixed(2)}x`),
+      statTile('Total strength', warStrength(player).toFixed(0))
+    ),
+    stepper({
+      label: `Training levels to buy (have ${trainingLevel}/${WARFARE.maxTrainingLevel}) — ${WARFARE.trainingCostPerLevel.toLocaleString('en-US')} Taler each, ${WARFARE.trainingUpkeepPerLevelPerYear}/yr upkeep`,
+      value: draft.trainingInvest, min: 0, max: Math.max(0, WARFARE.maxTrainingLevel - trainingLevel), step: 1,
+      onChange: (v) => { draft.trainingInvest = v },
+      tooltip: `Drilled troops. Each level adds ${Math.round(WARFARE.trainingStrengthBonusPerLevel * 100)}% to your total war strength, permanently, for a one-time cost plus ${WARFARE.trainingUpkeepPerLevelPerYear} Taler every year after. Cheaper per point of strength than equipment.`
+    }),
+    stepper({
+      label: `Equipment levels to buy (have ${equipmentLevel}/${WARFARE.maxEquipmentLevel}) — ${WARFARE.equipmentCostPerLevel.toLocaleString('en-US')} Taler each, ${WARFARE.equipmentUpkeepPerLevelPerYear}/yr upkeep`,
+      value: draft.equipmentInvest, min: 0, max: Math.max(0, WARFARE.maxEquipmentLevel - equipmentLevel), step: 1,
+      onChange: (v) => { draft.equipmentInvest = v },
+      tooltip: `Arms and armour. Each level adds ${Math.round(WARFARE.equipmentStrengthBonusPerLevel * 100)}% to your total war strength — a bigger jump per level than training, but dearer to buy and to maintain.`
+    })
   )
 
   if (rivals.length === 0) {
@@ -1162,7 +1191,7 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
   }
 
   container.appendChild(el('h3', { class: 'row' }, 'Declare war on', tooltip(
-    'Strength is derived from garrison, guards, and population — no separate army to manage. The winner takes 8% of the loser\'s land, 5% of their population, and 15% of their treasury as reparations. Both sides take casualties: 2% of population for the loser, 0.8% for the winner, even in victory.'
+    `Strength is derived from your garrison, guards and population levy, multiplied by training and equipment. The defender fights at an advantage — their strength counts for ${WARFARE.defenderAdvantageMultiplier}x in the odds — so attacking needs a real edge, not parity. The winner takes 8% of the loser's land, 5% of their population, and 15% of their treasury as reparations. Both sides take casualties: 2% of population for the loser, 0.8% for the winner, even in victory.`
   )))
   const targetRow = el('div', { class: 'segmented' })
   const noneBtn = el('button', { textContent: 'None', className: draft.warTargetPlayerId === null ? 'active' : '' })
@@ -1195,12 +1224,22 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
     const attacker = state.players[HUMAN_ID]
     const defender = state.players[draft.warTargetPlayerId]
     if (attacker && defender) {
-      const attackerStrength = warStrength(attacker)
+      // Counts the training/equipment queued in the draft but not yet bought,
+      // because year.ts applies that investment (step 2.5) BEFORE war resolves
+      // (step 12.5) — so levels bought this turn really do fight this turn,
+      // and a player sizing up an attack needs the odds they will actually
+      // face, not last year's.
+      const pendingAttacker: PlayerState = {
+        ...attacker,
+        trainingLevel: Math.min(WARFARE.maxTrainingLevel, (attacker.trainingLevel ?? 0) + draft.trainingInvest),
+        equipmentLevel: Math.min(WARFARE.maxEquipmentLevel, (attacker.equipmentLevel ?? 0) + draft.equipmentInvest)
+      }
+      const attackerStrength = warStrength(pendingAttacker)
       const defenderStrength = warStrength(defender)
-      const winProbability = attackerStrength / (attackerStrength + defenderStrength + WARFARE.baseDefenceConstant)
+      const winProbability = warWinProbability(attackerStrength, defenderStrength)
       const hasAllyRequests = draft.warAlliesRequested.length > 0
       container.appendChild(el('p', { class: `help-text ${winProbability >= 0.5 ? 'good' : 'bad'}` },
-        `Estimated win chance: ${Math.round(winProbability * 100)}%${hasAllyRequests ? ' (before any requested allies join — joining only helps)' : ''} — your strength ${attackerStrength.toFixed(0)} vs. their ${defenderStrength.toFixed(0)}.`
+        `Estimated win chance: ${Math.round(winProbability * 100)}%${hasAllyRequests ? ' (before any requested allies join — joining only helps)' : ''} — your strength ${attackerStrength.toFixed(0)} vs. their ${defenderStrength.toFixed(0)} (defending at ${WARFARE.defenderAdvantageMultiplier}x).`
       ))
     }
   }
@@ -1315,7 +1354,7 @@ function buildIncomeBreakdown(report: Chronicle['playerReports'][string]): HTMLE
     pair('Mill income', report.millIncome),
     pair('Trading house income', report.tradingHouseIncome),
     pair('Grain trade', report.grainTradeIncome),
-    pair('Upkeep (buildings, secret service, tribute)', -report.upkeepCost)
+    pair('Upkeep (buildings, secret service, army, tribute)', -report.upkeepCost)
   ].filter(([, v]) => Math.abs(v) >= 1)
   const net = lines.reduce((sum, [, v]) => sum + v, 0)
 

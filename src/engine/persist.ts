@@ -77,7 +77,13 @@ function normalizePlayer(raw: unknown, expectedId: string): PlayerState {
     tradingHouses: finiteNumber(raw.tradingHouses, `${expectedId}.tradingHouses`),
     score: finiteNumber(raw.score, `${expectedId}.score`),
     reignYears: finiteNumber(raw.reignYears, `${expectedId}.reignYears`),
-    dead: Boolean(raw.dead)
+    dead: Boolean(raw.dead),
+    // Phase 18C. Tolerated-and-defaulted rather than required, exactly like
+    // buildings.dike above: a save written before military investment existed
+    // is still a valid save, and must load as "invested nothing" rather than
+    // being rejected.
+    trainingLevel: typeof raw.trainingLevel === 'number' && Number.isFinite(raw.trainingLevel) ? raw.trainingLevel : 0,
+    equipmentLevel: typeof raw.equipmentLevel === 'number' && Number.isFinite(raw.equipmentLevel) ? raw.equipmentLevel : 0
   }
   if (typeof raw.heir === 'string') player.heir = raw.heir
   return player

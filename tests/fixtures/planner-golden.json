@@ -38,7 +38,9 @@
       },
       {
         "type": "war",
-        "declare": false
+        "declare": false,
+        "trainingInvest": 0,
+        "equipmentInvest": 0
       }
     ],
     "expansionist": [
@@ -79,7 +81,9 @@
       },
       {
         "type": "war",
-        "declare": false
+        "declare": false,
+        "trainingInvest": 0,
+        "equipmentInvest": 0
       }
     ],
     "merchant": [
@@ -121,7 +125,9 @@
       },
       {
         "type": "war",
-        "declare": false
+        "declare": false,
+        "trainingInvest": 0,
+        "equipmentInvest": 0
       }
     ],
     "schemer": [
@@ -162,7 +168,9 @@
       },
       {
         "type": "war",
-        "declare": false
+        "declare": false,
+        "trainingInvest": 0,
+        "equipmentInvest": 0
       }
     ],
     "raider": [
@@ -204,7 +212,9 @@
       },
       {
         "type": "war",
-        "declare": false
+        "declare": false,
+        "trainingInvest": 0,
+        "equipmentInvest": 0
       }
     ]
   },
@@ -247,7 +257,9 @@
       },
       {
         "type": "war",
-        "declare": false
+        "declare": false,
+        "trainingInvest": 0,
+        "equipmentInvest": 0
       }
     ],
     "expansionist": [
@@ -288,7 +300,9 @@
       },
       {
         "type": "war",
-        "declare": false
+        "declare": false,
+        "trainingInvest": 0,
+        "equipmentInvest": 0
       }
     ],
     "merchant": [
@@ -329,7 +343,9 @@
       },
       {
         "type": "war",
-        "declare": false
+        "declare": false,
+        "trainingInvest": 0,
+        "equipmentInvest": 0
       }
     ],
     "schemer": [
@@ -370,7 +386,9 @@
       },
       {
         "type": "war",
-        "declare": false
+        "declare": false,
+        "trainingInvest": 0,
+        "equipmentInvest": 0
       }
     ],
     "raider": [
@@ -411,7 +429,9 @@
       },
       {
         "type": "war",
-        "declare": false
+        "declare": false,
+        "trainingInvest": 0,
+        "equipmentInvest": 0
       }
     ]
   }

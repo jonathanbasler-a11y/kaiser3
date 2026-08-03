@@ -16,6 +16,15 @@ export interface PlayerState {
   reignYears: number                // Years the current ruler/heir has held the throne (resets on succession)
   dead: boolean                    // True once the realm's population has collapsed to extinction (permanent — no heir can inherit nothing)
   heir?: string                    // The player ID that inherited on succession (currently always self — see docs/kaiser-research.md succession note; a DIFFERENT heir ID is a multiplayer/dynasty extension, deferred per CLAUDE.md)
+  // Phase 18C: standing military investment, multiplying war strength (see
+  // war.ts's militaryMultiplier). Optional for the same reason BuildingState's
+  // `dike` is — the ~18 PlayerState literals across tests/scripts would
+  // otherwise all need a mechanical edit for two new fields — and safe for the
+  // same reason: every read site treats them as `?? 0`, and both
+  // clonePlayerState() and persist.ts's normalizePlayer() coerce them to a
+  // real 0, so neither can silently drop out of a cloned or saved state.
+  trainingLevel?: number
+  equipmentLevel?: number
 }
 
 export interface LandHolding {
@@ -241,6 +250,12 @@ export interface WarDecision {
   declare: boolean                 // Declare war on target?
   targetPlayerId?: string
   alliesRequested?: string[]       // Whom to ask for military support
+  // Phase 18C: levels of training/equipment to BUY this year (not the running
+  // totals — those live on PlayerState, same relationship EspionageDecision's
+  // guardHire has to PlayerState.guards). Optional so existing WarDecision
+  // literals keep compiling.
+  trainingInvest?: number
+  equipmentInvest?: number
 }
 
 // Hand-written structural clone, replacing JSON.parse(JSON.stringify(state))
@@ -277,7 +292,9 @@ export function clonePlayerState(player: PlayerState): PlayerState {
     score: player.score,
     reignYears: player.reignYears,
     dead: player.dead,
-    heir: player.heir
+    heir: player.heir,
+    trainingLevel: player.trainingLevel ?? 0,
+    equipmentLevel: player.equipmentLevel ?? 0
   }
 }
 

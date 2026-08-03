@@ -16,6 +16,7 @@
 import economyData from '../../data/economy.json'
 import { SeededRng } from './rng.ts'
 import { PlayerState } from './state.ts'
+import { finiteOr } from './sanitize.ts'
 
 const WARFARE = economyData.warfare
 
@@ -27,11 +28,93 @@ const WARFARE = economyData.warfare
 // the exact odds the engine will roll, the same contract strikeSuccessProbability
 // already gives espionage.
 export function warStrength(player: PlayerState): number {
-  return (
+  const base =
     player.buildings.garrison * WARFARE.garrisonStrengthWeight +
     player.guards * WARFARE.guardStrengthWeight +
     (player.population.peasants / 1000) * WARFARE.levyStrengthPerThousandPeasants
+
+  // Phase 18C: training and equipment multiply the base rather than adding to
+  // it, so the investment is worth the same proportionally at every scale —
+  // see data/economy.json's _warfareDepthNote. A flat bonus would be decisive
+  // in year 5 and rounding error by year 50, which is exactly the shape that
+  // made the garrison stop differentiating anybody (_warfareTuningNote).
+  return base * militaryMultiplier(player)
+}
+
+// Exported so the UI can show what an investment is actually buying, rather
+// than the player having to infer it from a win-probability that moved.
+export function militaryMultiplier(player: PlayerState): number {
+  return 1
+    + (player.trainingLevel ?? 0) * WARFARE.trainingStrengthBonusPerLevel
+    + (player.equipmentLevel ?? 0) * WARFARE.equipmentStrengthBonusPerLevel
+}
+
+// THE win-probability formula — one definition, three callers (resolveWar
+// below, the AI's war pricing in src/ai/warAggression.ts, and the War tab's
+// risk indicator in src/ui/app.ts). It previously existed as three separate
+// copies of the same expression, which was survivable only while none of
+// them changed; adding the defender advantage is exactly the kind of edit
+// that would have silently left one copy behind, so they now share this.
+//
+// Takes pre-computed strengths rather than the two players because the
+// attacker's side includes allied contributions, which are not a property of
+// any single PlayerState.
+export function warWinProbability(attackerStrength: number, defenderStrength: number): number {
+  return attackerStrength / (
+    attackerStrength
+    + defenderStrength * WARFARE.defenderAdvantageMultiplier
+    + WARFARE.baseDefenceConstant
   )
+}
+
+export interface MilitaryInvestmentResult {
+  trainingBought: number
+  equipmentBought: number
+  spent: number
+}
+
+// Buys levels of training and equipment, clamped to affordability and to the
+// per-track level cap — the same forgiving treatment applyRecruitment() and
+// applyConstruction() already give an over-ambitious order, and the same
+// `finiteOr` boundary sanitization for the same reason: trainingLevel and
+// equipmentLevel are RUNNING TOTALS, so a NaN order must degrade to "buy
+// nothing" rather than poisoning the standing multiplier forever.
+export function applyMilitaryInvestment(
+  player: PlayerState,
+  trainingInvest: number,
+  equipmentInvest: number
+): MilitaryInvestmentResult {
+  let remaining = player.taler
+  const result: MilitaryInvestmentResult = { trainingBought: 0, equipmentBought: 0, spent: 0 }
+
+  const trainingRoom = Math.max(0, WARFARE.maxTrainingLevel - (player.trainingLevel ?? 0))
+  const affordableTraining = Math.floor(remaining / WARFARE.trainingCostPerLevel)
+  result.trainingBought = Math.max(0, Math.min(
+    Math.floor(finiteOr(trainingInvest, 0)), trainingRoom, affordableTraining
+  ))
+  remaining -= result.trainingBought * WARFARE.trainingCostPerLevel
+
+  const equipmentRoom = Math.max(0, WARFARE.maxEquipmentLevel - (player.equipmentLevel ?? 0))
+  const affordableEquipment = Math.floor(remaining / WARFARE.equipmentCostPerLevel)
+  result.equipmentBought = Math.max(0, Math.min(
+    Math.floor(finiteOr(equipmentInvest, 0)), equipmentRoom, affordableEquipment
+  ))
+  remaining -= result.equipmentBought * WARFARE.equipmentCostPerLevel
+
+  player.trainingLevel = (player.trainingLevel ?? 0) + result.trainingBought
+  player.equipmentLevel = (player.equipmentLevel ?? 0) + result.equipmentBought
+  result.spent = player.taler - remaining
+  player.taler = remaining
+
+  return result
+}
+
+// Standing cost of a drilled, well-equipped army — the same anti-snowball
+// shape guards and saboteurs already have (economy.json's _espionageNote): a
+// military edge is a recurring burden, never a bought-once advantage.
+export function militaryUpkeep(player: PlayerState): number {
+  return (player.trainingLevel ?? 0) * WARFARE.trainingUpkeepPerLevelPerYear
+    + (player.equipmentLevel ?? 0) * WARFARE.equipmentUpkeepPerLevelPerYear
 }
 
 // A simple, engine-local wealth/power proxy for alliance decisions. Deliberately
@@ -102,7 +185,7 @@ export function resolveWar(
   const attackerStrength = warStrength(attacker) + allyStrength
   const defenderStrength = warStrength(defender)
 
-  const probability = attackerStrength / (attackerStrength + defenderStrength + WARFARE.baseDefenceConstant)
+  const probability = warWinProbability(attackerStrength, defenderStrength)
   const attackerWon = rng.next() < probability
 
   const winner = attackerWon ? attacker : defender
