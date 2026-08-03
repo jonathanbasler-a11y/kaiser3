@@ -14,6 +14,7 @@
     "event-profile": "tsx scripts/event-profile.ts",
     "ai-bench": "tsx scripts/ai-bench.ts",
     "balance": "tsx scripts/balance.ts",
+    "hardening-measure": "tsx scripts/hardening-measure.ts",
     "gen-art": "tsx scripts/gen-art.ts",
     "verify-art": "tsx scripts/verify-art.ts"
   },

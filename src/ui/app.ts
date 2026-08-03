@@ -105,22 +105,48 @@ type Outcome =
 let session: Session | null = null
 let root: HTMLElement
 
-// Phase 18B: the game screen's spend/outcome preview panel refreshes on a
-// short interval rather than being hooked into every draft-mutating
-// onChange — most of those deliberately skip a full renderGame() (the
-// stepper widgets self-update their own displayed value for performance;
-// see dom.ts's stepper()), so hooking all of them would be invasive and
-// easy to miss one of. A poll is cheap here because previewYear() caches
-// the expensive part (rival AI planning) per real GameState object — a
-// tick only re-runs a single non-search advanceYear() pass.
-const PREVIEW_REFRESH_MS = 200
-let previewIntervalId: ReturnType<typeof setInterval> | null = null
+// Phase 18B: live spend/outcome preview. Phase B specified debounce after the
+// last draft edit (150–250ms); an earlier ship used a 5Hz setInterval poll that
+// re-ran cloneGameState + advanceYear even while the player sat idle reading a
+// tab. Debounce + a Proxy on the draft object catches every mutation (including
+// stepper onChange that deliberately skips renderGame) without hooking each
+// control by hand. Rival planYear stays cached by state identity in preview.ts.
+const PREVIEW_DEBOUNCE_MS = 200
+let previewDebounceId: ReturnType<typeof setTimeout> | null = null
+let previewPanelEl: HTMLElement | null = null
 
-function clearPreviewInterval(): void {
-  if (previewIntervalId !== null) {
-    clearInterval(previewIntervalId)
-    previewIntervalId = null
+function clearPreviewSchedule(): void {
+  if (previewDebounceId !== null) {
+    clearTimeout(previewDebounceId)
+    previewDebounceId = null
   }
+}
+
+function refreshPreviewNow(): void {
+  if (!session || !previewPanelEl) return
+  const preview = previewYear(session.state, HUMAN_ID, session.draft, session.rivals, session.difficulty)
+  updatePreviewPanel(previewPanelEl, preview)
+}
+
+function schedulePreviewRefresh(): void {
+  clearPreviewSchedule()
+  previewDebounceId = setTimeout(() => {
+    previewDebounceId = null
+    refreshPreviewNow()
+  }, PREVIEW_DEBOUNCE_MS)
+}
+
+// Any field write on the draft (steppers, sliders, war-target buttons, etc.)
+// schedules a preview recompute. Array/object fields are replaced wholesale in
+// this UI, so a property-set trap is enough — no deep Proxy needed.
+function trackDraft(draft: DecisionDraft): DecisionDraft {
+  return new Proxy(draft, {
+    set(target, prop, value) {
+      const result = Reflect.set(target, prop, value)
+      schedulePreviewRefresh()
+      return result
+    }
+  })
 }
 
 export function mount(container: HTMLElement): void {
@@ -213,7 +239,8 @@ function mountBugReport(): void {
 // ---------------------------------------------------------------------------
 
 function renderSetup(): void {
-  clearPreviewInterval()
+  clearPreviewSchedule()
+  previewPanelEl = null
   clear(root)
   const personalities = getPersonalities()
   const difficulties = getDifficultyPresets()
@@ -309,7 +336,7 @@ function startGame(opponentCount: number, maxYears: number, difficultyId: string
     rivals,
     maxYears,
     difficulty,
-    draft: defaultDraft(state.players[HUMAN_ID]),
+    draft: trackDraft(defaultDraft(state.players[HUMAN_ID])),
     activeTab: 'overview',
     yearReport: null
   }
@@ -336,7 +363,7 @@ function resumeFromSave(payload: SavePayload): void {
     rivals,
     maxYears: payload.maxYears,
     difficulty: getDifficultyPreset(payload.difficultyId),
-    draft: defaultDraft(payload.game.players[HUMAN_ID]),
+    draft: trackDraft(defaultDraft(payload.game.players[HUMAN_ID])),
     activeTab: 'overview',
     yearReport: null
   }
@@ -514,7 +541,7 @@ function openSaveModal(): void {
 
 function renderGame(): void {
   if (!session) return
-  clearPreviewInterval()
+  clearPreviewSchedule()
   clear(root)
   const { state } = session
   const player = state.players[HUMAN_ID]
@@ -564,10 +591,10 @@ function renderGame(): void {
     renderSetup()
   })
 
-  // Phase 18B: live spend/outcome preview, refreshed on PREVIEW_REFRESH_MS —
-  // see the comment on that constant for why this is a poll rather than a
-  // hook on every draft edit.
+  // Phase 18B: live spend/outcome preview — immediate paint on render, then
+  // debounced refreshes only when the draft mutates (see trackDraft).
   const previewPanel = el('div', { class: 'preview-panel' })
+  previewPanelEl = previewPanel
 
   root.append(
     el('div', { class: 'screen' },
@@ -583,13 +610,8 @@ function renderGame(): void {
   drawBanner(banner, undefined, getRankName(player.rank))
   renderTab()
 
-  const refreshPreview = () => {
-    if (!session) return
-    const preview = previewYear(session.state, HUMAN_ID, session.draft, session.rivals, session.difficulty)
-    updatePreviewPanel(previewPanel, preview)
-  }
-  refreshPreview()
-  previewIntervalId = setInterval(refreshPreview, PREVIEW_REFRESH_MS)
+  clearPreviewSchedule()
+  refreshPreviewNow()
 }
 
 function updatePreviewPanel(panel: HTMLElement, preview: YearPreview | null): void {
@@ -1334,7 +1356,7 @@ function resolveYear(): void {
     }
   }
 
-  session.draft = defaultDraft(result.state.players[HUMAN_ID])
+  session.draft = trackDraft(defaultDraft(result.state.players[HUMAN_ID]))
   renderYearReport()
 }
 
@@ -1495,7 +1517,8 @@ function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement
 
 function renderYearReport(): void {
   if (!session?.yearReport) return
-  clearPreviewInterval()
+  clearPreviewSchedule()
+  previewPanelEl = null
   clear(root)
   const { entries, outcome, sceneId } = session.yearReport
   const player = session.state.players[HUMAN_ID]
