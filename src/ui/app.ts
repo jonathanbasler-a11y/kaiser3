@@ -5,16 +5,20 @@
 
 import buildingsData from '../../data/buildings.json'
 import economyData from '../../data/economy.json'
-import { GameState, Decision, Chronicle, PlayerState, EspionageMode } from '../engine/state.ts'
+import eventsData from '../../data/events.json'
+import { GameState, Decision, Chronicle, PlayerState, EspionageMode, GrainDecision } from '../engine/state.ts'
 import { eventLossMagnitudeText } from '../engine/events/events.ts'
 import { createStarterState, applyStartingMultiplier } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
 import { getRankName, isFeatureUnlocked, getNextRank, groupProgress, getAllRanks, RankRequirement } from '../engine/ranks.ts'
+import { warStrength } from '../engine/war.ts'
 import { getPersonalities, Personality } from '../ai/personalities.ts'
 import { getDifficultyPresets, getDifficultyPreset, DEFAULT_DIFFICULTY_ID, DifficultyPreset } from '../ai/difficulty.ts'
 import { planYear } from '../ai/planner.ts'
 import { compareStanding } from '../ai/sim.ts'
-import { annualGrainRequirement, storageCapacity, grainBuybackPrice, laborGatedFarmland } from '../engine/economy.ts'
+import { annualGrainRequirement, storageCapacity, grainBuybackPrice, laborGatedFarmland, resolveFeeding } from '../engine/economy.ts'
+import { applyPopulationDynamics } from '../engine/population.ts'
+import { SeededRng } from '../engine/rng.ts'
 import { el, clear, stepper, sliderField, segmented, statTile, tooltip } from './dom.ts'
 import { DecisionDraft, defaultDraft, draftToDecisions, rivalOptions, affordableHectares, maxSellableGrain, maxAffordableGrainBuy, yearsOfFoodLabel } from './decisions.ts'
 import { drawBanner } from './render.ts'
@@ -59,6 +63,7 @@ const PRODUCTION = buildingsData.production
 const MITIGATION = buildingsData.mitigation
 const COMMERCE = buildingsData.commerce
 const ESPIONAGE = economyData.espionage
+const WARFARE = economyData.warfare
 
 // "How much does what cost? — need descriptors" (bug report #9). Every build
 // control's cost was previously shown nowhere — a player could only learn it
@@ -739,12 +744,53 @@ function renderOverviewTab(): HTMLElement {
   )
 }
 
+// A7: expected (weather-averaged, no RNG) harvest yield for the clarity
+// breakdown below — display-only, reuses the same laborGatedFarmland/
+// baseYieldPerHectare terms calculateHarvest() rolls for real, just without
+// the weather draw and jitter, so a player can see roughly what's coming
+// without the number claiming false precision.
+function expectedHarvestYield(player: GameState['players'][string]): number {
+  const bands = economyData.harvest.weatherBands as Array<{ multiplier: number; weight: number }>
+  const totalWeight = bands.reduce((sum, b) => sum + b.weight, 0)
+  const avgWeatherMultiplier = bands.reduce((sum, b) => sum + b.multiplier * b.weight, 0) / totalWeight
+  return laborGatedFarmland(player.land, player.population) * economyData.harvest.baseYieldPerHectare * avgWeatherMultiplier
+}
+
+// A6: projected next-year population under the currently drafted feed level.
+// Reuses the real applyPopulationDynamics()/resolveFeeding() formulas rather
+// than restating them — a fixed seed keeps the immigration draw's random
+// component stable across re-renders (this is a read-only estimate, never
+// fed back into engine state).
+const POPULATION_PREVIEW_SEED = 1
+function projectedNextYearPopulation(player: GameState['players'][string], draft: DecisionDraft): number {
+  const grainDecision: GrainDecision = {
+    type: 'grain',
+    feedLevel: draft.feedLevel,
+    customPercentage: draft.feedLevel === 'custom' ? draft.customPercentage : undefined
+  }
+  const feeding = resolveFeeding(grainDecision, player.population, player.grainStock)
+  const result = applyPopulationDynamics(player.population, feeding, new SeededRng(POPULATION_PREVIEW_SEED))
+  return result.newPopulation.peasants
+}
+
 function renderGrainTab(player: GameState['players'][string], state: GameState): HTMLElement {
   const draft = session!.draft
   const container = el('div', {})
 
+  const demand = annualGrainRequirement(player.population)
+  const projectedHarvest = expectedHarvestYield(player)
+  const available = player.grainStock + projectedHarvest
+  const surplus = available - demand
+  container.appendChild(el('div', { class: 'stat-grid' },
+    statTile('Demand this year', `${demand.toFixed(0)}`),
+    statTile('Available (stock + expected harvest)', `${available.toFixed(0)}`),
+    statTile(surplus >= 0 ? 'Surplus' : 'Deficit', `${Math.abs(surplus).toFixed(0)}`, surplus >= 0 ? 'good' : 'bad')
+  ))
   container.appendChild(el('p', { class: 'help-text' },
-    `Storage: ${player.grainStock.toFixed(0)} of ${storageCapacity(player.population, player.buildings.granary).toFixed(0)} — needs ${annualGrainRequirement(player.population).toFixed(0)}/year`
+    `Storage: ${player.grainStock.toFixed(0)} of ${storageCapacity(player.population, player.buildings.granary).toFixed(0)} capacity. Expected harvest ${projectedHarvest.toFixed(0)} (weather-averaged estimate, not a guarantee).`
+  ))
+  container.appendChild(el('p', { class: 'help-text' },
+    `Projected population next year at this feed level: ${projectedNextYearPopulation(player, draft).toFixed(0)} (currently ${player.population.peasants.toFixed(0)}).`
   ))
 
   container.appendChild(segmented<DecisionDraft['feedLevel']>({
@@ -852,6 +898,23 @@ function buildRow(assetId: string, label: string, control: HTMLElement): HTMLEle
   )
 }
 
+// A3: real numbers for a mitigation building's tooltip, pulled straight from
+// data/events.json rather than restated by hand — a building can mitigate
+// more than one event (garrison: banditry + revolt; well: fire + drought),
+// so this reports each affected event's actual probabilityReduction/
+// severityReduction rather than one qualitative "reduces chance AND
+// severity" line for all of them.
+function mitigationDetail(building: string): string {
+  const events = eventsData.events as Array<{
+    name: string
+    mitigation: { building: string; probabilityReduction: number; severityReduction: number }
+  }>
+  return events
+    .filter((e) => e.mitigation.building === building)
+    .map((e) => `${e.name} risk −${Math.round(e.mitigation.probabilityReduction * 100)}%, severity −${Math.round(e.mitigation.severityReduction * 100)}%`)
+    .join('; ')
+}
+
 // A one-time mitigation building (well/hospital/granary/garrison — max 1, never
 // removed) shows a static "Built ✓" badge once owned instead of a stepper whose
 // value resets to 0 every year. That reset is correct (it's a fresh order, not
@@ -935,15 +998,15 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
   container.append(
     el('h3', {}, 'Mitigation'),
     mitigationRow('well', `Well — fire/drought — ${costSuffix(MITIGATION.well.cost, { upkeep: MITIGATION.well.upkeepPerYear })}`, player.buildings.well > 0, draft.wellBuild, (v) => { draft.wellBuild = v },
-      'Reduces the chance AND severity of fire and drought events. One-time build, max 1, never destroyed.'),
+      `${mitigationDetail('well')}. One-time build, max 1, never destroyed.`),
     mitigationRow('hospital', `Hospital — plague — ${costSuffix(MITIGATION.hospital.cost, { upkeep: MITIGATION.hospital.upkeepPerYear })}`, player.buildings.hospital > 0, draft.hospitalBuild, (v) => { draft.hospitalBuild = v },
-      `Reduces the chance AND severity of plague. Requires ${MITIGATION.hospital.requiresMinPopulation.toLocaleString('en-US')} population to build. One-time build, max 1, never destroyed.`),
+      `${mitigationDetail('hospital')}. Requires ${MITIGATION.hospital.requiresMinPopulation.toLocaleString('en-US')} population to build. One-time build, max 1, never destroyed.`),
     mitigationRow('granary', `Granary — famine — ${costSuffix(MITIGATION.granary.cost, { upkeep: MITIGATION.granary.upkeepPerYear })}`, player.buildings.granary > 0, draft.granaryBuild, (v) => { draft.granaryBuild = v },
-      'Reduces the chance AND severity of famine, and raises grain storage capacity (Grain tab). One-time build, max 1, never destroyed.'),
+      `${mitigationDetail('granary')}, and raises grain storage capacity (Grain tab). One-time build, max 1, never destroyed.`),
     mitigationRow('garrison', `Garrison — banditry/revolt/war defence — ${costSuffix(MITIGATION.garrison.cost, { upkeep: MITIGATION.garrison.upkeepPerYear })}`, player.buildings.garrison > 0, draft.garrisonBuild, (v) => { draft.garrisonBuild = v },
-      'Reduces the chance AND severity of banditry and revolt, and adds defensive strength if a rival declares war on you. One-time build, max 1 — but a lost war can destroy it.'),
+      `${mitigationDetail('garrison')}, and adds defensive strength if a rival declares war on you. One-time build, max 1 — but a lost war can destroy it.`),
     mitigationRow('dike', `Dike — flood — ${costSuffix(MITIGATION.dike.cost, { upkeep: MITIGATION.dike.upkeepPerYear })}`, (player.buildings.dike ?? 0) > 0, draft.dikeBuild, (v) => { draft.dikeBuild = v },
-      'Reduces the chance AND severity of flood. Only protects against flood, not drought — build a well too if you get both. One-time build, max 1, never destroyed.')
+      `${mitigationDetail('dike')}. Only protects against flood, not drought — build a well too if you get both. One-time build, max 1, never destroyed.`)
   )
 
   if (isFeatureUnlocked(player.rank, 'tradingHouses')) {
@@ -954,6 +1017,20 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
         value: draft.tradingHouseBuild, min: 0, max: 3, step: 1, onChange: (v) => { draft.tradingHouseBuild = v },
         tooltip: 'The Commerce path to your next rank (Realm tab) for Archbishop and above. Leased from the Kaiser, not built on your own land — pays an ongoing tribute proportional to your total wealth, which grows as you get richer.'
       }))
+    )
+  } else {
+    // A4: shown-but-locked, same treatment as the palace/cathedral land gates
+    // above, so trading houses read as "not yet" rather than "doesn't exist."
+    const unlockRank = getAllRanks().find((r) => r.unlockedFeature === 'tradingHouses')
+    container.append(
+      el('h3', {}, 'Commerce'),
+      buildRow('trading_house', 'Trading House', stepper({
+        label: `Trading houses (0/3) — ${costSuffix(COMMERCE.tradingHouse.cost, { income: COMMERCE.tradingHouse.incomePerYear })}, plus tribute on your wealth`,
+        value: 0, min: 0, max: 0, step: 1, onChange: () => {},
+        tooltip: 'The Commerce path to your next rank (Realm tab) for Archbishop and above. Leased from the Kaiser, not built on your own land — pays an ongoing tribute proportional to your total wealth, which grows as you get richer.'
+      })),
+      el('p', { class: 'help-text bad' },
+        `Unlocks at ${unlockRank ? getRankName(unlockRank.id) : 'a higher rank'} (currently ${getRankName(player.rank)}).`)
     )
   }
 
@@ -1058,6 +1135,25 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
     targetRow.appendChild(btn)
   }
   container.appendChild(targetRow)
+
+  // A5: win-probability line, reusing warStrength() and the exact
+  // baseDefenceConstant resolveWar() will roll — never a separate estimate
+  // that could drift from what actually happens. Allies are requested, not
+  // guaranteed (resolveAllianceRequests is probabilistic), so this shows the
+  // baseline odds with no allies and notes that a join would only help.
+  if (draft.warTargetPlayerId) {
+    const attacker = state.players[HUMAN_ID]
+    const defender = state.players[draft.warTargetPlayerId]
+    if (attacker && defender) {
+      const attackerStrength = warStrength(attacker)
+      const defenderStrength = warStrength(defender)
+      const winProbability = attackerStrength / (attackerStrength + defenderStrength + WARFARE.baseDefenceConstant)
+      const hasAllyRequests = draft.warAlliesRequested.length > 0
+      container.appendChild(el('p', { class: `help-text ${winProbability >= 0.5 ? 'good' : 'bad'}` },
+        `Estimated win chance: ${Math.round(winProbability * 100)}%${hasAllyRequests ? ' (before any requested allies join — joining only helps)' : ''} — your strength ${attackerStrength.toFixed(0)} vs. their ${defenderStrength.toFixed(0)}.`
+      ))
+    }
+  }
 
   if (draft.warTargetPlayerId) {
     const potentialAllies = rivals.filter((r) => r.id !== draft.warTargetPlayerId)
@@ -1215,6 +1311,10 @@ function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement
     entries.push(el('div', { class: 'log-entry' }, `${report.grainOverflowLost.toFixed(0)} grain rotted — the barns were full.`))
   }
   entries.push(buildIncomeBreakdown(report))
+
+  for (const shortfall of report.shortfalls) {
+    entries.push(el('div', { class: 'log-entry bad' }, shortfall))
+  }
 
   for (const event of report.events) {
     const magnitude = eventLossMagnitudeText(event)

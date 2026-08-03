@@ -47,6 +47,8 @@ export function tooltip(text: string): HTMLElement {
     closeOpenTooltip?.()
     if (wasHidden) {
       bubble.classList.remove('hidden')
+      const rect = bubble.getBoundingClientRect()
+      bubble.classList.toggle('align-right', rect.right > window.innerWidth)
       closeOpenTooltip = close
     } else {
       closeOpenTooltip = null
