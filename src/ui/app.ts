@@ -1441,7 +1441,7 @@ function buildIncomeBreakdown(report: Chronicle['playerReports'][string]): HTMLE
     pair('Grain trade', report.grainTradeIncome),
     pair('Upkeep (buildings, secret service, army, tribute)', -report.upkeepCost)
   ].filter(([, v]) => Math.abs(v) >= 1)
-  // Round each line first so displayed Net equals the sum of displayed lines.
+  // Round each line first so displayed Operating net equals the sum of displayed lines.
   const shown = lines.map(([label, v]) => [label, Math.round(v)] as [string, number])
   const net = shown.reduce((sum, [, v]) => sum + v, 0)
 
@@ -1453,9 +1453,14 @@ function buildIncomeBreakdown(report: Chronicle['playerReports'][string]): HTMLE
         el('span', { class: v >= 0 ? 'good' : 'bad' }, `${v >= 0 ? '+' : ''}${v}`)
       )
     ),
-    el('div', { class: 'row between', style: 'border-top:1px solid var(--border);padding-top:6px;margin-top:6px;font-weight:600' } as never,
-      el('span', {}, 'Net'),
-      el('span', { class: net >= 0 ? 'good' : 'bad' }, `${net >= 0 ? '+' : ''}${net}`)
+    el('div', { style: 'border-top:1px solid var(--border);padding-top:6px;margin-top:6px' } as never,
+      el('div', { class: 'row between', style: 'font-weight:600' } as never,
+        el('span', {}, 'Operating net'),
+        el('span', { class: net >= 0 ? 'good' : 'bad' }, `${net >= 0 ? '+' : ''}${net}`)
+      ),
+      el('p', { class: 'help-text' },
+        'Excludes land, builds, recruits, army spend, events, raids, and war.'
+      )
     )
   )
 }
