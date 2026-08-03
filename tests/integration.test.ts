@@ -108,3 +108,81 @@ describe('20-year integration run', () => {
     expect(state.players.player1.population.unrest).toBeLessThan(50)
   })
 })
+
+describe('same-turn spending order (bug report #27)', () => {
+  it('explains WHY a build fell short when the player also queued a same-turn grain sale', () => {
+    // Construction (step 3) settles before the grain market (step 6), so a
+    // grain sale queued this turn cannot fund a build queued the same turn —
+    // this is the exact "sold grain, but it didn't build" report. Treasury
+    // (3,000) affords only 1 of 3 requested markets (2,000 each) at step 3;
+    // the queued sale of 1,000 grain (well under the ~4,200 surplus this
+    // stock leaves after feeding 100 peasants at 8/peasant) never counted
+    // toward it.
+    const shortfallPlayer = {
+      id: 'player1',
+      name: 'P1',
+      taler: 3000,
+      land: { farmland: 2000, buildingLand: 0 },
+      grainStock: 5000,
+      population: { peasants: 100, unrest: 0 },
+      buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 0 },
+      rank: 0, guards: 0, saboteurs: 0, tradingHouses: 0, score: 0, reignYears: 0, dead: false
+    }
+
+    const state: GameState = {
+      year: 0,
+      players: { player1: shortfallPlayer, player2: (twoPlayerStarterState()).players.player2 },
+      activePlayerIds: ['player1', 'player2'],
+      kaizerTradePrices: { corn: 40, farmland: 30, buildingLand: 50 }
+    }
+
+    const decisions: Record<string, Decision[]> = {
+      player1: [
+        { type: 'grain', feedLevel: 'required', sellGrain: 1000 },
+        { type: 'construction', marketBuild: 3, millBuild: 0, palaceStages: 0, cathedralBuild: false, wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0, tradingHouseBuild: 0 }
+      ],
+      player2: noOpDecisions().player2
+    }
+
+    const result = advanceYear(state, decisions, 1)
+    const shortfalls = result.chronicle.playerReports.player1.shortfalls
+
+    expect(shortfalls.some((s) => s.includes('markets'))).toBe(true)
+    expect(shortfalls.some((s) => s.includes('grain sale settles after construction'))).toBe(true)
+    // The engine actually did build the one market it could afford — the
+    // note explains a shortfall that already happened, it doesn't change it.
+    expect(result.state.players.player1.buildings.markets).toBe(1)
+  })
+
+  it('does not add the grain-sale note when there was no construction shortfall to explain', () => {
+    const wellFundedPlayer = {
+      id: 'player1',
+      name: 'P1',
+      taler: 10000,
+      land: { farmland: 2000, buildingLand: 0 },
+      grainStock: 5000,
+      population: { peasants: 100, unrest: 0 },
+      buildings: { markets: 0, mills: 0, palace: 0, cathedral: 0, hospital: 0, well: 0, granary: 0, garrison: 0 },
+      rank: 0, guards: 0, saboteurs: 0, tradingHouses: 0, score: 0, reignYears: 0, dead: false
+    }
+
+    const state: GameState = {
+      year: 0,
+      players: { player1: wellFundedPlayer, player2: (twoPlayerStarterState()).players.player2 },
+      activePlayerIds: ['player1', 'player2'],
+      kaizerTradePrices: { corn: 40, farmland: 30, buildingLand: 50 }
+    }
+
+    const decisions: Record<string, Decision[]> = {
+      player1: [
+        { type: 'grain', feedLevel: 'required', sellGrain: 1000 },
+        { type: 'construction', marketBuild: 1, millBuild: 0, palaceStages: 0, cathedralBuild: false, wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0, tradingHouseBuild: 0 }
+      ],
+      player2: noOpDecisions().player2
+    }
+
+    const result = advanceYear(state, decisions, 1)
+    const shortfalls = result.chronicle.playerReports.player1.shortfalls
+    expect(shortfalls.some((s) => s.includes('grain sale settles after construction'))).toBe(false)
+  })
+})

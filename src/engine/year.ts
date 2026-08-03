@@ -190,6 +190,7 @@ export function advanceYear(
     player.taler = constructionResult.newTaler
     player.tradingHouses = constructionResult.newTradingHouses
 
+    const shortfallsBeforeConstruction = report.shortfalls.length
     noteShortfall(report, 'markets', constructionDecision.marketBuild, player.buildings.markets - buildingsBeforeConstruction.markets, talerBeforeConstruction)
     noteShortfall(report, 'mills', constructionDecision.millBuild, player.buildings.mills - buildingsBeforeConstruction.mills, talerBeforeConstruction)
     noteShortfall(report, 'hospitals', constructionDecision.hospitalBuild, player.buildings.hospital - buildingsBeforeConstruction.hospital, talerBeforeConstruction)
@@ -202,6 +203,22 @@ export function advanceYear(
       noteShortfall(report, 'cathedral', 1, player.buildings.cathedral - buildingsBeforeConstruction.cathedral, talerBeforeConstruction)
     }
     noteShortfall(report, 'trading houses', constructionDecision.tradingHouseBuild ?? 0, player.tradingHouses - tradingHousesBeforeConstruction, talerBeforeConstruction)
+
+    // Bug report #27 ("I sold a lot of grain but it did not build"): the
+    // grain market doesn't settle until step 6, AFTER construction (step 3),
+    // deliberately — see step 6's own comment. That means a same-turn grain
+    // sale can never fund a same-turn build; reordering the pipeline is a
+    // bigger, riskier change (every step number in this file's tests is tied
+    // to the current order), so this makes the OUTCOME legible instead: if a
+    // construction shortfall just happened and this turn also queued a grain
+    // sale, say so explicitly rather than leaving the player to infer it from
+    // a treasury number alone.
+    const queuedGrainSale = findDecision<GrainDecision>(playerDecisions, 'grain')?.sellGrain ?? 0
+    if (report.shortfalls.length > shortfallsBeforeConstruction && queuedGrainSale > 0) {
+      report.shortfalls.push(
+        `This turn's grain sale settles after construction, so its proceeds didn't count toward the build above — queue the sale a turn ahead if you're relying on it to fund one.`
+      )
+    }
 
     // 4. Harvest (labor-gated productivity, weather band, spoilage, storage cap)
     const harvest = calculateHarvest(

@@ -839,7 +839,23 @@ function populationProjectionText(player: GameState['players'][string], draft: D
   }
   const { before, after, delta } = roundedDelta(preview.populationBefore, preview.populationAfter)
   const deltaText = `${delta >= 0 ? '+' : ''}${delta}`
-  return `Projected population next year at this feed level: ${after} (currently ${before}; ${deltaText}). Same full-year estimate as the footer — includes harvest, feeding, and events.`
+  const breakdown = populationBreakdownText(preview.births, preview.deaths, preview.immigration, preview.emigration)
+  return `Projected population next year at this feed level: ${after} (currently ${before}; ${deltaText}${breakdown ? ` — ${breakdown}` : ''}). Same full-year estimate as the footer — includes harvest, feeding, and events.`
+}
+
+// Bug report #28 ("Population growth — unclear where growth and shrinking is
+// coming from — should be seen at end turn stats and during turn in
+// forecast"): births/deaths/migration were already computed every year
+// (PlayerChronicle) but only emigration ever reached the UI, and only above a
+// threshold. This is the single source both the forecast above and the
+// year-end report below draw from, so the two can't disagree.
+function populationBreakdownText(births: number, deaths: number, immigration: number, emigration: number): string {
+  const parts: string[] = []
+  if (births > 0) parts.push(`+${births.toFixed(0)} born`)
+  if (deaths > 0) parts.push(`−${deaths.toFixed(0)} died`)
+  if (immigration > 0) parts.push(`+${immigration.toFixed(0)} immigrated`)
+  if (emigration > 0) parts.push(`−${emigration.toFixed(0)} emigrated`)
+  return parts.join(', ')
 }
 
 /** War-tab display attacker from previewYear's post-spend military snapshot. */
@@ -1426,7 +1442,18 @@ function resolveYear(): void {
     }
   }
 
-  session.draft = trackDraft(defaultDraft(result.state.players[HUMAN_ID]))
+  // Bug report #29 ("Tax — goes back to default every turn"): defaultDraft()
+  // resets EVERYTHING for the new turn, which is correct for the one-shot
+  // orders (land, construction, recruitment, grain trade) but wrong for tax —
+  // that's a standing policy, not a per-turn order, so a rate the player set
+  // deliberately should hold until they change it again, not silently revert.
+  const previousTax = {
+    vat: session.draft.vat,
+    incomeTax: session.draft.incomeTax,
+    tariff: session.draft.tariff,
+    justiceGraft: session.draft.justiceGraft
+  }
+  session.draft = trackDraft({ ...defaultDraft(result.state.players[HUMAN_ID]), ...previousTax })
   renderYearReport()
 }
 
@@ -1582,8 +1609,14 @@ function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement
   if (report.rankPromoted) {
     entries.push(el('div', { class: 'log-entry good' }, `Promoted to ${getRankName(report.newRank!)}!`))
   }
-  if (report.emigration > 1) {
-    entries.push(el('div', { class: 'log-entry bad' }, `${report.emigration.toFixed(0)} peasants emigrated — unrest is taking its toll.`))
+  const popBreakdown = populationBreakdownText(report.births, report.deaths, report.immigration, report.emigration)
+  if (popBreakdown) {
+    const net = report.births - report.deaths + report.immigration - report.emigration
+    const tone = report.emigration > 1 ? 'bad' : undefined
+    entries.push(el('div', { class: tone ? `log-entry ${tone}` : 'log-entry' },
+      `Population: ${popBreakdown} (net ${net >= 0 ? '+' : ''}${net.toFixed(0)}).`
+      + (report.emigration > 1 ? ' Unrest is taking its toll.' : '')
+    ))
   }
 
   if (entries.length === 0) {
