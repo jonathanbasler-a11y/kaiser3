@@ -16,3 +16,6 @@ coverage/
 
 .vercel
 .env*
+
+.superpowers/
+
