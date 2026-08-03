@@ -130,6 +130,12 @@ export interface PlayerChronicle {
   // no heir, no continuation).
   succession: boolean
   extinct: boolean
+  // A2: plain-language notices when a queued construction/recruitment order
+  // couldn't fully execute (usually because an earlier decision this same
+  // year — typically land trading — already spent the treasury). Surfaces
+  // the "I built it then it vanished" bug's real cause (it was never built)
+  // instead of leaving it silent.
+  shortfalls: string[]
 }
 
 // The events shipped in data/events.json. Flood and drought (F6) are

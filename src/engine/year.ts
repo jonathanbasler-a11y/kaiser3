@@ -23,6 +23,20 @@ function findDecision<T extends Decision>(decisions: Decision[], type: T['type']
   return decisions.find((d) => d.type === type) as T | undefined
 }
 
+// A2: records a plain-language notice whenever a queued order (construction,
+// recruitment) got less than requested — most commonly because an earlier
+// decision this same year (typically land trading) already spent the
+// treasury before this step ran. `talerAtStep` is the treasury balance at
+// the moment this step executed, so the report explains itself rather than
+// just reporting a silent gap.
+function noteShortfall(report: PlayerChronicle, label: string, requested: number, actual: number, talerAtStep: number): void {
+  if (requested > actual) {
+    report.shortfalls.push(
+      `Wanted ${requested} ${label}, only ${actual} built (had ${Math.round(talerAtStep)} Taler on hand when this step ran).`
+    )
+  }
+}
+
 const DEFAULT_GRAIN_DECISION: GrainDecision = { type: 'grain', feedLevel: 'required' }
 const DEFAULT_TAX_DECISION: TaxDecision = { type: 'tax', vat: 10, incomeTax: 10, tariff: 5, justiceGraft: 0 }
 const DEFAULT_CONSTRUCTION_DECISION: ConstructionDecision = {
@@ -117,7 +131,8 @@ export function advanceYear(
       events: [],
       rankPromoted: false,
       succession: false,
-      extinct: false
+      extinct: false,
+      shortfalls: []
     }
 
     const unrestAtYearStart = player.population.unrest
@@ -136,17 +151,36 @@ export function advanceYear(
     //    compete for the same treasury in a fixed, predictable order.
     const espionageDecision = findDecision<EspionageDecision>(playerDecisions, 'espionage')
     if (espionageDecision) {
-      applyRecruitment(player, espionageDecision.guardHire, espionageDecision.saboteurHire)
+      const talerBeforeRecruitment = player.taler
+      const recruitResult = applyRecruitment(player, espionageDecision.guardHire, espionageDecision.saboteurHire)
+      noteShortfall(report, 'guards', espionageDecision.guardHire, recruitResult.guardsHired, talerBeforeRecruitment)
+      noteShortfall(report, 'saboteurs', espionageDecision.saboteurHire, recruitResult.saboteursHired, talerBeforeRecruitment)
     }
 
     // 3. Construction
     const constructionDecision = findDecision<ConstructionDecision>(playerDecisions, 'construction') ?? DEFAULT_CONSTRUCTION_DECISION
+    const buildingsBeforeConstruction = { ...player.buildings }
+    const tradingHousesBeforeConstruction = player.tradingHouses
+    const talerBeforeConstruction = player.taler
     const constructionResult = applyConstruction(
       player.land, player.population, player.buildings, player.taler, player.rank, player.tradingHouses, constructionDecision
     )
     player.buildings = constructionResult.newBuildings
     player.taler = constructionResult.newTaler
     player.tradingHouses = constructionResult.newTradingHouses
+
+    noteShortfall(report, 'markets', constructionDecision.marketBuild, player.buildings.markets - buildingsBeforeConstruction.markets, talerBeforeConstruction)
+    noteShortfall(report, 'mills', constructionDecision.millBuild, player.buildings.mills - buildingsBeforeConstruction.mills, talerBeforeConstruction)
+    noteShortfall(report, 'hospitals', constructionDecision.hospitalBuild, player.buildings.hospital - buildingsBeforeConstruction.hospital, talerBeforeConstruction)
+    noteShortfall(report, 'wells', constructionDecision.wellBuild, player.buildings.well - buildingsBeforeConstruction.well, talerBeforeConstruction)
+    noteShortfall(report, 'granaries', constructionDecision.granaryBuild, player.buildings.granary - buildingsBeforeConstruction.granary, talerBeforeConstruction)
+    noteShortfall(report, 'garrisons', constructionDecision.garrisonBuild, player.buildings.garrison - buildingsBeforeConstruction.garrison, talerBeforeConstruction)
+    noteShortfall(report, 'dikes', constructionDecision.dikeBuild ?? 0, (player.buildings.dike ?? 0) - (buildingsBeforeConstruction.dike ?? 0), talerBeforeConstruction)
+    noteShortfall(report, 'palace stages', constructionDecision.palaceStages, player.buildings.palace - buildingsBeforeConstruction.palace, talerBeforeConstruction)
+    if (constructionDecision.cathedralBuild && buildingsBeforeConstruction.cathedral === 0) {
+      noteShortfall(report, 'cathedral', 1, player.buildings.cathedral - buildingsBeforeConstruction.cathedral, talerBeforeConstruction)
+    }
+    noteShortfall(report, 'trading houses', constructionDecision.tradingHouseBuild ?? 0, player.tradingHouses - tradingHousesBeforeConstruction, talerBeforeConstruction)
 
     // 4. Harvest (labor-gated productivity, weather band, spoilage, storage cap)
     const harvest = calculateHarvest(
