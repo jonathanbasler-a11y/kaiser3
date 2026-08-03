@@ -232,6 +232,18 @@ input[type="range"] {
   gap: 8px;
 }
 
+/* Phase 18B: live spend/outcome preview, sticky-footer's first child — see
+   src/ui/preview.ts. Empty (no border/background) when there's nothing to
+   preview yet, so it never flashes an empty box before the first tick. */
+.preview-panel:empty { display: none; }
+.preview-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: var(--bg-panel-raised);
+}
+.preview-panel .preview-line { margin: 2px 0; }
+
 .rival-list { display: flex; flex-direction: column; gap: 6px; }
 .rival-row {
   display: flex;

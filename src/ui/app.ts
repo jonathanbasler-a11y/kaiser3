@@ -21,6 +21,7 @@ import { applyPopulationDynamics } from '../engine/population.ts'
 import { SeededRng } from '../engine/rng.ts'
 import { el, clear, stepper, sliderField, segmented, statTile, tooltip } from './dom.ts'
 import { DecisionDraft, defaultDraft, draftToDecisions, rivalOptions, affordableHectares, maxSellableGrain, maxAffordableGrainBuy, yearsOfFoodLabel } from './decisions.ts'
+import { previewYear, YearPreview } from './preview.ts'
 import { drawBanner } from './render.ts'
 import { spriteImg } from './spriteLoader.ts'
 import { SavePayload } from '../engine/persist.ts'
@@ -103,6 +104,24 @@ type Outcome =
 
 let session: Session | null = null
 let root: HTMLElement
+
+// Phase 18B: the game screen's spend/outcome preview panel refreshes on a
+// short interval rather than being hooked into every draft-mutating
+// onChange — most of those deliberately skip a full renderGame() (the
+// stepper widgets self-update their own displayed value for performance;
+// see dom.ts's stepper()), so hooking all of them would be invasive and
+// easy to miss one of. A poll is cheap here because previewYear() caches
+// the expensive part (rival AI planning) per real GameState object — a
+// tick only re-runs a single non-search advanceYear() pass.
+const PREVIEW_REFRESH_MS = 200
+let previewIntervalId: ReturnType<typeof setInterval> | null = null
+
+function clearPreviewInterval(): void {
+  if (previewIntervalId !== null) {
+    clearInterval(previewIntervalId)
+    previewIntervalId = null
+  }
+}
 
 export function mount(container: HTMLElement): void {
   root = container
@@ -194,6 +213,7 @@ function mountBugReport(): void {
 // ---------------------------------------------------------------------------
 
 function renderSetup(): void {
+  clearPreviewInterval()
   clear(root)
   const personalities = getPersonalities()
   const difficulties = getDifficultyPresets()
@@ -494,8 +514,9 @@ function openSaveModal(): void {
 
 function renderGame(): void {
   if (!session) return
+  clearPreviewInterval()
   clear(root)
-  const { state, draft } = session
+  const { state } = session
   const player = state.players[HUMAN_ID]
 
   const banner = el('canvas', { id: 'banner' })
@@ -543,6 +564,11 @@ function renderGame(): void {
     renderSetup()
   })
 
+  // Phase 18B: live spend/outcome preview, refreshed on PREVIEW_REFRESH_MS —
+  // see the comment on that constant for why this is a poll rather than a
+  // hook on every draft edit.
+  const previewPanel = el('div', { class: 'preview-panel' })
+
   root.append(
     el('div', { class: 'screen' },
       banner,
@@ -550,14 +576,38 @@ function renderGame(): void {
       statGrid(player, state),
       tabbar,
       content,
-      el('div', { class: 'sticky-footer' }, saveBtn, endYearBtn, menuBtn)
+      el('div', { class: 'sticky-footer' }, previewPanel, saveBtn, endYearBtn, menuBtn)
     )
   )
 
   drawBanner(banner, undefined, getRankName(player.rank))
   renderTab()
 
-  void draft // referenced to keep TS happy about the destructure above being used
+  const refreshPreview = () => {
+    if (!session) return
+    const preview = previewYear(session.state, HUMAN_ID, session.draft, session.rivals, session.difficulty)
+    updatePreviewPanel(previewPanel, preview)
+  }
+  refreshPreview()
+  previewIntervalId = setInterval(refreshPreview, PREVIEW_REFRESH_MS)
+}
+
+function updatePreviewPanel(panel: HTMLElement, preview: YearPreview | null): void {
+  clear(panel)
+  if (!preview) return
+
+  const talerDelta = preview.talerAfter - preview.talerBefore
+  const popDelta = preview.populationAfter - preview.populationBefore
+  panel.appendChild(el('p', { class: 'help-text preview-line' },
+    'If you end the year now: ',
+    el('span', { class: talerDelta >= 0 ? 'good' : 'bad' }, `Taler ${talerDelta >= 0 ? '+' : ''}${talerDelta.toFixed(0)}`),
+    ' · ',
+    el('span', { class: popDelta >= 0 ? 'good' : 'bad' }, `Population ${popDelta >= 0 ? '+' : ''}${popDelta.toFixed(0)}`),
+    preview.rankPromoted ? ' · Promotion!' : ''
+  ))
+  for (const shortfall of preview.shortfalls) {
+    panel.appendChild(el('p', { class: 'help-text bad preview-line' }, shortfall))
+  }
 }
 
 function statGrid(player: PlayerState, _state: GameState): HTMLElement {
@@ -1388,6 +1438,7 @@ function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement
 
 function renderYearReport(): void {
   if (!session?.yearReport) return
+  clearPreviewInterval()
   clear(root)
   const { entries, outcome, sceneId } = session.yearReport
   const player = session.state.players[HUMAN_ID]
