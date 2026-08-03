@@ -36,6 +36,10 @@ export interface DecisionDraft {
   declareWar: boolean
   warTargetPlayerId: string | null
   warAlliesRequested: string[]
+  // Phase 18C: LEVELS TO BUY this year, not the running totals (those live on
+  // PlayerState) — the same relationship guardHire has to player.guards.
+  trainingInvest: number
+  equipmentInvest: number
 }
 
 // Sensible defaults each year, re-derived from the fresh state rather than carried
@@ -70,7 +74,9 @@ export function defaultDraft(player: PlayerState): DecisionDraft {
     mode: 'raid',
     declareWar: false,
     warTargetPlayerId: null,
-    warAlliesRequested: []
+    warAlliesRequested: [],
+    trainingInvest: 0,
+    equipmentInvest: 0
   }
 }
 
@@ -121,7 +127,12 @@ export function draftToDecisions(draft: DecisionDraft): Decision[] {
       type: 'war',
       declare: draft.declareWar && !!draft.warTargetPlayerId,
       targetPlayerId: draft.warTargetPlayerId ?? undefined,
-      alliesRequested: draft.warAlliesRequested.length > 0 ? draft.warAlliesRequested : undefined
+      alliesRequested: draft.warAlliesRequested.length > 0 ? draft.warAlliesRequested : undefined,
+      // Unconditional, unlike the fields above: buying training/equipment is a
+      // standing investment that stands on its own, with or without a war
+      // declared this year — most of the time you build the army first.
+      trainingInvest: draft.trainingInvest,
+      equipmentInvest: draft.equipmentInvest
     }
   ]
 }

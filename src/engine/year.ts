@@ -17,7 +17,7 @@ import { checkPromotion } from './ranks.ts'
 import { resolveEvents } from './events/events.ts'
 import { applyRecruitment, espionageUpkeep, resolveStrike } from './espionage.ts'
 import { applySuccession, checkExtinction } from './succession.ts'
-import { resolveAllianceRequests, resolveWar } from './war.ts'
+import { resolveAllianceRequests, resolveWar, applyMilitaryInvestment, militaryUpkeep } from './war.ts'
 
 function findDecision<T extends Decision>(decisions: Decision[], type: T['type']): T | undefined {
   return decisions.find((d) => d.type === type) as T | undefined
@@ -64,6 +64,7 @@ export function advanceYear(
   //   PER RULER, in isolation:
   //     1. Land trading          [Phase 1]
   //     2. Recruitment           [Phase 7]
+  //     2.5. Military investment [Phase 18C — training/equipment levels]
   //     3. Construction          [Phase 2]
   //     4. Harvest & weather      [Phase 1 + 8]
   //     5. Grain distribution     [Phase 1]
@@ -157,6 +158,23 @@ export function advanceYear(
       noteShortfall(report, 'saboteurs', espionageDecision.saboteurHire, recruitResult.saboteursHired, talerBeforeRecruitment)
     }
 
+    // 2.5. Military investment (F4/Phase 18C) — training and equipment levels.
+    //      Sits with recruitment rather than construction because it is the same
+    //      class of spend (standing military capability), and BEFORE step 12.5
+    //      so this year's investment counts in this year's war, matching how a
+    //      garrison built in step 3 already does.
+    const warDecisionForInvestment = findDecision<WarDecision>(playerDecisions, 'war')
+    if (warDecisionForInvestment) {
+      const talerBeforeMilitary = player.taler
+      const militaryResult = applyMilitaryInvestment(
+        player,
+        warDecisionForInvestment.trainingInvest ?? 0,
+        warDecisionForInvestment.equipmentInvest ?? 0
+      )
+      noteShortfall(report, 'training levels', warDecisionForInvestment.trainingInvest ?? 0, militaryResult.trainingBought, talerBeforeMilitary)
+      noteShortfall(report, 'equipment levels', warDecisionForInvestment.equipmentInvest ?? 0, militaryResult.equipmentBought, talerBeforeMilitary)
+    }
+
     // 3. Construction
     const constructionDecision = findDecision<ConstructionDecision>(playerDecisions, 'construction') ?? DEFAULT_CONSTRUCTION_DECISION
     const buildingsBeforeConstruction = { ...player.buildings }
@@ -247,10 +265,12 @@ export function advanceYear(
     // buildings), which never resets.
     player.score += income.marketIncome + income.millIncome + income.tradingHouseIncome + taxResult.totalRevenue
 
-    // 10. Upkeep (buildings, trading-house tribute, and the standing secret service —
-    //    all scale with holdings, the anti-snowball lever)
+    // 10. Upkeep (buildings, trading-house tribute, the standing secret service,
+    //    and the standing army's training/equipment — all scale with holdings or
+    //    ambition, the anti-snowball lever)
     const upkeep = calculateUpkeep(player.buildings, player.tradingHouses, player.taler)
       + espionageUpkeep(player)
+      + militaryUpkeep(player)
     player.taler = Math.max(0, player.taler - upkeep)
     report.upkeepCost = upkeep
 

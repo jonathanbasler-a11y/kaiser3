@@ -21,7 +21,7 @@ import { evaluateState, projectedFeedAdequacy, projectedHarvestShortfall, projec
 import { annualGrainRequirement } from '../engine/economy.ts'
 import { Personality } from './personalities.ts'
 import { planAggression } from './aggression.ts'
-import { planWar } from './warAggression.ts'
+import { planWar, planMilitaryInvestment } from './warAggression.ts'
 import buildingsData from '../../data/buildings.json'
 
 const PRESTIGE = buildingsData.prestige
@@ -273,10 +273,15 @@ export function planYear(
   }
 
   // War is decided the same way espionage is: priced directly against the real
-  // rivals, since an isolated one-year lookahead cannot see them at all.
+  // rivals, since an isolated one-year lookahead cannot see them at all. The
+  // training/equipment investment rides on the same decision for the same
+  // reason: its entire value is realised against a rival the isolated
+  // evaluator cannot see, so scoring it as an ordinary candidate would price
+  // it at pure cost and no ruler would ever buy it.
   const war: Decision = {
     type: 'war',
-    ...planWar(state, playerId, personality.aggression, personality.weights)
+    ...planWar(state, playerId, personality.aggression, personality.weights),
+    ...planMilitaryInvestment(state, playerId, personality.aggression)
   }
 
   // Fixed per-turn evaluation seeds: every candidate this turn sees identical
