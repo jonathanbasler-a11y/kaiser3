@@ -11,7 +11,7 @@ import { eventLossMagnitudeText } from '../engine/events/events.ts'
 import { createStarterState, applyStartingMultiplier } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
 import { getRankName, isFeatureUnlocked, getNextRank, groupProgress, getAllRanks, RankRequirement } from '../engine/ranks.ts'
-import { warStrength, warWinProbability, militaryMultiplier, applyMilitaryInvestment } from '../engine/war.ts'
+import { warStrength, warWinProbability, militaryMultiplier } from '../engine/war.ts'
 import { getPersonalities, Personality } from '../ai/personalities.ts'
 import { getDifficultyPresets, getDifficultyPreset, DEFAULT_DIFFICULTY_ID, DifficultyPreset } from '../ai/difficulty.ts'
 import { planYear } from '../ai/planner.ts'
@@ -841,18 +841,22 @@ function populationProjectionText(player: GameState['players'][string], draft: D
   return `Projected population next year at this feed level: ${after} (currently ${before}; ${deltaText}). Same full-year estimate as the footer — includes harvest, feeding, and events.`
 }
 
-/** Pending attacker for War-tab odds: same-turn hires + affordable training/equipment. */
-function pendingWarAttacker(player: PlayerState, draft: DecisionDraft): PlayerState {
-  const invested: PlayerState = {
+/** War-tab display attacker from previewYear's post-spend military snapshot. */
+function previewWarAttacker(player: PlayerState, preview: YearPreview | null): PlayerState {
+  const attacker: PlayerState = {
     ...player,
     buildings: { ...player.buildings },
     population: { ...player.population }
   }
-  applyMilitaryInvestment(invested, draft.trainingInvest, draft.equipmentInvest)
-  invested.guards = player.guards + Math.max(0, draft.guardHire)
-  invested.buildings.garrison = player.buildings.garrison + Math.max(0, draft.garrisonBuild)
-  invested.taler = player.taler // strength ignores treasury; keep display-state honest
-  return invested
+  if (!preview) return attacker
+
+  attacker.guards = preview.guardsAfter
+  attacker.buildings.garrison = preview.garrisonAfter
+  attacker.trainingLevel = preview.trainingLevelAfter
+  attacker.equipmentLevel = preview.equipmentLevelAfter
+  attacker.population.peasants = preview.populationAfter
+  attacker.taler = preview.talerAfter
+  return attacker
 }
 
 function warOddsText(attacker: PlayerState, defender: PlayerState, hasAllyRequests: boolean): string {
@@ -862,7 +866,7 @@ function warOddsText(attacker: PlayerState, defender: PlayerState, hasAllyReques
   const yours = roundedStrength(attackerStrength, militaryMultiplier(attacker)).total
   const theirs = roundedStrength(defenderStrength, militaryMultiplier(defender)).total
   const toneNote = hasAllyRequests ? ' (before any requested allies join — joining only helps)' : ''
-  return `Estimated win chance: ${Math.round(winProbability * 100)}%${toneNote} — your strength ${yours} vs. their ${theirs} (defending at ${WARFARE.defenderAdvantageMultiplier}x; includes same-turn hires and affordable training/equipment).`
+  return `Estimated win chance: ${Math.round(winProbability * 100)}%${toneNote} — your strength ${yours} vs. their ${theirs} (defending at ${WARFARE.defenderAdvantageMultiplier}x; includes this preview's post-spend army and year-end levy).`
 }
 
 function renderGrainTab(player: GameState['players'][string], state: GameState): HTMLElement {
@@ -1231,7 +1235,8 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
   // strength first, then find it has moved the odds below.
   const trainingLevel = player.trainingLevel ?? 0
   const equipmentLevel = player.equipmentLevel ?? 0
-  const pending = pendingWarAttacker(player, draft)
+  let armyPreview = previewYear(session!.state, HUMAN_ID, draft, session!.rivals, session!.difficulty)
+  let pending = previewWarAttacker(player, armyPreview)
   const strengthShown = roundedStrength(warStrength(pending), militaryMultiplier(pending))
   const strengthGrid = el('div', { class: 'stat-grid' },
     statTile('Base strength', `${strengthShown.base}`),
@@ -1240,8 +1245,9 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
   )
 
   const refreshArmyDisplay = () => {
-    const next = pendingWarAttacker(player, draft)
-    const shown = roundedStrength(warStrength(next), militaryMultiplier(next))
+    armyPreview = previewYear(session!.state, HUMAN_ID, draft, session!.rivals, session!.difficulty)
+    pending = previewWarAttacker(player, armyPreview)
+    const shown = roundedStrength(warStrength(pending), militaryMultiplier(pending))
     clear(strengthGrid)
     strengthGrid.append(
       statTile('Base strength', `${shown.base}`),
@@ -1252,8 +1258,8 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
       const defender = state.players[draft.warTargetPlayerId]
       if (defender) {
         const hasAllyRequests = draft.warAlliesRequested.length > 0
-        const text = warOddsText(next, defender, hasAllyRequests)
-        const winProbability = warWinProbability(warStrength(next), warStrength(defender))
+        const text = warOddsText(pending, defender, hasAllyRequests)
+        const winProbability = warWinProbability(warStrength(pending), warStrength(defender))
         oddsLine.className = `help-text ${winProbability >= 0.5 ? 'good' : 'bad'}`
         oddsLine.textContent = text
       }
@@ -1264,7 +1270,7 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
 
   container.append(
     el('h3', { class: 'row' }, 'Your army', tooltip(
-      `Base strength comes from your garrison, guards and a levy drawn from your population. Training and equipment MULTIPLY that base — every level of training adds ${Math.round(WARFARE.trainingStrengthBonusPerLevel * 100)}% and every level of equipment ${Math.round(WARFARE.equipmentStrengthBonusPerLevel * 100)}%, so they are worth the same proportionally whether your realm is small or large. Both carry annual upkeep forever, so an army you never use is a permanent drain. Tiles include same-turn hires and affordable levels queued below.`
+      `Base strength comes from your garrison, guards and a levy drawn from your population. Training and equipment MULTIPLY that base — every level of training adds ${Math.round(WARFARE.trainingStrengthBonusPerLevel * 100)}% and every level of equipment ${Math.round(WARFARE.equipmentStrengthBonusPerLevel * 100)}%, so they are worth the same proportionally whether your realm is small or large. Both carry annual upkeep forever, so an army you never use is a permanent drain. Tiles use previewYear's post-spend army snapshot, including clamps from earlier spending this year.`
     )),
     strengthGrid,
     stepper({

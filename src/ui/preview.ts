@@ -55,6 +55,10 @@ export interface YearPreview {
   talerAfter: number
   populationBefore: number
   populationAfter: number
+  guardsAfter: number
+  garrisonAfter: number
+  trainingLevelAfter: number
+  equipmentLevelAfter: number
   unrestAfter: number
   shortfalls: string[]
   rankPromoted: boolean
@@ -97,6 +101,10 @@ export function previewYear(
     talerAfter: humanAfter.taler,
     populationBefore: humanBefore.population.peasants,
     populationAfter: humanAfter.population.peasants,
+    guardsAfter: humanAfter.guards,
+    garrisonAfter: humanAfter.buildings.garrison,
+    trainingLevelAfter: humanAfter.trainingLevel ?? 0,
+    equipmentLevelAfter: humanAfter.equipmentLevel ?? 0,
     unrestAfter: humanAfter.population.unrest,
     shortfalls: report.shortfalls,
     rankPromoted: report.rankPromoted,

@@ -16,9 +16,7 @@ import {
   roundedSurplus
 } from '../src/ui/displayCoherence.ts'
 import { annualGrainRequirement } from '../src/engine/economy.ts'
-import { warStrength, militaryMultiplier, applyMilitaryInvestment } from '../src/engine/war.ts'
 import type { Personality } from '../src/ai/personalities.ts'
-import type { PlayerState } from '../src/engine/state.ts'
 
 describe('display rounding helpers', () => {
   it('roundedSurplus tiles always add up', () => {
@@ -110,29 +108,31 @@ describe('previewYear is the single oracle for year-end population', () => {
 })
 
 describe('pending war attacker includes same-turn army', () => {
-  it('guard hires and affordable training raise warStrength', () => {
-    const state = createStarterState([{ id: 'a', name: 'A' }])
-    const player = state.players.a
+  it('previewYear reports affordable training bought this year', () => {
+    const state = createStarterState([{ id: 'human', name: 'You' }])
+    const player = state.players.human
     player.taler = 50_000
-    player.guards = 0
-    player.buildings.garrison = 0
-    const baseline = warStrength(player)
+    player.trainingLevel = 0
 
     const draft = defaultDraft(player)
-    draft.guardHire = 5
-    draft.trainingInvest = 2
-    draft.garrisonBuild = 1
+    draft.trainingInvest = 1
 
-    const invested: PlayerState = {
-      ...player,
-      buildings: { ...player.buildings },
-      population: { ...player.population }
-    }
-    applyMilitaryInvestment(invested, draft.trainingInvest, draft.equipmentInvest)
-    invested.guards = player.guards + draft.guardHire
-    invested.buildings.garrison = player.buildings.garrison + draft.garrisonBuild
+    const preview = previewYear(state, 'human', draft, new Map(), getDifficultyPreset('standard'))!
 
-    expect(warStrength(invested)).toBeGreaterThan(baseline)
-    expect(militaryMultiplier(invested)).toBeGreaterThan(militaryMultiplier(player))
+    expect(preview.trainingLevelAfter).toBeGreaterThan(player.trainingLevel)
+  })
+
+  it('previewYear reports zero training bought when the treasury clamps spend', () => {
+    const state = createStarterState([{ id: 'human', name: 'You' }])
+    const player = state.players.human
+    player.taler = 0
+    player.trainingLevel = 0
+
+    const draft = defaultDraft(player)
+    draft.trainingInvest = 5
+
+    const preview = previewYear(state, 'human', draft, new Map(), getDifficultyPreset('standard'))!
+
+    expect(preview.trainingLevelAfter).toBe(player.trainingLevel)
   })
 })
