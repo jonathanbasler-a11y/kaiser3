@@ -12,6 +12,7 @@ import { annualGrainRequirement, storageCapacity, grainBuybackPrice } from '../s
 import { eventLossMagnitudeText } from '../src/engine/events/events.ts'
 import { getPersonalities } from '../src/ai/personalities.ts'
 import { planYear } from '../src/ai/planner.ts'
+import { planningSeed } from '../src/ai/planningSeed.ts'
 
 // Real terminals stay interactive via readline.question(). Piped/non-TTY input
 // (scripted playthroughs, automated verification) is read synchronously up front —
@@ -153,7 +154,7 @@ async function main() {
     getHumanDecisions: (state) => getHumanDecisions(state, 'human'),
     getOpponentDecisions: (state, opponent, year) => {
       const index = Number(opponent.id.replace('opponent', '')) - 1
-      return planYear(state, opponent.id, rivals[index], 5000 + year * 104729 + index)
+      return planYear(state, opponent.id, rivals[index], planningSeed(5000, year, opponent.id))
     },
     onYearComplete: (state, chronicle) => {
       const report = chronicle.playerReports['human']

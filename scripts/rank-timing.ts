@@ -10,6 +10,7 @@
 
 import { aiCompetitor, runMatch } from '../src/ai/sim.ts'
 import { getPersonalities } from '../src/ai/personalities.ts'
+import { playerIdSalt } from '../src/ai/planningSeed.ts'
 import { getRankName, getTopRank } from '../src/engine/ranks.ts'
 
 const MAX_YEARS = 300
@@ -31,7 +32,7 @@ for (const personality of getPersonalities()) {
     const seenRanks = new Set<number>([0])
     runMatch(
       [aiCompetitor('solo', personality.id)],
-      1000 + i * 7919 + personality.id.length,
+      1000 + i * 7919 + playerIdSalt(personality.id),
       MAX_YEARS,
       (state) => {
         const rank = state.players['solo']?.rank

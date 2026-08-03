@@ -11,6 +11,7 @@ import { SeededRng } from '../engine/rng.ts'
 import { rankProgress } from '../engine/ranks.ts'
 import { Personality, getPersonality } from './personalities.ts'
 import { planYear } from './planner.ts'
+import { planningSeed } from './planningSeed.ts'
 
 const KAISER_RANK = 7
 
@@ -153,8 +154,8 @@ export function runMatch(
 
     for (const competitor of competitors) {
       if (!state.activePlayerIds.includes(competitor.id)) continue
-      const planningSeed = seed + year * 104729 + competitor.id.length
-      const sheet = decideFor(competitor, state, rng, planningSeed)
+      const planSeed = planningSeed(seed, year, competitor.id)
+      const sheet = decideFor(competitor, state, rng, planSeed)
       decisions[competitor.id] = sheet
       allDecisions.push({ playerId: competitor.id, decisions: sheet })
     }

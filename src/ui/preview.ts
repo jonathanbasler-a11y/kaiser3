@@ -22,6 +22,7 @@
 import { GameState, Decision, cloneGameState } from '../engine/state.ts'
 import { advanceYear } from '../engine/year.ts'
 import { planYear } from '../ai/planner.ts'
+import { planningSeed } from '../ai/planningSeed.ts'
 import { Personality } from '../ai/personalities.ts'
 import { DifficultyPreset } from '../ai/difficulty.ts'
 import { DecisionDraft, draftToDecisions } from './decisions.ts'
@@ -43,7 +44,7 @@ function rivalDecisionsFor(
     // Same seed formula resolveYear() actually uses (app.ts) — this is not a
     // placeholder, it's the REAL seed for this turn, so a preview taken right
     // before End Year matches what End Year will actually produce.
-    const seed = 5000 + year * 104729 + id.length
+    const seed = planningSeed(5000, year, id)
     decisions[id] = planYear(state, id, personality, seed, difficulty.rivalEvaluationSeeds)
   }
   rivalDecisionsCache = { stateRef: state, decisions }

@@ -4,6 +4,7 @@
 import { createStarterState, applyStartingMultiplier } from '../src/engine/starter.ts'
 import { advanceYear } from '../src/engine/year.ts'
 import { planYear } from '../src/ai/planner.ts'
+import { planningSeed } from '../src/ai/planningSeed.ts'
 import { getPersonality } from '../src/ai/personalities.ts'
 import { getDifficultyPreset, getDifficultyPresets } from '../src/ai/difficulty.ts'
 import { previewYear } from '../src/ui/preview.ts'
@@ -35,7 +36,7 @@ console.log('=== 1. advanceYear / previewYear cost (developed mid-game state) ==
     const decisions: Record<string, ReturnType<typeof planYear>> = {}
     for (const id of state.activePlayerIds) {
       const personality = id === 'human' ? builder : getPersonality(id === 'rival1' ? 'builder' : 'merchant')
-      decisions[id] = planYear(state, id, personality, 9000 + y * 104729 + id.length, difficulty.rivalEvaluationSeeds)
+      decisions[id] = planYear(state, id, personality, planningSeed(9000, y, id), difficulty.rivalEvaluationSeeds)
     }
     state = advanceYear(state, decisions, 1 + y * 1000).state
   }
@@ -114,7 +115,7 @@ console.log('\n=== 2. Long playthroughs per difficulty (Builder human vs 2 rival
         for (const id of state.activePlayerIds) {
           const p = personalities[id as keyof typeof personalities]
           const evalSeeds = id === 'human' ? 2 : difficulty.rivalEvaluationSeeds
-          decisions[id] = planYear(state, id, p, seed + years * 104729 + id.length, evalSeeds)
+          decisions[id] = planYear(state, id, p, planningSeed(seed, years, id), evalSeeds)
         }
         state = advanceYear(state, decisions, seed + years * 1000).state
       }

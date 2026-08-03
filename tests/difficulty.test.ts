@@ -14,6 +14,7 @@ import { describe, it, expect } from 'vitest'
 import { validateDifficultyPresets, getDifficultyPresets, getDifficultyPreset, DEFAULT_DIFFICULTY_ID } from '../src/ai/difficulty.ts'
 import { createStarterState, applyStartingMultiplier } from '../src/engine/starter.ts'
 import { planYear } from '../src/ai/planner.ts'
+import { planningSeed } from '../src/ai/planningSeed.ts'
 import { advanceYear } from '../src/engine/year.ts'
 import { materialScore } from '../src/ai/sim.ts'
 import { getPersonality } from '../src/ai/personalities.ts'
@@ -39,8 +40,8 @@ function runAsymmetricMatch(
   for (let year = 0; year < maxYears; year++) {
     if (!state.activePlayerIds.includes('a') || !state.activePlayerIds.includes('b')) break
     const decisions = {
-      a: planYear(state, 'a', BUILDER, seed + year * 104729 + 1, aSeeds),
-      b: planYear(state, 'b', BUILDER, seed + year * 104729 + 2, bSeeds)
+      a: planYear(state, 'a', BUILDER, planningSeed(seed, year, 'a'), aSeeds),
+      b: planYear(state, 'b', BUILDER, planningSeed(seed, year, 'b'), bSeeds)
     }
     state = advanceYear(state, decisions, seed + year * 1000).state
   }
@@ -187,7 +188,7 @@ describe('the evaluation-seed-count knob measurably changes planner robustness',
     // trivial — nearly every candidate ties at year 0).
     let state = createStarterState([{ id: 'a', name: 'A' }])
     for (let year = 0; year < 15; year++) {
-      const decisions = { a: planYear(state, 'a', BUILDER, 500 + year * 104729, 2) }
+      const decisions = { a: planYear(state, 'a', BUILDER, planningSeed(500, year, 'a'), 2) }
       state = advanceYear(state, decisions, 500 + year * 1000).state
     }
 
