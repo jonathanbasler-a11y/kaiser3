@@ -180,7 +180,7 @@
   },
   "_eventSeverityNote": "Ceiling on how far wealth/population exposure may amplify a single event loss — heavy blow, never instant collapse.",
   "eventSeverity": {
-    "maxExposureMultiplier": 3
+    "maxExposureMultiplier": 2.5
   },
   "_sabotageNote": "Sabotage carries off grain AND a modest share of the treasury, per the original (docs/kaiser-research.md: burns buildings and transfers grain/currency to the attacker). A dedicated raid still takes far more coin; sabotage trades some of that for destroying a workshop outright.",
   "_grainMarketNote": "The Kaiser buys surplus corn and sells it back dearer. The spread is what makes storing versus selling a real decision rather than an arithmetic one, and it gives the early game an income source before any market or mill exists.",

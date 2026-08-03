@@ -13,10 +13,10 @@
       "category": "prosperity",
       "baseWeight": 0.10,
       "exposure": { "driver": "population", "reference": 1000, "exponent": 0.5, "cap": 6 },
-      "mitigation": { "building": "hospital", "probabilityReduction": 0.6, "severityReduction": 0.2 },
+      "mitigation": { "building": "hospital", "probabilityReduction": 0.6, "severityReduction": 0.4 },
       "floorProbability": 0.01,
       "maxProbability": 0.45,
-      "loss": { "type": "population", "fraction": 0.15, "severityJitter": 0.5, "severityExposureScaling": 0.45 },
+      "loss": { "type": "population", "fraction": 0.15, "severityJitter": 0.5, "severityExposureScaling": 0.2 },
       "telegraph": {
         "unmitigated": "Plague moves through the villages without resistance. The healthy are next.",
         "mitigated": "Plague reaches the gates. The hospital works. The toll is not zero."

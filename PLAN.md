@@ -34,6 +34,7 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **19C** | Sonnet | Medium | Flavor pass — events/ranks/difficulty voice | Combinatorial fluff rewritten; mechanical UI text untouched |
 | **19D** | Opus→Sonnet | High | Economy depth design spike (trade routes / guilds vs NPCs) | Spec approved; not F2 bilateral trade |
 | **20.1** | Sonnet | Medium | PR #35 regressions — truce/weariness UI, contrast, rival names | Truce targets disabled; AA contrast; epithet names |
+| **20.2** | Opus | High | Population ceiling retune + breakdown fix + profile | Breakdown sums in plague years; balance + pop profile |
 
 ## Phase 0: Scaffold & Ground Rules ✓
 
@@ -1147,3 +1148,14 @@ Truce/weariness UI surface, parchment contrast repair, and medieval rival names 
 - ✓ `warWeariness` shown on War tab + unrest tile contribution
 - ✓ Dark scrims / weak gilt text contrast repaired for parchment
 - ✓ Rivals named e.g. `Heinrich, the Builder` (not archetype alone)
+
+---
+
+## Phase 20.2: Population Ceiling + Breakdown ✓
+
+Fixed plague-year breakdown sum (`eventPopulationLoss` as fifth term). Retuned plague severity scaling `0.45→0.2`, exposure cap `3→2.5`, hospital severity reduction `0.2→0.4`. Added `npm run population-profile`. Hospital tooltip explains the population unlock.
+
+### Acceptance Criteria
+- ✓ Breakdown identity holds when events kill peasants (uiCoherence)
+- ✓ Plague drag slows growth rather than hard-capping at the Cathedral gate
+- ✓ `population-profile` script + balance gate green
