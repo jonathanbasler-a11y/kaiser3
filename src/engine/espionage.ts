@@ -79,10 +79,11 @@ export function resolveStrike(
     grainStolen: 0,
     buildingsDestroyed: 0
   }
+  const strikeRoll = rng.next()
   if (committed <= 0) return outcome
 
   const probability = strikeSuccessProbability(committed, defender.guards)
-  outcome.succeeded = rng.next() < probability
+  outcome.succeeded = strikeRoll < probability
 
   // Saboteurs are lost either way — heavily on failure, lightly on success. This
   // makes a secret service an expendable, recurring investment rather than a

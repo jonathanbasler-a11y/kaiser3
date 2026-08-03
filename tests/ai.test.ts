@@ -22,6 +22,7 @@ function makePlayer(overrides: Partial<PlayerState> = {}): PlayerState {
 
 const BUILDER = getPersonality('builder')
 const FED = { feedAdequacy: 1 }
+const AI_REGRESSION_SEEDS = [500, 3000, 9000, 15000, 21000]
 
 describe('personalities', () => {
   it('the shipped catalog validates', () => {
@@ -302,9 +303,8 @@ describe('AI benchmarks (PLAN.md Phase 5 acceptance criteria)', () => {
       return { taler: p.taler, palace: p.buildings.palace }
     }
 
-    const SEEDS = [500, 3000, 9000, 15000, 21000]
     const avg = (id: string, key: 'taler' | 'palace') =>
-      SEEDS.reduce((sum, seed) => sum + profile(id, seed)[key], 0) / SEEDS.length
+      AI_REGRESSION_SEEDS.reduce((sum, seed) => sum + profile(id, seed)[key], 0) / AI_REGRESSION_SEEDS.length
 
     // D2 (docs/d2-rank-gate-design.md) gave the rank ladder a genuine alternative
     // path, so archetypes now diversify by taking a DIFFERENT route rather than a
@@ -318,16 +318,26 @@ describe('AI benchmarks (PLAN.md Phase 5 acceptance criteria)', () => {
   })
 
   it('grows its population rather than letting it collapse — the hospital is bought and works', () => {
-    const result = runMatch([aiCompetitor('ai', 'builder')], 500, 60)
-    const player = result.finalState.players['ai']
-    expect(player.buildings.hospital).toBeGreaterThanOrEqual(1)
-    expect(player.population.peasants).toBeGreaterThan(1000) // started at 1000
+    const outcomes = AI_REGRESSION_SEEDS.map((seed) =>
+      runMatch([aiCompetitor('ai', 'builder')], seed, 60).finalState.players['ai']
+    )
+    const hospitalBuilds = outcomes.filter((player) => player.buildings.hospital >= 1).length
+    const averagePopulation = outcomes.reduce((sum, player) => sum + player.population.peasants, 0) / outcomes.length
+
+    expect(hospitalBuilds).toBeGreaterThanOrEqual(3)
+    expect(averagePopulation).toBeGreaterThan(1000) // started at 1000
   })
 
   it('climbs the rank ladder over a long game', () => {
     // Proves the win condition is reachable and the AI actually pursues it.
     // How FAST it should climb is a balance question, deferred to Phase 6.
-    const result = runMatch([aiCompetitor('ai', 'builder')], 500, 120)
-    expect(result.finalState.players['ai'].rank).toBeGreaterThanOrEqual(2)
+    const ranks = AI_REGRESSION_SEEDS.map((seed) =>
+      runMatch([aiCompetitor('ai', 'builder')], seed, 120).finalState.players['ai'].rank
+    )
+    const averageRank = ranks.reduce((sum, rank) => sum + rank, 0) / ranks.length
+    const runsPastEarlyRanks = ranks.filter((rank) => rank >= 2).length
+
+    expect(runsPastEarlyRanks).toBeGreaterThanOrEqual(3)
+    expect(averageRank).toBeGreaterThanOrEqual(2)
   })
 })

@@ -29,6 +29,7 @@
 import buildingsData from '../../data/buildings.json'
 import economyData from '../../data/economy.json'
 import { GameState, Chronicle, WarRecord } from '../engine/state.ts'
+import { totalLand } from '../engine/land.ts'
 import { Competitor, runMatch, compareStanding } from './sim.ts'
 
 const LAND_PRICE = economyData.prices.farmlandBasePrice
@@ -69,9 +70,8 @@ export interface YearSnapshot {
 // with like: a ruler who converted cash into markets has not become poorer.
 function holdingsValue(state: GameState, playerId: string): number {
   const p = state.players[playerId]
-  const land = p.land.farmland + p.land.buildingLand
   return p.taler
-    + land * LAND_PRICE
+    + totalLand(p.land) * LAND_PRICE
     + p.buildings.markets * MARKET_COST
     + p.buildings.mills * MILL_COST
     + p.buildings.palace * PALACE_STAGE_COST

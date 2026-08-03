@@ -20,7 +20,7 @@ import {
   LandTradeDecision, EspionageDecision, clonePlayerState
 } from '../engine/state.ts'
 import { advanceYear } from '../engine/year.ts'
-import { applyLandTrade } from '../engine/land.ts'
+import { applyLandTrade, totalLand } from '../engine/land.ts'
 import { applyRecruitment } from '../engine/espionage.ts'
 import { evaluateState, projectedFeedAdequacy, projectedHarvestShortfall, projectedHarvestExcess, PersonalityWeights } from './evaluator.ts'
 import { annualGrainRequirement } from '../engine/economy.ts'
@@ -75,8 +75,8 @@ function landOptions(player: PlayerState, prices: GameState['kaizerTradePrices']
   // much of the shortfall as the treasury allows so the gap can be closed over
   // several years. Without the partial option a ruler who can never afford the
   // whole ~90,000 Taler jump in one year never starts the rank path at all.
-  const totalLand = player.land.farmland + player.land.buildingLand
-  const shortfall = PRESTIGE.palace.landRequirement - totalLand
+  const landHeld = totalLand(player.land)
+  const shortfall = PRESTIGE.palace.landRequirement - landHeld
   if (shortfall > 0) {
     const affordable = Math.floor(player.taler / prices.farmland)
     const toBuy = Math.min(shortfall, affordable)
@@ -182,7 +182,7 @@ function grainOptions(player: PlayerState): Array<Decision & { type: 'grain' }> 
 export function generateCandidates(player: PlayerState, prices: GameState['kaizerTradePrices']): Decision[][] {
   const candidates: Decision[][] = []
 
-  const currentLand = player.land.farmland + player.land.buildingLand
+  const currentLand = totalLand(player.land)
 
   for (const feed of grainOptions(player)) {
     for (const land of landOptions(player, prices)) {
@@ -218,7 +218,7 @@ function isolate(state: GameState, playerId: string): GameState {
 }
 
 // `isolated` is read-only from here down: advanceYear() takes its own deep
-// copy of the state it's given (year.ts:38) and never mutates the object
+// copy of the state it's given (year.ts:54) and never mutates the object
 // passed in, so the SAME isolated single-player state can be reused across
 // every candidate and every evaluation seed for one planYear() call instead
 // of being re-cloned per seed. Cloning it once per candidate (the previous

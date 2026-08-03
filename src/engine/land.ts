@@ -12,6 +12,10 @@ export interface LandTradeResult {
   talerDelta: number        // Negative = spent, positive = earned
 }
 
+export function totalLand(land: { farmland: number; buildingLand: number }): number {
+  return land.farmland + land.buildingLand
+}
+
 export function applyLandTrade(
   land: LandHolding,
   taler: number,

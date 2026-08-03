@@ -10,8 +10,9 @@ import { GameState, Decision, Chronicle, PlayerState, EspionageMode, PlayerChron
 import { eventLossMagnitudeText } from '../engine/events/events.ts'
 import { createStarterState, applyStartingMultiplier } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
-import { getRankName, isFeatureUnlocked, getNextRank, groupProgress, getAllRanks, RankRequirement } from '../engine/ranks.ts'
+import { getRankName, isFeatureUnlocked, getNextRank, groupProgress, getAllRanks, getTopRank, RankRequirement } from '../engine/ranks.ts'
 import { warStrength, warWinProbability, militaryMultiplier } from '../engine/war.ts'
+import { totalLand } from '../engine/land.ts'
 import { getPersonalities, Personality } from '../ai/personalities.ts'
 import { getDifficultyPresets, getDifficultyPreset, DEFAULT_DIFFICULTY_ID, DifficultyPreset } from '../ai/difficulty.ts'
 import { planYear } from '../ai/planner.ts'
@@ -69,6 +70,7 @@ const PALACE = buildingsData.prestige.palace
 const PRODUCTION = buildingsData.production
 const MITIGATION = buildingsData.mitigation
 const COMMERCE = buildingsData.commerce
+const HARVEST = economyData.harvest
 const ESPIONAGE = economyData.espionage
 const WARFARE = economyData.warfare
 
@@ -89,7 +91,6 @@ const RANK_CREST_ID = ['baron', 'duke', 'prince', 'count', 'margrave', 'archbish
 
 
 const HUMAN_ID = 'human'
-const KAISER_RANK = 7
 
 type Tab = 'overview' | 'grain' | 'land' | 'tax' | 'build' | 'spy' | 'war'
 
@@ -649,8 +650,8 @@ function statGrid(player: PlayerState, _state: GameState): HTMLElement {
     statTile('Population', player.population.peasants.toFixed(0)),
     statTile('Grain', `${player.grainStock.toFixed(0)} (${yearsOfFoodLabel(player)}y)`, grainTone),
     statTile('Unrest', `${player.population.unrest.toFixed(0)}/100`, unrestTone),
-    statTile('Land', `${(player.land.farmland + player.land.buildingLand).toFixed(0)} ha`),
-    statTile('Palace', `${player.buildings.palace}/16${player.buildings.cathedral ? ' + Cathedral' : ''}`),
+    statTile('Land', `${totalLand(player.land).toFixed(0)} ha`),
+    statTile('Palace', `${player.buildings.palace}/${PALACE.stages}${player.buildings.cathedral ? ' + Cathedral' : ''}`),
   )
 }
 
@@ -986,13 +987,13 @@ function renderLandTab(player: GameState['players'][string], state: GameState): 
       statTile('Building land', `${Math.round(player.land.buildingLand)} ha`)
     ),
     el('p', { class: 'help-text' },
-      `Farmland is worked at ~5 ha per peasant — buying beyond that leaves hectares idle until your population grows into them.`
+      `Farmland is worked at ~${HARVEST.laborHectaresPerPeasant} ha per peasant — buying beyond that leaves hectares idle until your population grows into them.`
     ),
     stepper({
       label: `Farmland (buy up to ${maxFarmBuy}, or sell what you hold)`,
       value: draft.farmlanbuy, min: -player.land.farmland, max: maxFarmBuy, step: 100,
       onChange: (v) => { draft.farmlanbuy = v },
-      tooltip: `Grows grain. At ${state.kaizerTradePrices.farmland.toFixed(0)}/ha this turn. Only worked hectares (~5 per peasant) produce anything — buying far ahead of your population just sits idle.`
+      tooltip: `Grows grain. At ${state.kaizerTradePrices.farmland.toFixed(0)}/ha this turn. Only worked hectares (~${HARVEST.laborHectaresPerPeasant} per peasant) produce anything — buying far ahead of your population just sits idle.`
     }),
     stepper({
       label: `Building land (buy up to ${maxBuildBuy}, or sell what you hold)`,
@@ -1066,7 +1067,7 @@ function mitigationRow(assetId: string, label: string, owned: boolean, draftValu
 }
 
 function renderBuildTab(player: GameState['players'][string], draft: DecisionDraft): HTMLElement {
-  const totalLand = player.land.farmland + player.land.buildingLand
+  const landHeld = totalLand(player.land)
   const CATHEDRAL = buildingsData.prestige.cathedral
 
   // Palace stages and the cathedral both require a land threshold to begin at
@@ -1074,13 +1075,13 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
   // entire order silently below that line, so a player could queue stages or
   // attempt the cathedral, see nothing happen at year-end, and have no way to
   // know why. Gate the control here and say what's missing instead.
-  const palaceLandOk = totalLand >= PALACE.landRequirement
+  const palaceLandOk = landHeld >= PALACE.landRequirement
   const palaceRow = buildRow(
-    player.buildings.palace >= 16 ? 'palace_stage_16' : player.buildings.palace >= 1 ? 'palace_stage_2' : 'palace_stage_1',
+    player.buildings.palace >= PALACE.stages ? 'palace_stage_16' : player.buildings.palace >= 1 ? 'palace_stage_2' : 'palace_stage_1',
     'Palace',
     stepper({
-      label: `Palace stages (${player.buildings.palace}/16) — ${costSuffix(PALACE.costPerStage, { upkeep: PALACE.upkeepPerYear })} total`,
-      value: palaceLandOk ? draft.palaceStages : 0, min: 0, max: palaceLandOk ? 16 : 0, step: 1, onChange: (v) => { draft.palaceStages = v },
+      label: `Palace stages (${player.buildings.palace}/${PALACE.stages}) — ${costSuffix(PALACE.costPerStage, { upkeep: PALACE.upkeepPerYear })} total`,
+      value: palaceLandOk ? draft.palaceStages : 0, min: 0, max: palaceLandOk ? PALACE.stages : 0, step: 1, onChange: (v) => { draft.palaceStages = v },
       tooltip: `The Prestige path to your next rank (Realm tab) — most ranks require some number of stages built. Needs ${PALACE.landRequirement.toLocaleString('en-US')} ha of land before the first stage can begin.`
     })
   )
@@ -1100,11 +1101,11 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
     el('h3', {}, 'Rank path'),
     palaceRow,
     palaceLandOk ? null : el('p', { class: 'help-text bad' },
-      `Needs ${PALACE.landRequirement.toLocaleString('en-US')} ha to begin construction — you hold ${totalLand.toFixed(0)} ha.`)
+      `Needs ${PALACE.landRequirement.toLocaleString('en-US')} ha to begin construction — you hold ${landHeld.toFixed(0)} ha.`)
   )
 
   if (!player.buildings.cathedral) {
-    const cathedralLandOk = totalLand >= CATHEDRAL.landRequirement
+    const cathedralLandOk = landHeld >= CATHEDRAL.landRequirement
     const cathedralPopOk = player.population.peasants >= CATHEDRAL.requiresMinPopulation
     const cathedralOk = cathedralLandOk && cathedralPopOk
     if (!cathedralOk) draft.cathedralBuild = false
@@ -1122,7 +1123,7 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
     )))
     if (!cathedralOk) {
       const missing = [
-        !cathedralLandOk ? `${CATHEDRAL.landRequirement.toLocaleString('en-US')} ha (have ${totalLand.toFixed(0)})` : null,
+        !cathedralLandOk ? `${CATHEDRAL.landRequirement.toLocaleString('en-US')} ha (have ${landHeld.toFixed(0)})` : null,
         !cathedralPopOk ? `${CATHEDRAL.requiresMinPopulation.toLocaleString('en-US')} population (have ${player.population.peasants.toFixed(0)})` : null
       ].filter(Boolean).join(' and ')
       container.appendChild(el('p', { class: 'help-text bad' }, `Needs ${missing} to attempt.`))
@@ -1147,8 +1148,8 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
     container.append(
       el('h3', {}, 'Commerce'),
       buildRow('trading_house', 'Trading House', stepper({
-        label: `Trading houses (${player.tradingHouses}/3) — ${costSuffix(COMMERCE.tradingHouse.cost, { income: COMMERCE.tradingHouse.incomePerYear })}, plus tribute on your wealth`,
-        value: draft.tradingHouseBuild, min: 0, max: 3, step: 1, onChange: (v) => { draft.tradingHouseBuild = v },
+        label: `Trading houses (${player.tradingHouses}/${COMMERCE.tradingHouse.maxCount}) — ${costSuffix(COMMERCE.tradingHouse.cost, { income: COMMERCE.tradingHouse.incomePerYear })}, plus tribute on your wealth`,
+        value: draft.tradingHouseBuild, min: 0, max: COMMERCE.tradingHouse.maxCount, step: 1, onChange: (v) => { draft.tradingHouseBuild = v },
         tooltip: 'The Commerce path to your next rank (Realm tab) for Archbishop and above. Leased from the Kaiser, not built on your own land — pays an ongoing tribute proportional to your total wealth, which grows as you get richer.'
       }))
     )
@@ -1159,7 +1160,7 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
     container.append(
       el('h3', {}, 'Commerce'),
       buildRow('trading_house', 'Trading House', stepper({
-        label: `Trading houses (0/3) — ${costSuffix(COMMERCE.tradingHouse.cost, { income: COMMERCE.tradingHouse.incomePerYear })}, plus tribute on your wealth`,
+        label: `Trading houses (0/${COMMERCE.tradingHouse.maxCount}) — ${costSuffix(COMMERCE.tradingHouse.cost, { income: COMMERCE.tradingHouse.incomePerYear })}, plus tribute on your wealth`,
         value: 0, min: 0, max: 0, step: 1, onChange: () => {},
         tooltip: 'The Commerce path to your next rank (Realm tab) for Archbishop and above. Leased from the Kaiser, not built on your own land — pays an ongoing tribute proportional to your total wealth, which grows as you get richer.'
       })),
@@ -1309,8 +1310,9 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
     return container
   }
 
+  const effectiveLandTransferShare = Math.min(WARFARE.landTransferFraction, WARFARE.maxLandTransferShare)
   container.appendChild(el('h3', { class: 'row' }, 'Declare war on', tooltip(
-    `Strength is derived from your garrison, guards and population levy, multiplied by training and equipment. The defender fights at an advantage — their strength counts for ${WARFARE.defenderAdvantageMultiplier}x in the odds — so attacking needs a real edge, not parity. The winner takes ${Math.round(WARFARE.landTransferFraction * 100)}% of the loser's land, ${Math.round(WARFARE.populationTransferFraction * 100)}% of their population, and ${Math.round(WARFARE.reparationsFraction * 100)}% of their treasury as reparations. Both sides take casualties: ${Math.round(WARFARE.casualtyFractionLoser * 100)}% of population for the loser, ${(WARFARE.casualtyFractionWinner * 100).toFixed(1)}% for the winner, even in victory.`
+    `Strength is derived from your garrison, guards and population levy, multiplied by training and equipment. The defender fights at an advantage — their strength counts for ${WARFARE.defenderAdvantageMultiplier}x in the odds — so attacking needs a real edge, not parity. The winner takes ${Math.round(effectiveLandTransferShare * 100)}% of the loser's land, ${Math.round(WARFARE.populationTransferFraction * 100)}% of their population, and ${Math.round(WARFARE.reparationsFraction * 100)}% of their treasury as reparations. Both sides take casualties: ${Math.round(WARFARE.casualtyFractionLoser * 100)}% of population for the loser, ${(WARFARE.casualtyFractionWinner * 100).toFixed(1)}% for the winner, even in victory.`
   )))
   const targetRow = el('div', { class: 'segmented' })
   const noneBtn = el('button', { textContent: 'None', className: draft.warTargetPlayerId === null ? 'active' : '' })
@@ -1426,7 +1428,7 @@ function resolveYear(): void {
 
   // Check end conditions.
   for (const id of result.state.activePlayerIds) {
-    if (result.state.players[id].rank >= KAISER_RANK) {
+    if (result.state.players[id].rank >= getTopRank()) {
       session.yearReport.outcome = { kind: 'victory', winnerId: id }
       break
     }

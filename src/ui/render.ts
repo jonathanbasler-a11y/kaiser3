@@ -4,6 +4,7 @@
 // Retina/iOS displays, which a naive canvas fill would be.
 
 import { WEATHER_TONES, DEFAULT_TONE } from './theme.ts'
+import { getTopRank } from '../engine/ranks.ts'
 
 export function sizeCanvasForDisplay(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   const ctx = canvas.getContext('2d')
@@ -334,7 +335,7 @@ export function drawCrestProcedural(ctx: CanvasRenderingContext2D, w: number, h:
       ctx.closePath()
       ctx.fill()
     }
-    if (rank >= 7) {
+    if (rank >= getTopRank()) {
       // Imperial cross atop the crown
       ctx.fillRect(cx - w * 0.015, crownY - h * 0.18, w * 0.03, h * 0.08)
       ctx.fillRect(cx - w * 0.04, crownY - h * 0.16, w * 0.08, h * 0.025)

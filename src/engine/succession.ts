@@ -25,6 +25,7 @@ export interface SuccessionResult {
 // never becomes a near-certainty even for an exceptionally long reign.
 export function applySuccession(player: PlayerState, rng: SeededRng): SuccessionResult {
   player.reignYears += 1
+  const deathRoll = rng.next()
 
   if (player.reignYears < SUCCESSION.minReignYears) {
     return { succeeded: false }
@@ -36,7 +37,7 @@ export function applySuccession(player: PlayerState, rng: SeededRng): Succession
     SUCCESSION.annualDeathChanceBase + yearsOverMinimum * SUCCESSION.annualDeathChanceGrowth
   )
 
-  if (rng.next() >= chance) {
+  if (deathRoll >= chance) {
     return { succeeded: false }
   }
 

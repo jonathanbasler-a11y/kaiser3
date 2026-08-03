@@ -13,6 +13,15 @@ function makePlayer(o: Partial<PlayerState> = {}): PlayerState {
   }
 }
 
+class CountingRng extends SeededRng {
+  calls = 0
+
+  override next(): number {
+    this.calls++
+    return super.next()
+  }
+}
+
 describe('applySuccession', () => {
   it('never fires before minReignYears, however the dice fall', () => {
     const player = makePlayer({ reignYears: 0 })
@@ -54,6 +63,17 @@ describe('applySuccession', () => {
     const player = makePlayer({ reignYears: 5 })
     applySuccession(player, new SeededRng(999999)) // a seed unlikely to trigger this early anyway (below minReignYears)
     expect(player.reignYears).toBe(6)
+  })
+
+  it('draws the death roll before minReignYears without applying it', () => {
+    const player = makePlayer({ reignYears: 0 })
+    const rng = new CountingRng(1)
+
+    const result = applySuccession(player, rng)
+
+    expect(result.succeeded).toBe(false)
+    expect(player.reignYears).toBe(1)
+    expect(rng.calls).toBe(1)
   })
 })
 
