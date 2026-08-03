@@ -548,11 +548,11 @@ only if the thriving gate passes (`unrest < 15 && feedAdequacy >= 0.95 &&
 feedAdequacy <= 1.3`). This removes the measured high-frequency drift where a
 3-player year drew 60 values, but setting one player's unrest to 50 made it 59.
 
-Residual conditional draws remain and need separate, scoped fixes: `succession.ts`
-still skips its death roll before `minReignYears`, `espionage.ts` still skips its
-strike roll when no saboteurs are committed, and the ally-join loop at `war.ts`
-still draws once per surviving requested ally. The ally loop is deliberately left
-unchanged here.
+Residual conditional draws remain and need separate, scoped fixes. ✅
+`cursor-audit-s-t-cleanup` fixed the scoped `succession.ts` death roll before
+`minReignYears` and the `espionage.ts` zero-saboteur strike roll by drawing before
+gating application. The ally-join loop at `war.ts` still draws once per surviving
+requested ally and remains deliberately open.
 
 ### ~~R3. `clonePlayerState` does not coerce NaN, and a comment says it does~~ ✅ FIXED (PR1 silent branch)
 `src/engine/state.ts:23-25` claims both `clonePlayerState()` and `persist.ts`'s
@@ -603,7 +603,7 @@ data loss, but the rule isn't applied consistently.
 
 ## Simplification and data discipline
 
-### S1. `maxLandTransferShare` can never bind — it is a constant-fold, not a cap
+### ~~S1. `maxLandTransferShare` can never bind — it is a constant-fold, not a cap~~ ✅ FIXED (`cursor-audit-s-t-cleanup`)
 `src/engine/war.ts:205-208`:
 ```ts
 const landTransferred = Math.min(
@@ -626,6 +626,8 @@ the engine, breaking that file's own stated contract.
 
 ### S2. Hardcoded game stats in `src/`, against CLAUDE.md's explicit rule
 "All game data lives in /data JSON. If you are hardcoding a stat in /src, stop."
+**Deferred (`cursor-audit-s-t-cleanup`):** full hardcoded starter/model-stat cleanup
+remains open by scope.
 - `src/engine/starter.ts:10-31` — **every** starting stat is a literal
   (`taler: 15000`, `farmland: 10000`, `grainStock: 11000`, `peasants: 1000`). The
   file's own comment at `:75-78` says "Read from data, never hardcoded" — but that
@@ -638,7 +640,7 @@ the engine, breaking that file's own stated contract.
 - `src/engine/tax.ts:38,47,52`; `src/engine/war.ts:126`
   (`taler + peasants * 10`); `src/engine/events/events.ts:173`.
 
-### S3. Constants duplicated in `src/` that already exist in `data/`
+### ~~S3. Constants duplicated in `src/` that already exist in `data/`~~ ✅ FIXED (`cursor-audit-s-t-cleanup`)
 - **Palace stage count `16`** at `app.ts:652,1069,1073` and `evaluator.ts:160`,
   while `buildingsData.prestige.palace.stages` is live and used at
   `buildings.ts:79`. `evaluator.ts` is the worst case: it already imports
@@ -654,7 +656,7 @@ the engine, breaking that file's own stated contract.
 - **`app.ts:979,985`** state "~5 ha per peasant" in prose, restating
   `HARVEST.laborHectaresPerPeasant: 5` — will go stale silently.
 
-### S4. Dead keys in `data/buildings.json`
+### ~~S4. Dead keys in `data/buildings.json`~~ ✅ FIXED (`cursor-audit-s-t-cleanup`)
 Never referenced by any `.ts` file in `src/`, `scripts/` or `tests/`:
 `production.market.laborRequirement`, `production.mill.laborRequirement`,
 `prestige.palace.completeAtStage`, and `mitigation.{hospital,well,granary,garrison,dike}.mitigates`.
@@ -667,6 +669,8 @@ sources of truth for one relationship, one of them inert and free to drift. Same
 class as `cornPriceBands` before Phase 12.
 
 ### S5. The UI re-implements engine logic that is one `export` away
+**Deferred (`cursor-audit-s-t-cleanup`):** deep UI-vs-engine reimplementation
+cleanup remains open by scope.
 - `app.ts:695-743` (`requirementTiles`) reimplements rank gating; the engine's
   `meetsRequirementGroup()` (`ranks.ts:29-36`) is the same logic but is **not
   exported**.
@@ -682,18 +686,18 @@ class as `cornPriceBands` before Phase 12.
   independent maxima, but `land.ts:39-52` clamps the **combined** order by
   proportional scaling — so both maxima can never actually be taken together.
 
-### S6. `land.farmland + land.buildingLand` appears at 12 sites with no helper
+### ~~S6. `land.farmland + land.buildingLand` appears at 12 sites with no helper~~ ✅ FIXED (`cursor-audit-s-t-cleanup`)
 `buildings.ts:38`, `war.ts:204`, `evaluator.ts:147,216`, `planner.ts:73,180`,
 `sim.ts:110`, `balance.ts:72`, `warAggression.ts:196,197`, `app.ts:651,1059`.
 
-### S7. One aggression constant serves two unrelated policies
+### ~~S7. One aggression constant serves two unrelated policies~~ ✅ FIXED (`cursor-audit-s-t-cleanup`)
 `warAggression.ts:28` `MIN_AGGRESSION_TO_CONSIDER_WAR = 0.5` gates **whether to
 declare war** at `:172`, and separately decides the **investment reserve tier**
 (8k vs 30k) via `isAggressor` at `:102`. The file's comments treat these as
 distinct policies ("aggressors arm early and cheaply, defenders only once rich"),
 but retuning one silently retunes the other.
 
-### S8. `aggression.ts` breaks its own stated invariant at exactly 2 saboteurs
+### ~~S8. `aggression.ts` breaks its own stated invariant at exactly 2 saboteurs~~ ✅ FIXED (`cursor-audit-s-t-cleanup`)
 `:147-148` — "Commit most of the barracks, but keep a seed to rebuild from":
 ```ts
 const committed = Math.max(2, Math.floor(self.saboteurs * 0.75))
@@ -702,7 +706,7 @@ At `saboteurs === 2` (the smallest value the guard at `:143` admits):
 `floor(1.5) = 1`, `max(2, 1) = 2` — it commits **all** of them, keeping no seed.
 Correct from 3 upward.
 
-### S9. Stale comments
+### ~~S9. Stale comments~~ ✅ FIXED (`cursor-audit-s-t-cleanup`)
 - `planner.ts:216` cites "year.ts:38" for the clone; it is at `year.ts:54`.
 - `state.ts:23-25` and `:52-53` — see R3.
 - `state.ts:281-283` — see R4.
@@ -710,7 +714,7 @@ Correct from 3 upward.
 
 ## Test debt
 
-### T1. `malformedInput.test.ts` never exercises the `war` decision
+### ~~T1. `malformedInput.test.ts` never exercises the `war` decision~~ ✅ FIXED (`cursor-audit-s-t-cleanup`)
 `tests/malformedInput.test.ts:121-145` ("a fully malformed sheet — every numeric
 field NaN") omits the `war` decision entirely, so `trainingInvest`/`equipmentInvest`
 as `NaN` never reaches `advanceYear` in the suite that exists to catch exactly
@@ -718,7 +722,7 @@ that. (Checked manually during this audit: it does pass — `war.ts:93,100` sani
 correctly. The gap is coverage, not a live defect.) `dikeBuild: NaN` is likewise
 only covered in the construction-only case at `:65`.
 
-### T2. Two AI tests still assert on a single hardcoded seed
+### ~~T2. Two AI tests still assert on a single hardcoded seed~~ ✅ FIXED (`cursor-audit-s-t-cleanup`)
 `tests/ai.test.ts:321` and `:330` run `runMatch([...], 500, 60)` / `(…, 500, 120)`
 against one fixed seed. This is the class that broke during Phase 18D when a new
 RNG-consuming step shifted stream positions — the file's neighbour at `:305`
@@ -735,7 +739,7 @@ Covered by a direct same-length-id planning-seed decorrelation regression test.
 
 ## Platform / infra
 
-### P3. `/api/bug-report` is an unauthenticated public endpoint that files real GitHub issues, with no rate limiting
+### ~~P3. `/api/bug-report` is an unauthenticated public endpoint that files real GitHub issues, with no rate limiting~~ ✅ FIXED (`cursor-audit-s-t-cleanup`)
 `api/bug-report.ts` — the one deliberate backend exception (see F8's neighbour
 above) — validates payload shape and length, but has no CAPTCHA, no per-IP/per-
 session throttling, and no origin check. The client

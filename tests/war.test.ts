@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   warStrength, resolveWar, resolveAllianceRequests,
-  warWinProbability, militaryMultiplier, applyMilitaryInvestment, militaryUpkeep
+  warWinProbability, militaryMultiplier, applyMilitaryInvestment, militaryUpkeep,
+  landTransferAmount
 } from '../src/engine/war.ts'
 import { SeededRng } from '../src/engine/rng.ts'
 import { runMatch, aiCompetitor } from '../src/ai/sim.ts'
@@ -167,6 +168,16 @@ describe('resolveWar', () => {
     )
     expect(outcomeAllied.attackerStrength).toBeGreaterThan(outcomeAlone.attackerStrength)
     expect(outcomeAllied.defenderStrength).toBe(outcomeAlone.defenderStrength)
+  })
+})
+
+describe('landTransferAmount', () => {
+  it('uses the transfer fraction while it is below the safety ceiling', () => {
+    expect(landTransferAmount(1000, 0.08, 0.5)).toBe(80)
+  })
+
+  it('caps the transfer when the fraction exceeds the safety ceiling', () => {
+    expect(landTransferAmount(1000, 0.6, 0.5)).toBe(500)
   })
 })
 

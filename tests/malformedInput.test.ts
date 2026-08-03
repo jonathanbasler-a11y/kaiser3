@@ -124,8 +124,13 @@ describe('malformed-input hardening: NaN in a Decision degrades safely, never po
       grain: { feedLevel: 'custom', customPercentage: NaN, sellGrain: NaN, buyGrain: NaN },
       land_trade: { farmlanbuy: NaN, buildingLandBuy: NaN },
       tax: { vat: NaN, incomeTax: NaN, tariff: NaN, justiceGraft: NaN },
-      construction: { marketBuild: NaN, millBuild: NaN, palaceStages: NaN, wellBuild: NaN, hospitalBuild: NaN, granaryBuild: NaN, garrisonBuild: NaN, tradingHouseBuild: NaN },
-      espionage: { guardHire: NaN, saboteurHire: NaN }
+      construction: {
+        marketBuild: NaN, millBuild: NaN, palaceStages: NaN,
+        wellBuild: NaN, hospitalBuild: NaN, granaryBuild: NaN, garrisonBuild: NaN,
+        dikeBuild: NaN, tradingHouseBuild: NaN
+      },
+      espionage: { guardHire: NaN, saboteurHire: NaN },
+      war: { declare: false, trainingInvest: NaN, equipmentInvest: NaN }
     })
     const result = advanceYear(state, decisions, 1)
     const p = result.state.players.player1
@@ -135,6 +140,8 @@ describe('malformed-input hardening: NaN in a Decision degrades safely, never po
     expect(Number.isFinite(p.population.unrest)).toBe(true)
     expect(Number.isFinite(p.land.farmland)).toBe(true)
     expect(Number.isFinite(p.land.buildingLand)).toBe(true)
+    expect(Number.isFinite(p.trainingLevel ?? 0)).toBe(true)
+    expect(Number.isFinite(p.equipmentLevel ?? 0)).toBe(true)
     // And a SECOND year on this same (now-clean) state must also stay finite —
     // proving the year that absorbed the malformed sheet didn't leave a
     // latent NaN for the next year's math to trip over.

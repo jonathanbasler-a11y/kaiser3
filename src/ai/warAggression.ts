@@ -15,7 +15,8 @@
 
 import economyData from '../../data/economy.json'
 import { GameState, PlayerState, WarDecision } from '../engine/state.ts'
-import { warStrength, warWinProbability, militaryMultiplier } from '../engine/war.ts'
+import { warStrength, warWinProbability, militaryMultiplier, landTransferAmount } from '../engine/war.ts'
+import { totalLand } from '../engine/land.ts'
 import { compareStanding } from './sim.ts'
 import { PersonalityWeights } from './evaluator.ts'
 import { AggressionProfile } from './aggression.ts'
@@ -26,6 +27,11 @@ const WARFARE = economyData.warfare
 // materially bigger risk than a sabotage raid, so the bar is well above
 // "aggression > 0".
 const MIN_AGGRESSION_TO_CONSIDER_WAR = 0.5
+
+// Reserve-tier policy, separate from the declaration gate above. Today the two
+// thresholds intentionally match; retuning when a ruler starts arming should not
+// silently retune whether that ruler is willing to declare war.
+const MIN_AGGRESSION_FOR_AGGRESSOR_RESERVE = 0.5
 
 // A sanity floor, NOT the risk calculation — that is what expectedValue() below
 // is for. This was 0.62 and was doing all the risk management on its own, which
@@ -47,8 +53,9 @@ function estimatedWinProbability(self: PlayerState, target: PlayerState): number
   return warWinProbability(warStrength(self), warStrength(target))
 }
 
-// AI POLICY constants, not game rules — the same distinction the two
-// thresholds above already draw. Costs, strength bonuses and caps are game
+// AI POLICY constants, not game rules — the same distinction the aggression
+// thresholds and win-probability floor above already draw. Costs, strength bonuses
+// and caps are game
 // rules and live in data/economy.json; how cautious a given AI is about
 // spending on them is behaviour, and belongs here.
 //
@@ -100,7 +107,7 @@ export function planMilitaryInvestment(
   const rivalIds = state.activePlayerIds.filter((id) => id !== selfId)
   if (!self || rivalIds.length === 0) return { trainingInvest: 0, equipmentInvest: 0 }
 
-  const isAggressor = profile.aggression >= MIN_AGGRESSION_TO_CONSIDER_WAR
+  const isAggressor = profile.aggression >= MIN_AGGRESSION_FOR_AGGRESSOR_RESERVE
 
   // A defender arms in RESPONSE to a rival who has armed, not merely because
   // rivals exist. Training and equipment levels are public state, so this is
@@ -196,8 +203,16 @@ export function planWar(
     // weighs the treasury, a Builder the land, and every archetype weighs the
     // peasants — who are the binding constraint on all the senior ranks and now
     // change hands with the territory.
-    const landAtStake = (rival.land.farmland + rival.land.buildingLand) * WARFARE.landTransferFraction
-    const ownLandAtStake = (self.land.farmland + self.land.buildingLand) * WARFARE.landTransferFraction
+    const landAtStake = landTransferAmount(
+      totalLand(rival.land),
+      WARFARE.landTransferFraction,
+      WARFARE.maxLandTransferShare
+    )
+    const ownLandAtStake = landTransferAmount(
+      totalLand(self.land),
+      WARFARE.landTransferFraction,
+      WARFARE.maxLandTransferShare
+    )
     const talerAtStake = rival.taler * WARFARE.reparationsFraction
     const ownTalerAtStake = self.taler * WARFARE.reparationsFraction
     const peopleAtStake = rival.population.peasants * WARFARE.populationTransferFraction

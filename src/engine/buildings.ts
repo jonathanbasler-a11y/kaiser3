@@ -9,6 +9,7 @@ import buildingsData from '../../data/buildings.json'
 import economyData from '../../data/economy.json'
 import { BuildingState, ConstructionDecision, LandHolding, PopulationState } from './state.ts'
 import { finiteOr } from './sanitize.ts'
+import { totalLand } from './land.ts'
 
 const PRODUCTION = buildingsData.production
 const PRESTIGE = buildingsData.prestige
@@ -35,7 +36,7 @@ export function applyConstruction(
   tradingHouses: number,
   decision: ConstructionDecision
 ): ConstructionResult {
-  const totalLand = land.farmland + land.buildingLand
+  const landHeld = totalLand(land)
   let remainingTaler = taler
   const newBuildings: BuildingState = { ...buildings }
 
@@ -53,11 +54,11 @@ export function applyConstruction(
   }
 
   // Markets & mills: ratio-gated by total land holdings.
-  const maxMarkets = Math.floor(totalLand / PRODUCTION.market.ratioPerHectares)
+  const maxMarkets = Math.floor(landHeld / PRODUCTION.market.ratioPerHectares)
   const marketsBuilt = buildCapped(decision.marketBuild, PRODUCTION.market.buildCost, Math.max(0, maxMarkets - newBuildings.markets))
   newBuildings.markets += marketsBuilt
 
-  const maxMills = Math.floor(totalLand / PRODUCTION.mill.ratioPerHectares)
+  const maxMills = Math.floor(landHeld / PRODUCTION.mill.ratioPerHectares)
   const millsBuilt = buildCapped(decision.millBuild, PRODUCTION.mill.buildCost, Math.max(0, maxMills - newBuildings.mills))
   newBuildings.mills += millsBuilt
 
@@ -75,7 +76,7 @@ export function applyConstruction(
     + buildCapped(decision.dikeBuild ?? 0, MITIGATION.dike.cost, Math.max(0, 1 - (newBuildings.dike ?? 0)))
 
   // Palace: requires enough land to begin, then up to 16 stages, 5,000 Taler each.
-  if (totalLand >= PRESTIGE.palace.landRequirement) {
+  if (landHeld >= PRESTIGE.palace.landRequirement) {
     const stagesBuilt = buildCapped(decision.palaceStages, PRESTIGE.palace.costPerStage, Math.max(0, PRESTIGE.palace.stages - newBuildings.palace))
     newBuildings.palace += stagesBuilt
   }
@@ -84,7 +85,7 @@ export function applyConstruction(
   if (
     decision.cathedralBuild &&
     newBuildings.cathedral === 0 &&
-    totalLand >= PRESTIGE.cathedral.landRequirement &&
+    landHeld >= PRESTIGE.cathedral.landRequirement &&
     population.peasants >= PRESTIGE.cathedral.requiresMinPopulation
   ) {
     const built = buildCapped(1, PRESTIGE.cathedral.cost, 1)

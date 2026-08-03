@@ -19,6 +19,15 @@ function makePlayer(id: string, overrides: Partial<PlayerState> = {}): PlayerSta
   }
 }
 
+class CountingRng extends SeededRng {
+  calls = 0
+
+  override next(): number {
+    this.calls++
+    return super.next()
+  }
+}
+
 describe('strikeSuccessProbability', () => {
   it('is zero when nothing is committed', () => {
     expect(strikeSuccessProbability(0, 5)).toBe(0)
@@ -112,6 +121,18 @@ describe('resolveStrike', () => {
     }
     expect(run()).toBe(run())
   })
+
+  it('draws the strike roll even when no saboteurs are committed', () => {
+    const attacker = makePlayer('a', { saboteurs: 0 })
+    const defender = makePlayer('d')
+    const rng = new CountingRng(1)
+
+    const outcome = resolveStrike(attacker, defender, 0, 'raid', rng)
+
+    expect(outcome.saboteursCommitted).toBe(0)
+    expect(outcome.succeeded).toBe(false)
+    expect(rng.calls).toBe(1)
+  })
 })
 
 describe('recruitment and upkeep', () => {
@@ -186,6 +207,16 @@ describe('AI aggression', () => {
 
     const decision = planAggression(state, 'me', raider.aggression, raider.weights)
     expect(decision.saboteurHire).toBeGreaterThan(0)
+  })
+
+  it('commits one saboteur at a standing force of two, preserving a seed force', () => {
+    const state = createStarterState([{ id: 'me', name: 'Me' }, { id: 'rival', name: 'Rival' }])
+    state.players['me'].saboteurs = 2
+    state.players['rival'].taler = 500000
+
+    const decision = planAggression(state, 'me', raider.aggression, raider.weights)
+
+    expect(decision.saboteursCommitted).toBe(1)
   })
 
   it('every archetype emits a legal espionage decision', () => {

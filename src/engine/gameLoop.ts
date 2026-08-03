@@ -6,8 +6,7 @@
 import { GameState, Decision, Chronicle, PlayerState } from './state.ts'
 import { advanceYear } from './year.ts'
 import { createStarterState } from './starter.ts'
-
-const KAISER_RANK = 7
+import { getTopRank } from './ranks.ts'
 
 // A scripted opponent: feeds adequately, taxes moderately, buys a little land
 // each year if affordable, and builds one market when there's room. Not
@@ -97,7 +96,7 @@ export async function runGame(config: PlayGameConfig): Promise<PlayGameResult> {
 
     // Check victory: any active player reaching Kaiser rank.
     for (const playerId of state.activePlayerIds) {
-      if (state.players[playerId].rank >= KAISER_RANK) {
+      if (state.players[playerId].rank >= getTopRank()) {
         return { finalState: state, yearsPlayed: year + 1, outcome: 'victory', winnerId: playerId }
       }
     }

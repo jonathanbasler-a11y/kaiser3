@@ -17,6 +17,7 @@ import economyData from '../../data/economy.json'
 import { SeededRng } from './rng.ts'
 import { PlayerState } from './state.ts'
 import { finiteOr } from './sanitize.ts'
+import { totalLand } from './land.ts'
 
 const WARFARE = economyData.warfare
 
@@ -65,6 +66,10 @@ export function warWinProbability(attackerStrength: number, defenderStrength: nu
     + defenderStrength * WARFARE.defenderAdvantageMultiplier
     + WARFARE.baseDefenceConstant
   )
+}
+
+export function landTransferAmount(loserTotalLand: number, fraction: number, maxShare: number): number {
+  return loserTotalLand * Math.min(fraction, maxShare)
 }
 
 export interface MilitaryInvestmentResult {
@@ -198,13 +203,14 @@ export function resolveWar(
   winner.population.peasants = Math.max(0, winner.population.peasants - winnerCasualties)
   loser.population.peasants = Math.max(0, loser.population.peasants - loserCasualties)
 
-  // Territory changes hands, capped so a single war can never claim more than
-  // maxLandTransferShare of the loser's holdings — the closest available stand-in
-  // for the research doc's territorial consequence without an actual map.
-  const loserTotalLand = loser.land.farmland + loser.land.buildingLand
-  const landTransferred = Math.min(
-    loserTotalLand * WARFARE.landTransferFraction,
-    loserTotalLand * WARFARE.maxLandTransferShare
+  // Territory changes hands. maxLandTransferShare is a safety ceiling for data
+  // retunes where landTransferFraction is raised above it; while the fraction is
+  // lower, the fraction itself binds.
+  const loserTotalLand = totalLand(loser.land)
+  const landTransferred = landTransferAmount(
+    loserTotalLand,
+    WARFARE.landTransferFraction,
+    WARFARE.maxLandTransferShare
   )
   if (landTransferred > 0 && loserTotalLand > 0) {
     const farmlandShare = loser.land.farmland / loserTotalLand

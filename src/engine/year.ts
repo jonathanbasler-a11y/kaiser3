@@ -76,7 +76,6 @@ export function advanceYear(
   //    10. Upkeep                 [Phase 2 + 7]
   //    11. Events                 [Phase 4]
   //    11.4. Positive events      [Phase 18D — small flat-chance flavor rewards]
-  //    11.5. Succession           [F5 — reign turnover, resets score only]
   //
   //   AFTER ALL RULERS (still per-year, not per-ruler):
   //    11.6. Corn price drift     [F2 precursor — field-wide scarcity nudges the Kaiser's price]
@@ -84,6 +83,7 @@ export function advanceYear(
   //   ACROSS RULERS:
   //    12. Espionage strikes     [Phase 7]
   //    12.5. Warfare             [F4 — declared wars resolve here, same shape as espionage]
+  //    12.75. Succession          [F5 — reign turnover, resets score only]
   //
   //   PER RULER again:
   //    13. Rank promotion check  [Phase 2]
@@ -313,16 +313,8 @@ export function advanceYear(
     // 11.4. Positive events (Phase 18D) — small, flat-chance flavor rewards,
     //    deliberately unrelated to prosperity/unrest exposure (unlike the
     //    negative events above). After the negative-event roll so both draw
-    //    from a consistent RNG position regardless of which fired, before
-    //    succession so a lucky year can't be erased by a reign turnover in
-    //    the same breath.
+    //    from a consistent RNG position regardless of which fired.
     report.positiveEvent = rollPositiveEvent(player, rng)
-
-    // 11.5. Succession (F5) — skipped for a realm that just went extinct this
-    // year; there is no one left for an heir to inherit from.
-    if (!player.dead) {
-      report.succession = applySuccession(player, rng).succeeded
-    }
 
     report.unrestGain = player.population.unrest - unrestAtYearStart
 
@@ -404,6 +396,18 @@ export function advanceYear(
       reparationsPaid: outcome.reparationsPaid,
       garrisonDestroyed: outcome.garrisonDestroyed
     })
+  }
+
+  // 12.75. Succession (F5) — after strikes and wars so the required unconditional
+  // succession draw cannot perturb the hostile-action stream, and before
+  // promotion because succession resets only score/reign/heir, not title inputs.
+  for (const playerId of newState.activePlayerIds) {
+    const player = newState.players[playerId]
+    const report = chronicle.playerReports[playerId]
+    // Skipped for a realm that just went extinct this year; there is no one left
+    // for an heir to inherit from.
+    if (!player || player.dead || !report) continue
+    report.succession = applySuccession(player, rng).succeeded
   }
 
   // 13. Rank promotion check — after espionage/warfare, so a treasury emptied by

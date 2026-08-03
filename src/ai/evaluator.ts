@@ -26,10 +26,12 @@ import { PlayerState, clonePlayerState } from '../engine/state.ts'
 import { getEventCatalog, calculateEventProbability } from '../engine/events/events.ts'
 import { ExposureContext } from '../engine/scarcity.ts'
 import { rankProgress, getNextRank, groupProgress } from '../engine/ranks.ts'
+import { totalLand } from '../engine/land.ts'
 
 const POP_ECONOMY = economyData.population
 const HARVEST = economyData.harvest
-const PALACE = buildingsData.prestige.palace
+const PRESTIGE = buildingsData.prestige
+const PALACE = PRESTIGE.palace
 
 // Share of a rank's value credited for holding the land the palace requires.
 //
@@ -144,9 +146,9 @@ export function projectedHarvestExcess(): number {
 const LAND_HEADROOM_FACTOR = 1.8
 
 function usableLand(player: PlayerState): number {
-  const totalLand = player.land.farmland + player.land.buildingLand
+  const landHeld = totalLand(player.land)
   const workforceCapacity = player.population.peasants * HARVEST.laborHectaresPerPeasant
-  return Math.min(totalLand, workforceCapacity * LAND_HEADROOM_FACTOR)
+  return Math.min(landHeld, workforceCapacity * LAND_HEADROOM_FACTOR)
 }
 
 // Everything the ruler is worth right now, ignoring future risk.
@@ -157,7 +159,7 @@ export function intrinsicUtility(player: PlayerState, weights: PersonalityWeight
   // Trading houses count as production (D2 commerce calibration): Merchant's
   // production weight was wasted on a path keystone the evaluator never scored,
   // so wealth-heavy archetypes banked cash instead of leasing houses.
-  const prestigeStages = player.buildings.palace + player.buildings.cathedral * 16
+  const prestigeStages = player.buildings.palace + player.buildings.cathedral * PRESTIGE.palace.stages
 
   let utility = 0
   utility += player.taler * weights.wealth
@@ -213,8 +215,7 @@ function palaceLandEnablement(player: PlayerState): number {
     : 0
   if (altPathProgress > palacePathProgress) return 0
 
-  const totalLand = player.land.farmland + player.land.buildingLand
-  return Math.min(1, totalLand / PALACE.landRequirement)
+  return Math.min(1, totalLand(player.land) / PALACE.landRequirement)
 }
 
 // A copy of the player with one year's EXPECTED event losses already applied.

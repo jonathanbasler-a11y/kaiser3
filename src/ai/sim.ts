@@ -8,12 +8,14 @@ import { GameState, Decision, PlayerState, Chronicle } from '../engine/state.ts'
 import { advanceYear } from '../engine/year.ts'
 import { createStarterState } from '../engine/starter.ts'
 import { SeededRng } from '../engine/rng.ts'
-import { rankProgress } from '../engine/ranks.ts'
+import { rankProgress, getTopRank } from '../engine/ranks.ts'
+import { totalLand } from '../engine/land.ts'
 import { Personality, getPersonality } from './personalities.ts'
 import { planYear } from './planner.ts'
 import { planningSeed } from './planningSeed.ts'
+import economyData from '../../data/economy.json'
 
-const KAISER_RANK = 7
+const PRICES = economyData.prices
 
 // A ruler under some controller: either a tuned personality or a benchmark bot.
 export type Controller =
@@ -43,8 +45,8 @@ export function randomLegalDecisions(player: PlayerState, rng: SeededRng): Decis
       : { type: 'grain', feedLevel },
     {
       type: 'land_trade',
-      farmlanbuy: Math.floor(landBudget / 30) * (rng.next() < 0.75 ? 1 : -1),
-      buildingLandBuy: rng.next() < 0.5 ? Math.floor((player.taler * rng.next() * 0.2) / 50) : 0,
+      farmlanbuy: Math.floor(landBudget / PRICES.farmlandBasePrice) * (rng.next() < 0.75 ? 1 : -1),
+      buildingLandBuy: rng.next() < 0.5 ? Math.floor((player.taler * rng.next() * 0.2) / PRICES.buildingLandBasePrice) : 0,
       partnerPlayerId: 'kaiser'
     },
     {
@@ -108,12 +110,11 @@ export interface MatchResult {
 
 // The material position behind a ruler's title — the tiebreak, never the headline.
 export function materialScore(player: PlayerState): number {
-  const totalLand = player.land.farmland + player.land.buildingLand
   return player.buildings.palace * 10_000
     + player.buildings.cathedral * 100_000
     + player.taler
     + player.population.peasants * 10
-    + totalLand
+    + totalLand(player.land)
 }
 
 // Who is winning, compared LEXICOGRAPHICALLY: title first, then closeness to the
@@ -165,7 +166,7 @@ export function runMatch(
     observeYear?.(state, result.chronicle)
 
     for (const playerId of state.activePlayerIds) {
-      if (state.players[playerId].rank >= KAISER_RANK) {
+      if (state.players[playerId].rank >= getTopRank()) {
         return { winnerId: playerId, finalState: state, yearsPlayed: year + 1, reachedKaiser: true, allDecisions }
       }
     }

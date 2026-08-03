@@ -147,7 +147,7 @@ export function planAggression(
   }
 
   // Commit most of the barracks, but keep a seed to rebuild from.
-  const committed = Math.max(2, Math.floor(self.saboteurs * 0.75))
+  const committed = Math.max(1, Math.min(self.saboteurs - 1, Math.floor(self.saboteurs * 0.75)))
   const value = strikeExpectedValue(state.players[bestTarget], committed, profile.preferredMode, weights)
   if (value <= 0) {
     return { guardHire, saboteurHire }
