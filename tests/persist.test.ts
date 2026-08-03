@@ -143,4 +143,33 @@ describe('persist / save-load', () => {
     expect(restored.players.human.trainingLevel).toBe(0)
     expect(restored.players.human.equipmentLevel).toBe(0)
   })
+
+  // Phase F5 succession — score/reignYears must survive save → load and default
+  // on legacy saves written before those fields existed (R8).
+  it('defaults missing score/reignYears to 0 (pre-F5 saves)', () => {
+    const state = createStarterState([{ id: 'human', name: 'You' }])
+    const raw = JSON.parse(serializeGameState(state)) as {
+      players: { human: Record<string, unknown> }
+    }
+    delete raw.players.human.score
+    delete raw.players.human.reignYears
+    const restored = deserializeGameState(JSON.stringify(raw))
+    expect(restored.players.human.score).toBe(0)
+    expect(restored.players.human.reignYears).toBe(0)
+  })
+
+  it('rejects present non-finite score/reignYears on load', () => {
+    const state = createStarterState([{ id: 'human', name: 'You' }])
+    const rawScore = JSON.parse(serializeGameState(state)) as {
+      players: { human: { score: number } }
+    }
+    rawScore.players.human.score = Number.NaN
+    expect(() => deserializeGameState(JSON.stringify(rawScore))).toThrow(/score/)
+
+    const rawReign = JSON.parse(serializeGameState(state)) as {
+      players: { human: { reignYears: number } }
+    }
+    rawReign.players.human.reignYears = Number.NaN
+    expect(() => deserializeGameState(JSON.stringify(rawReign))).toThrow(/reignYears/)
+  })
 })
