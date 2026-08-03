@@ -1,8 +1,8 @@
 // Difficulty presets (Phase 13, src/ai/difficulty.ts). Two knobs, neither
 // touching game rules: rival evaluation-seed count (planner robustness) and
-// rival starting multiplier (taler/farmland head-start or handicap). This
-// file proves both actually separate outcomes — a preset system that doesn't
-// measurably change anything is decoration, not difficulty.
+// rival starting multiplier (taler/farmland/population head-start or handicap).
+// This file proves both actually separate outcomes — a preset system that
+// doesn't measurably change anything is decoration, not difficulty.
 //
 // Deliberately NOT using src/ai/sim.ts's runMatch()/Competitor, which has no
 // per-competitor evaluation-seed-count or starting-multiplier knob and
@@ -27,8 +27,8 @@ const MAX_YEARS = 40
 // applied symmetrically here so any outcome gap is attributable to the knobs
 // and nothing else (same personality on both sides).
 function runAsymmetricMatch(
-  aSeeds: number, aMultiplier: { taler: number; farmland: number },
-  bSeeds: number, bMultiplier: { taler: number; farmland: number },
+  aSeeds: number, aMultiplier: { taler: number; farmland: number; population: number },
+  bSeeds: number, bMultiplier: { taler: number; farmland: number; population: number },
   seed: number,
   maxYears: number = MAX_YEARS
 ): GameState {
@@ -58,7 +58,12 @@ describe('difficulty preset data', () => {
   })
 
   it('rejects a non-positive starting multiplier', () => {
-    const bad = [{ ...getDifficultyPreset('standard'), rivalStartingMultiplier: { taler: 0, farmland: 1 } }]
+    const bad = [{ ...getDifficultyPreset('standard'), rivalStartingMultiplier: { taler: 0, farmland: 1, population: 1 } }]
+    expect(() => validateDifficultyPresets(bad)).toThrow(/starting multiplier/)
+  })
+
+  it('rejects a non-positive population multiplier', () => {
+    const bad = [{ ...getDifficultyPreset('standard'), rivalStartingMultiplier: { taler: 1, farmland: 1, population: 0 } }]
     expect(() => validateDifficultyPresets(bad)).toThrow(/starting multiplier/)
   })
 
@@ -69,7 +74,7 @@ describe('difficulty preset data', () => {
 
   it('standard is the default and changes nothing relative to the un-differenced baseline', () => {
     const standard = getDifficultyPreset(DEFAULT_DIFFICULTY_ID)
-    expect(standard.rivalStartingMultiplier).toEqual({ taler: 1, farmland: 1 })
+    expect(standard.rivalStartingMultiplier).toEqual({ taler: 1, farmland: 1, population: 1 })
   })
 
   it('presets are ordered easy < standard < hard on both knobs', () => {
@@ -78,18 +83,21 @@ describe('difficulty preset data', () => {
     expect(standard.rivalEvaluationSeeds).toBeLessThanOrEqual(hard.rivalEvaluationSeeds)
     expect(easy.rivalStartingMultiplier.taler).toBeLessThan(standard.rivalStartingMultiplier.taler)
     expect(standard.rivalStartingMultiplier.taler).toBeLessThan(hard.rivalStartingMultiplier.taler)
+    expect(easy.rivalStartingMultiplier.population).toBeLessThan(standard.rivalStartingMultiplier.population)
+    expect(standard.rivalStartingMultiplier.population).toBeLessThan(hard.rivalStartingMultiplier.population)
   })
 })
 
 describe('applyStartingMultiplier', () => {
-  it('scales taler and farmland, leaves everything else untouched', () => {
+  it('scales taler, farmland, population, and grainStock; leaves buildings untouched', () => {
     const state = createStarterState([{ id: 'a', name: 'A' }])
-    const scaled = applyStartingMultiplier(state.players['a'], { taler: 1.15, farmland: 1.1 })
+    const scaled = applyStartingMultiplier(state.players['a'], { taler: 1.15, farmland: 1.1, population: 1.1 })
     expect(scaled.taler).toBeCloseTo(state.players['a'].taler * 1.15)
     expect(scaled.land.farmland).toBeCloseTo(state.players['a'].land.farmland * 1.1)
+    expect(scaled.population.peasants).toBeCloseTo(state.players['a'].population.peasants * 1.1)
+    expect(scaled.grainStock).toBeCloseTo(state.players['a'].grainStock * 1.1)
     expect(scaled.land.buildingLand).toBe(state.players['a'].land.buildingLand)
-    expect(scaled.population).toEqual(state.players['a'].population)
-    expect(scaled.grainStock).toBe(state.players['a'].grainStock)
+    expect(scaled.buildings).toEqual(state.players['a'].buildings)
   })
 })
 
@@ -115,17 +123,12 @@ describe('the starting-multiplier knob measurably separates outcomes', () => {
   const HORIZON = 15
   const TRIALS = 100
 
-  // SKIPPED — see BACKLOG.md D6. The head-start direction below is real and
-  // stable at 54-59% across N=300; this handicap direction is NOT — it won
-  // only ~40-47% of trials at N=300, tried at two horizons, and stayed wrong
-  // even symmetrized (which rules out a "player 'a' always resolves first in
-  // the shared RNG stream" order effect as the explanation). Not caused by
-  // Phase 18D's actual mechanic (confirmed with chancePerYear: 0) — merely
-  // exposed by it, since any new RNG-consuming step in advanceYear reshuffles
-  // which weather/event rolls a fixed seed produces. Forcing this to a
-  // possibly-false pass would be worse than an honest skip; needs its own
-  // investigation, not a Phase D fix.
-  it.skip('a starting-multiplier-only handicap scores worse than standard more often than not', () => {
+  // D6 (fixed): taler/farmland cuts that leave farmland above the labor gate
+  // do not reduce early harvest and do not reliably separate outcomes — the
+  // handicapped Builder sometimes outperforms via path-dependent palace
+  // timing. Population (and proportional grainStock) is the binding lever;
+  // easy's 0.9 population multiplier is what makes this direction hold.
+  it('a starting-multiplier-only handicap scores worse than standard more often than not', () => {
     const easy = getDifficultyPreset('easy')
     const standard = getDifficultyPreset('standard')
     let handicappedWins = 0

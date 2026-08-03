@@ -1,26 +1,26 @@
 {
-  "_comment": "Difficulty presets (Phase 13). Per CLAUDE.md's product requirements and docs/kaiser-research.md's phased-build note: presets vary how CAPABLE and how ADVANTAGED the rivals are, never the underlying rules. Every rank threshold, event formula, upkeep curve, and mitigation coefficient stays identical across presets — only two things move: (1) rivalEvaluationSeeds, how many independent futures each rival's planner averages a candidate plan over before picking one (src/ai/planner.ts's EVALUATION_SEEDS, per-rival override) — fewer seeds means a rival's own plan is judged on noisier information and it plays less robustly, not that it breaks a rule; (2) rivalStartingMultiplier, a head-start or handicap applied ONLY to rivals' starting taler and farmland (src/engine/starter.ts) — the human always starts at the same baseline the research doc specifies (15,000 Taler, 10,000 ha).",
+  "_comment": "Difficulty presets (Phase 13, D6 population fix). Per CLAUDE.md's product requirements and docs/kaiser-research.md's phased-build note: presets vary how CAPABLE and how ADVANTAGED the rivals are, never the underlying rules. Every rank threshold, event formula, upkeep curve, and mitigation coefficient stays identical across presets — only two things move: (1) rivalEvaluationSeeds, how many independent futures each rival's planner averages a candidate plan over before picking one (src/ai/planner.ts's EVALUATION_SEEDS, per-rival override) — fewer seeds means a rival's own plan is judged on noisier information and it plays less robustly, not that it breaks a rule; (2) rivalStartingMultiplier, a head-start or handicap applied ONLY to rivals' starting taler, farmland, AND population (src/engine/starter.ts; grainStock scales with population so the ~1-year food buffer stays proportional) — the human always starts at the same baseline the research doc specifies (15,000 Taler, 10,000 ha, 1,000 peasants). Population is load-bearing (BACKLOG D6): taler/farmland cuts that leave farmland above laborGatedFarmland capacity do not reduce early harvest and do not reliably separate outcomes in the handicap direction.",
   "presets": [
     {
       "id": "easy",
       "name": "Easy",
       "description": "Rivals plan against a single guess at the future and start from a modest handicap. Forgiving for a first reign.",
       "rivalEvaluationSeeds": 1,
-      "rivalStartingMultiplier": { "taler": 0.85, "farmland": 0.9 }
+      "rivalStartingMultiplier": { "taler": 0.85, "farmland": 0.9, "population": 0.9 }
     },
     {
       "id": "standard",
       "name": "Standard",
       "description": "Rivals plan and start exactly as the balance harness measures them. The baseline every ai-bench/balance number in this repo is reported against.",
       "rivalEvaluationSeeds": 2,
-      "rivalStartingMultiplier": { "taler": 1.0, "farmland": 1.0 }
+      "rivalStartingMultiplier": { "taler": 1.0, "farmland": 1.0, "population": 1.0 }
     },
     {
       "id": "hard",
       "name": "Hard",
       "description": "Rivals weigh more futures before committing to a plan and start with a real head start. Nothing about the rules changes — they are simply better-prepared and better-off.",
       "rivalEvaluationSeeds": 3,
-      "rivalStartingMultiplier": { "taler": 1.15, "farmland": 1.1 }
+      "rivalStartingMultiplier": { "taler": 1.15, "farmland": 1.1, "population": 1.1 }
     }
   ]
 }
