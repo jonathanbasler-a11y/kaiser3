@@ -624,21 +624,20 @@ using `landTransferFraction` alone — correct *today* only because 0.08 is the
 smaller constant; raise it above 0.5 and the AI's pricing silently diverges from
 the engine, breaking that file's own stated contract.
 
-### S2. Hardcoded game stats in `src/`, against CLAUDE.md's explicit rule
-"All game data lives in /data JSON. If you are hardcoding a stat in /src, stop."
-**Deferred (`cursor-audit-s-t-cleanup`):** full hardcoded starter/model-stat cleanup
-remains open by scope.
-- `src/engine/starter.ts:10-31` — **every** starting stat is a literal
-  (`taler: 15000`, `farmland: 10000`, `grainStock: 11000`, `peasants: 1000`). The
-  file's own comment at `:75-78` says "Read from data, never hardcoded" — but that
-  applies only to `kaizerTradePrices` at `:79-83`.
-- `src/engine/population.ts` — the entire unrest/migration model: `:31` `* 60`,
-  `:33` `- 5`, `:40` `1 - unrest / 200`, `:48` `< 0.5` starvation trigger,
-  `:61` the immigration gate constants. Only the rates come from JSON.
-- `src/engine/economy.ts:125,128` — Min/Max feed dials as `* 0.2` / `* 0.8`;
-  `:154-155` `isUnderfed < 0.9` / `isOverfed > 1.4`.
-- `src/engine/tax.ts:38,47,52`; `src/engine/war.ts:126`
-  (`taler + peasants * 10`); `src/engine/events/events.ts:173`.
+### ~~S2. Hardcoded game stats in `src/`, against CLAUDE.md's explicit rule~~ ✅ FIXED (`cursor-s2-data-driven-stats`)
+Starter realm, feeding dial fractions/adequacy bands, population unrest/migration
+gates, tax unrest divisor, alliance power peasant weight, and event severity
+exposure ceiling now live in `data/economy.json` (`starter`, `feeding`, extended
+`population`, `taxation.unrestExcessDivisor`, `warfare.alliancePowerPeasantWeight`,
+`eventSeverity`). Engine modules read those keys; retuning no longer requires
+editing `/src`.
+Original findings kept below for history:
+- `src/engine/starter.ts` — every starting stat was a literal
+  (`taler: 15000`, `farmland: 10000`, `grainStock: 11000`, `peasants: 1000`).
+- `src/engine/population.ts` — unrest/migration model constants.
+- `src/engine/economy.ts` — Min/Max feed dials and underfed/overfed bands.
+- `src/engine/tax.ts` unrest excess divisor; `war.ts` alliance power proxy;
+  `events.ts` max severity exposure multiplier.
 
 ### ~~S3. Constants duplicated in `src/` that already exist in `data/`~~ ✅ FIXED (`cursor-audit-s-t-cleanup`)
 - **Palace stage count `16`** at `app.ts:652,1069,1073` and `evaluator.ts:160`,

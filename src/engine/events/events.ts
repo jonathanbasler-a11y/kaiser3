@@ -20,6 +20,7 @@
 
 import eventsData from '../../../data/events.json'
 import buildingsData from '../../../data/buildings.json'
+import economyData from '../../../data/economy.json'
 import { SeededRng } from '../rng.ts'
 import { PlayerState, PlayerEvent, EventId, EventLossType } from '../state.ts'
 import { calculateExposure, ExposureSpec, ExposureContext } from '../scarcity.ts'
@@ -175,7 +176,7 @@ function destroyProductionBuildings(player: PlayerState, count: number): number 
 // structured record for the chronicle.
 // Ceiling on how far exposure may amplify a loss, so that even at the exposure cap
 // a single event is a heavy blow rather than an instant collapse.
-const MAX_SEVERITY_EXPOSURE_MULTIPLIER = 3
+const MAX_SEVERITY_EXPOSURE_MULTIPLIER = economyData.eventSeverity.maxExposureMultiplier
 
 export function severityExposureMultiplier(event: EventDefinition, exposure: number): number {
   const scaling = event.loss.severityExposureScaling ?? 0

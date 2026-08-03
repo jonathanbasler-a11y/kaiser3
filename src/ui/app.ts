@@ -928,7 +928,7 @@ function renderGrainTab(player: GameState['players'][string], state: GameState):
 
   if (draft.feedLevel === 'custom') {
     container.appendChild(sliderField({
-      label: 'Feed percentage of stock', value: draft.customPercentage, min: 20, max: 80,
+      label: 'Feed percentage of stock', value: draft.customPercentage, min: economyData.feeding.customMinPercentage, max: economyData.feeding.customMaxPercentage,
       onChange: (v) => {
         draft.customPercentage = v
         projectionLine.textContent = populationProjectionText(player, draft)

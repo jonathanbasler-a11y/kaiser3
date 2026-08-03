@@ -97,7 +97,8 @@
     "maxLandTransferShare": 0.5,
     "populationTransferFraction": 0.05,
     "reparationsFraction": 0.15,
-    "garrisonDestructionChanceLoser": 0.5
+    "garrisonDestructionChanceLoser": 0.5,
+    "alliancePowerPeasantWeight": 10
   },
   "_successionNote": "F5: a ruler's reign occasionally ends and an heir (same seat, same territory/rank/buildings) inherits — only the accumulated `score` resets. No chance of succession before minReignYears, so a new game/heir always gets a fair run before facing it. Chance then rises with reignYears, capped at maxAnnualDeathChance, so an unusually long reign becomes progressively more likely to turn over rather than running indefinitely.",
   "succession": {
@@ -105,6 +106,31 @@
     "annualDeathChanceBase": 0.015,
     "annualDeathChanceGrowth": 0.003,
     "maxAnnualDeathChance": 0.12
+  },
+  "_starterNote": "Baseline human/AI starting realm (docs/kaiser-research.md). Difficulty multipliers scale rivals only — never rewrite these literals in src/engine/starter.ts.",
+  "starter": {
+    "taler": 15000,
+    "farmland": 10000,
+    "buildingLand": 0,
+    "grainStock": 11000,
+    "peasants": 1000,
+    "unrest": 0,
+    "rank": 0,
+    "guards": 0,
+    "saboteurs": 0,
+    "tradingHouses": 0,
+    "score": 0,
+    "reignYears": 0
+  },
+  "_feedingNote": "Kaiser dial fractions of stock at feeding time (min/max/custom bounds) and adequacy bands that drive unrest/disease. Custom percentage is clamped to [customMinPercentage, customMaxPercentage].",
+  "feeding": {
+    "minStockFraction": 0.2,
+    "maxStockFraction": 0.8,
+    "customMinPercentage": 20,
+    "customMaxPercentage": 80,
+    "customDefaultPercentage": 50,
+    "underfedAdequacy": 0.9,
+    "overfedAdequacy": 1.4
   },
   "population": {
     "birthRateBase": 0.038,
@@ -115,7 +141,14 @@
     "immigrationRate": 0.02,
     "diseaseOverfeedMortality": 0.03,
     "starvationMortality": 0.04,
-    "incomePerCapita": 3
+    "incomePerCapita": 3,
+    "unrestShortfallScale": 60,
+    "unrestDecayPerYear": 5,
+    "unrestBirthDampingDivisor": 200,
+    "starvationAdequacyThreshold": 0.5,
+    "immigrationMaxUnrest": 15,
+    "immigrationMinAdequacy": 0.95,
+    "immigrationMaxAdequacy": 1.3
   },
   "_consumptionNote": "populationGrainRequirement was 0.5 against a per-peasant yield of 12.5 (5 ha at 2.5) — a 25x surplus, which is not an agricultural economy at all. It made grain worthless, stockpiles meaningless, sabotage loot pointless and weather irrelevant. At 9.0 a peasant produces roughly 1.4x what they eat: an ordinary year leaves a real but modest surplus, a lean year eats into the reserve, and a drought is a genuine famine.",
   "_espionageNote": "Guards and saboteurs are STANDING forces with annual upkeep, not one-off purchases. That makes a secret service a recurring burden rather than a bought-once advantage, and gives the late game another cost that scales with ambition.",
@@ -136,8 +169,13 @@
   "taxation": {
     "toleranceThreshold": 40,
     "unrestPerExcessPoint": 1.2,
+    "unrestExcessDivisor": 10,
     "graftRevenueBonus": 0.3,
     "graftUnrestMultiplier": 0.5
+  },
+  "_eventSeverityNote": "Ceiling on how far wealth/population exposure may amplify a single event loss — heavy blow, never instant collapse.",
+  "eventSeverity": {
+    "maxExposureMultiplier": 3
   },
   "_sabotageNote": "Sabotage carries off grain AND a modest share of the treasury, per the original (docs/kaiser-research.md: burns buildings and transfers grain/currency to the attacker). A dedicated raid still takes far more coin; sabotage trades some of that for destroying a workshop outright.",
   "_grainMarketNote": "The Kaiser buys surplus corn and sells it back dearer. The spread is what makes storing versus selling a real decision rather than an arithmetic one, and it gives the early game an income source before any market or mill exists.",

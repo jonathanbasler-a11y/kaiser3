@@ -49,7 +49,7 @@ export function applyTaxation(
 
   let unrestDelta = 0
   if (burden > TAXATION.toleranceThreshold) {
-    unrestDelta = (burden - TAXATION.toleranceThreshold) * TAXATION.unrestPerExcessPoint / 10
+    unrestDelta = (burden - TAXATION.toleranceThreshold) * TAXATION.unrestPerExcessPoint / TAXATION.unrestExcessDivisor
   }
 
   return { taxIncome, tariffIncome, graftBonus, totalRevenue, unrestDelta }

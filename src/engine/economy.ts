@@ -12,6 +12,7 @@ const HARVEST = economyData.harvest
 const STORAGE = economyData.storage
 const PRICES = economyData.prices
 const POP_ECONOMY = economyData.population
+const FEEDING = economyData.feeding
 
 export interface WeatherBand {
   id: string
@@ -122,17 +123,20 @@ export function resolveFeeding(
   let grainOffered: number
   switch (decision.feedLevel) {
     case 'min':
-      grainOffered = grainStockBeforeFeeding * 0.2
+      grainOffered = grainStockBeforeFeeding * FEEDING.minStockFraction
       break
     case 'max':
-      grainOffered = grainStockBeforeFeeding * 0.8
+      grainOffered = grainStockBeforeFeeding * FEEDING.maxStockFraction
       break
     case 'custom': {
-      // `?? 50` alone only catches undefined/null, not NaN (sanitize.ts) — a
+      // `?? default` alone only catches undefined/null, not NaN (sanitize.ts) — a
       // NaN customPercentage would otherwise clamp to NaN (Math.max/min do
       // not self-heal it) and poison grainOffered, then feedAdequacy,
       // population dynamics, and the treasury for the whole year.
-      const pct = Math.min(80, Math.max(20, finiteOr(decision.customPercentage, 50)))
+      const pct = Math.min(
+        FEEDING.customMaxPercentage,
+        Math.max(FEEDING.customMinPercentage, finiteOr(decision.customPercentage, FEEDING.customDefaultPercentage))
+      )
       grainOffered = grainStockBeforeFeeding * (pct / 100)
       break
     }
@@ -151,8 +155,8 @@ export function resolveFeeding(
     grainConsumed,
     grainStockAfter,
     feedAdequacy,
-    isUnderfed: feedAdequacy < 0.9,
-    isOverfed: feedAdequacy > 1.4
+    isUnderfed: feedAdequacy < FEEDING.underfedAdequacy,
+    isOverfed: feedAdequacy > FEEDING.overfedAdequacy
   }
 }
 
