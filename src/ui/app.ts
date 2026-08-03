@@ -11,15 +11,15 @@ import { eventLossMagnitudeText } from '../engine/events/events.ts'
 import { createStarterState, applyStartingMultiplier } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
 import { getRankName, isFeatureUnlocked, getNextRank, groupProgress, getAllRanks, RankRequirement } from '../engine/ranks.ts'
-import { warStrength, warWinProbability, militaryMultiplier, applyMilitaryInvestment } from '../engine/war.ts'
+import { warStrength, warWinProbability, militaryMultiplier } from '../engine/war.ts'
 import { getPersonalities, Personality } from '../ai/personalities.ts'
 import { getDifficultyPresets, getDifficultyPreset, DEFAULT_DIFFICULTY_ID, DifficultyPreset } from '../ai/difficulty.ts'
 import { planYear } from '../ai/planner.ts'
 import { compareStanding } from '../ai/sim.ts'
 import { annualGrainRequirement, storageCapacity, grainBuybackPrice, laborGatedFarmland, resolveFeeding } from '../engine/economy.ts'
 import { el, clear, stepper, sliderField, segmented, statTile, tooltip } from './dom.ts'
-import { DecisionDraft, defaultDraft, draftToDecisions, rivalOptions, affordableHectares, maxSellableGrain, maxAffordableGrainBuy, yearsOfFoodLabel } from './decisions.ts'
-import { previewYear, YearPreview } from './preview.ts'
+import { DecisionDraft, defaultDraft, draftToDecisions, rivalOptions, affordableHectares, maxSellableGrain, maxAffordableGrainBuy, yearsOfFoodLabel, maxNewHires } from './decisions.ts'
+import { previewYear, warSnapshotDraft, YearPreview } from './preview.ts'
 import {
   feedStockFromChronicle,
   roundedDelta,
@@ -822,18 +822,6 @@ function renderOverviewTab(): HTMLElement {
   )
 }
 
-// A7: expected (weather-averaged, no RNG) harvest yield for the clarity
-// breakdown below — display-only, reuses the same laborGatedFarmland/
-// baseYieldPerHectare terms calculateHarvest() rolls for real, just without
-// the weather draw and jitter, so a player can see roughly what's coming
-// without the number claiming false precision.
-function expectedHarvestYield(player: GameState['players'][string]): number {
-  const bands = economyData.harvest.weatherBands as Array<{ multiplier: number; weight: number }>
-  const totalWeight = bands.reduce((sum, b) => sum + b.weight, 0)
-  const avgWeatherMultiplier = bands.reduce((sum, b) => sum + b.multiplier * b.weight, 0) / totalWeight
-  return laborGatedFarmland(player.land, player.population) * economyData.harvest.baseYieldPerHectare * avgWeatherMultiplier
-}
-
 // A6: projected next-year population — MUST match the sticky footer's
 // "If you end the year now" population delta. That footer is previewYear()
 // (real advanceYear on a clone). An earlier feed-only estimate disagreed
@@ -853,18 +841,22 @@ function populationProjectionText(player: GameState['players'][string], draft: D
   return `Projected population next year at this feed level: ${after} (currently ${before}; ${deltaText}). Same full-year estimate as the footer — includes harvest, feeding, and events.`
 }
 
-/** Pending attacker for War-tab odds: same-turn hires + affordable training/equipment. */
-function pendingWarAttacker(player: PlayerState, draft: DecisionDraft): PlayerState {
-  const invested: PlayerState = {
+/** War-tab display attacker from previewYear's post-spend military snapshot. */
+function previewWarAttacker(player: PlayerState, preview: YearPreview | null): PlayerState {
+  const attacker: PlayerState = {
     ...player,
     buildings: { ...player.buildings },
     population: { ...player.population }
   }
-  applyMilitaryInvestment(invested, draft.trainingInvest, draft.equipmentInvest)
-  invested.guards = player.guards + Math.max(0, draft.guardHire)
-  invested.buildings.garrison = player.buildings.garrison + Math.max(0, draft.garrisonBuild)
-  invested.taler = player.taler // strength ignores treasury; keep display-state honest
-  return invested
+  if (!preview) return attacker
+
+  attacker.guards = preview.guardsAfter
+  attacker.buildings.garrison = preview.garrisonAfter
+  attacker.trainingLevel = preview.trainingLevelAfter
+  attacker.equipmentLevel = preview.equipmentLevelAfter
+  attacker.population.peasants = preview.populationAfter
+  attacker.taler = preview.talerAfter
+  return attacker
 }
 
 function warOddsText(attacker: PlayerState, defender: PlayerState, hasAllyRequests: boolean): string {
@@ -874,7 +866,7 @@ function warOddsText(attacker: PlayerState, defender: PlayerState, hasAllyReques
   const yours = roundedStrength(attackerStrength, militaryMultiplier(attacker)).total
   const theirs = roundedStrength(defenderStrength, militaryMultiplier(defender)).total
   const toneNote = hasAllyRequests ? ' (before any requested allies join — joining only helps)' : ''
-  return `Estimated win chance: ${Math.round(winProbability * 100)}%${toneNote} — your strength ${yours} vs. their ${theirs} (defending at ${WARFARE.defenderAdvantageMultiplier}x; includes same-turn hires and affordable training/equipment).`
+  return `Estimated win chance: ${Math.round(winProbability * 100)}%${toneNote} — your strength ${yours} vs. their ${theirs} (defending at ${WARFARE.defenderAdvantageMultiplier}x; includes this preview's post-spend army and year-end levy).`
 }
 
 function renderGrainTab(player: GameState['players'][string], state: GameState): HTMLElement {
@@ -884,21 +876,22 @@ function renderGrainTab(player: GameState['players'][string], state: GameState):
   const demand = annualGrainRequirement(player.population)
   // Prefer the same harvest oracle as the footer (previewYear / advanceYear).
   const preview = previewYear(session!.state, HUMAN_ID, draft, session!.rivals, session!.difficulty)
-  const projectedHarvest = preview?.harvestYield ?? expectedHarvestYield(player)
   const available = preview
     ? feedStockFromChronicle(player.grainStock, preview.spoilage, preview.harvestYield, preview.grainOverflowLost)
-    : player.grainStock + projectedHarvest
+    : player.grainStock
   const { demand: demandShown, available: availableShown, surplus: surplusShown } = roundedSurplus(demand, available)
   container.appendChild(el('div', { class: 'stat-grid' },
     statTile('Demand this year', `${demandShown}`),
-    statTile('At feeding (after harvest)', `${availableShown}`),
+    statTile(preview ? 'At feeding (after harvest)' : 'Barn stock (preview unavailable)', `${availableShown}`),
     statTile(surplusShown >= 0 ? 'Surplus vs demand' : 'Deficit vs demand', `${Math.abs(surplusShown)}`, surplusShown >= 0 ? 'good' : 'bad')
   ))
-  container.appendChild(el('p', { class: 'help-text' },
-    `Barn now: ${player.grainStock.toFixed(0)} of ${storageCapacity(player.population, player.buildings.granary).toFixed(0)} capacity. ` +
-    `Harvest this preview: ${projectedHarvest.toFixed(0)}${preview ? ` (−${preview.spoilage.toFixed(0)} spoilage` + (preview.grainOverflowLost > 0 ? `, −${preview.grainOverflowLost.toFixed(0)} overflow` : '') + ')' : ' (weather-averaged estimate)'}. ` +
-    `“At feeding” is stock after spoilage/harvest/cap — what Custom/Min/Max percentages apply to.`
-  ))
+  const barnLine = `Barn now: ${player.grainStock.toFixed(0)} of ${storageCapacity(player.population, player.buildings.granary).toFixed(0)} capacity.`
+  const helpText = preview
+    ? `${barnLine} Harvest this preview: ${preview.harvestYield.toFixed(0)} (−${preview.spoilage.toFixed(0)} spoilage` +
+      (preview.grainOverflowLost > 0 ? `, −${preview.grainOverflowLost.toFixed(0)} overflow` : '') +
+      `). "At feeding" is stock after spoilage/harvest/cap — what Custom/Min/Max percentages apply to.`
+    : `${barnLine} Year preview unavailable — "At feeding" shows barn stock only; feed percentages apply to this figure until preview loads.`
+  container.appendChild(el('p', { class: 'help-text' }, helpText))
   const projectionLine = el('p', { class: 'help-text' }, populationProjectionText(player, draft))
   container.appendChild(projectionLine)
 
@@ -1180,13 +1173,13 @@ function renderSpyTab(player: GameState['players'][string], state: GameState, dr
     el('p', { class: 'help-text' }, 'The counts above carry over year to year and are never reduced by upkeep (only Taler is spent) — the steppers below are NEW hires to add this turn, and correctly start at 0 every year. Hires this turn can strike this turn.'),
     stepper({
       label: `Hire NEW guards this turn (defence) — ${costSuffix(ESPIONAGE.guardCost, { upkeep: ESPIONAGE.guardUpkeepPerYear })} each, max ${ESPIONAGE.maxGuards} standing`,
-      value: draft.guardHire, min: 0, max: 10, step: 1,
+      value: draft.guardHire, min: 0, max: maxNewHires(player.guards, ESPIONAGE.maxGuards), step: 1,
       onChange: (v) => { draft.guardHire = v; session!.activeTab = 'spy'; renderGame() },
       tooltip: 'Lowers the chance a rival\'s strike against you succeeds, and adds defensive strength if a rival declares war. Does nothing on offence.'
     }),
     stepper({
       label: `Hire NEW saboteurs this turn (offence) — ${costSuffix(ESPIONAGE.saboteurCost, { upkeep: ESPIONAGE.saboteurUpkeepPerYear })} each, max ${ESPIONAGE.maxSaboteurs} standing`,
-      value: draft.saboteurHire, min: 0, max: 10, step: 1,
+      value: draft.saboteurHire, min: 0, max: maxNewHires(player.saboteurs, ESPIONAGE.maxSaboteurs), step: 1,
       onChange: (v) => { draft.saboteurHire = v; session!.activeTab = 'spy'; renderGame() },
       tooltip: 'Needed to strike a rival (Strike section below, once standing + this turn\'s hires ≥ 1). Committing more against a rival\'s guards raises your odds of success; a failed strike loses some of the committed saboteurs.'
     })
@@ -1242,7 +1235,8 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
   // strength first, then find it has moved the odds below.
   const trainingLevel = player.trainingLevel ?? 0
   const equipmentLevel = player.equipmentLevel ?? 0
-  const pending = pendingWarAttacker(player, draft)
+  let armyPreview = previewYear(session!.state, HUMAN_ID, warSnapshotDraft(draft), session!.rivals, session!.difficulty)
+  let pending = previewWarAttacker(player, armyPreview)
   const strengthShown = roundedStrength(warStrength(pending), militaryMultiplier(pending))
   const strengthGrid = el('div', { class: 'stat-grid' },
     statTile('Base strength', `${strengthShown.base}`),
@@ -1251,8 +1245,9 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
   )
 
   const refreshArmyDisplay = () => {
-    const next = pendingWarAttacker(player, draft)
-    const shown = roundedStrength(warStrength(next), militaryMultiplier(next))
+    armyPreview = previewYear(session!.state, HUMAN_ID, warSnapshotDraft(draft), session!.rivals, session!.difficulty)
+    pending = previewWarAttacker(player, armyPreview)
+    const shown = roundedStrength(warStrength(pending), militaryMultiplier(pending))
     clear(strengthGrid)
     strengthGrid.append(
       statTile('Base strength', `${shown.base}`),
@@ -1263,8 +1258,8 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
       const defender = state.players[draft.warTargetPlayerId]
       if (defender) {
         const hasAllyRequests = draft.warAlliesRequested.length > 0
-        const text = warOddsText(next, defender, hasAllyRequests)
-        const winProbability = warWinProbability(warStrength(next), warStrength(defender))
+        const text = warOddsText(pending, defender, hasAllyRequests)
+        const winProbability = warWinProbability(warStrength(pending), warStrength(defender))
         oddsLine.className = `help-text ${winProbability >= 0.5 ? 'good' : 'bad'}`
         oddsLine.textContent = text
       }
@@ -1275,7 +1270,7 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
 
   container.append(
     el('h3', { class: 'row' }, 'Your army', tooltip(
-      `Base strength comes from your garrison, guards and a levy drawn from your population. Training and equipment MULTIPLY that base — every level of training adds ${Math.round(WARFARE.trainingStrengthBonusPerLevel * 100)}% and every level of equipment ${Math.round(WARFARE.equipmentStrengthBonusPerLevel * 100)}%, so they are worth the same proportionally whether your realm is small or large. Both carry annual upkeep forever, so an army you never use is a permanent drain. Tiles include same-turn hires and affordable levels queued below.`
+      `Base strength comes from your garrison, guards and a levy drawn from your population. Training and equipment MULTIPLY that base — every level of training adds ${Math.round(WARFARE.trainingStrengthBonusPerLevel * 100)}% and every level of equipment ${Math.round(WARFARE.equipmentStrengthBonusPerLevel * 100)}%, so they are worth the same proportionally whether your realm is small or large. Both carry annual upkeep forever, so an army you never use is a permanent drain. Tiles use previewYear's post-spend army snapshot, including clamps from earlier spending this year.`
     )),
     strengthGrid,
     stepper({
@@ -1452,7 +1447,7 @@ function buildIncomeBreakdown(report: Chronicle['playerReports'][string]): HTMLE
     pair('Grain trade', report.grainTradeIncome),
     pair('Upkeep (buildings, secret service, army, tribute)', -report.upkeepCost)
   ].filter(([, v]) => Math.abs(v) >= 1)
-  // Round each line first so displayed Net equals the sum of displayed lines.
+  // Round each line first so displayed Operating net equals the sum of displayed lines.
   const shown = lines.map(([label, v]) => [label, Math.round(v)] as [string, number])
   const net = shown.reduce((sum, [, v]) => sum + v, 0)
 
@@ -1464,9 +1459,14 @@ function buildIncomeBreakdown(report: Chronicle['playerReports'][string]): HTMLE
         el('span', { class: v >= 0 ? 'good' : 'bad' }, `${v >= 0 ? '+' : ''}${v}`)
       )
     ),
-    el('div', { class: 'row between', style: 'border-top:1px solid var(--border);padding-top:6px;margin-top:6px;font-weight:600' } as never,
-      el('span', {}, 'Net'),
-      el('span', { class: net >= 0 ? 'good' : 'bad' }, `${net >= 0 ? '+' : ''}${net}`)
+    el('div', { style: 'border-top:1px solid var(--border);padding-top:6px;margin-top:6px' } as never,
+      el('div', { class: 'row between', style: 'font-weight:600' } as never,
+        el('span', {}, 'Operating net'),
+        el('span', { class: net >= 0 ? 'good' : 'bad' }, `${net >= 0 ? '+' : ''}${net}`)
+      ),
+      el('p', { class: 'help-text' },
+        'Excludes land, builds, recruits, army spend, events, raids, and war.'
+      )
     )
   )
 }

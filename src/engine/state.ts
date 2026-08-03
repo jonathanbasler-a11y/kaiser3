@@ -1,5 +1,11 @@
 // Core game state and decision types — the contract between UI/AI and the reducer.
 
+import { finiteOr } from './sanitize.ts'
+
+function finiteOrZero(n: number | undefined): number {
+  return finiteOr(n, 0)
+}
+
 export interface PlayerState {
   id: string
   name: string
@@ -298,7 +304,7 @@ export function clonePlayerState(player: PlayerState): PlayerState {
       well: player.buildings.well,
       granary: player.buildings.granary,
       garrison: player.buildings.garrison,
-      dike: player.buildings.dike ?? 0
+      dike: finiteOrZero(player.buildings.dike)
     },
     rank: player.rank,
     guards: player.guards,
@@ -308,8 +314,8 @@ export function clonePlayerState(player: PlayerState): PlayerState {
     reignYears: player.reignYears,
     dead: player.dead,
     heir: player.heir,
-    trainingLevel: player.trainingLevel ?? 0,
-    equipmentLevel: player.equipmentLevel ?? 0
+    trainingLevel: finiteOrZero(player.trainingLevel),
+    equipmentLevel: finiteOrZero(player.equipmentLevel)
   }
 }
 

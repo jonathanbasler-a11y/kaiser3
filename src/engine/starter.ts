@@ -59,7 +59,8 @@ export function applyStartingMultiplier(
       ...player.population,
       peasants: player.population.peasants * multiplier.population
     },
-    grainStock: player.grainStock * multiplier.population
+    grainStock: player.grainStock * multiplier.population,
+    buildings: { ...player.buildings }
   }
 }
 

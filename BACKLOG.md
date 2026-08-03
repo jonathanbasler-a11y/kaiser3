@@ -392,3 +392,404 @@ proportionally so the ~1-year food buffer stays fair). Easy 0.9 / hard 1.1
 peasants move day-one labor capacity. Measured after fix: standard beats easy
 ~77% (N=150); hard beats standard ~75%. Handicap test in `tests/difficulty.test.ts`
 unskipped.
+
+---
+
+# Full-codebase audit — 2026-08-03 (post-PR #26)
+
+Findings from a systematic read-only audit run after the five same-day PRs
+(#22–#26) landed on top of Phase 18. **Nothing here was fixed** — this pass was
+documentation-only by instruction. Every entry cites `file:line` with the actual
+line quoted, so each is re-checkable without trusting the audit.
+
+Loop-by-loop yield (the diminished-returns stopping decision, shown rather than
+asserted): Loop 1 (UI↔engine duplication + engine invariants) **25**; Loop 2
+(AI/balance layer) **8**, incl. 2 High; Loop 3 (data integrity) **3**; Loop 4
+(test suite) **2**, both Low. Stopped after Loop 4 — the curve had flattened and
+the mechanical scans were returning mostly false positives.
+
+**Verified as HOLDING** (recorded so they stay closed, and so nobody re-derives
+them): `advanceYear` reducer purity — input state confirmed byte-identical after
+a maximal decision sheet; save/load round-trip — confirmed byte-identical, no
+`PlayerState` field dropped by `persist.ts`; Decision-field NaN sanitization — no
+unsanitized numeric Decision read found anywhere in the engine.
+
+## Bugs
+
+### B7. All rivals share one planning seed — `id.length` doesn't differentiate them
+`src/ai/sim.ts:156`, `src/ui/app.ts:1401`, `src/ui/preview.ts:46`:
+```ts
+const planningSeed = seed + year * 104729 + competitor.id.length
+```
+The `+ id.length` term exists to give each ruler its own planning seed. It fails
+wherever ids are the same length, which is **the main game path**:
+`app.ts:322` builds `` `rival${i + 1}` `` — `rival1`…`rival5` are *all* 6
+characters, so every rival plans with an identical seed every year.
+
+It also fails in the balance harness. `scripts/balance.ts:25` maps personality ids
+to player ids, giving `builder`(7), `expansionist`(12), `merchant`(8),
+`schemer`(7), `raider`(6) — **`builder` and `schemer` collide**, in the 5-ruler
+configuration that gates every balance-sensitive change in this project.
+
+The codebase already contains the correct idiom in two places:
+`scripts/play.ts:156` uses `+ index`, and `tests/difficulty.test.ts:42-43` passes
+`+ 1` / `+ 2` explicitly. The broken `+ id.length` form appears at 9 sites
+(`sim.ts`, `app.ts`, `preview.ts`, `gen-golden-fixture.ts` ×2,
+`hardening-measure.ts` ×2, `golden.test.ts` ×2).
+
+Not a crash — rivals still differ by personality and by their own state — but the
+intended decorrelation of evaluation noise is simply absent. **Fixing this will
+shift the golden fixture and the ai-bench baseline**, so it needs a deliberate,
+reviewed regeneration, not an incidental one.
+
+### ~~B8. The War tab computes odds from a treasury the engine will have already spent~~ ✅ FIXED (PR1 silent branch)
+`src/ui/app.ts:857-868` (`pendingWarAttacker`) re-implements `year.ts` steps
+2/2.5/3 with none of the engine's clamps:
+```ts
+applyMilitaryInvestment(invested, draft.trainingInvest, draft.equipmentInvest)
+invested.guards = player.guards + Math.max(0, draft.guardHire)
+invested.buildings.garrison = player.buildings.garrison + Math.max(0, draft.garrisonBuild)
+```
+- It runs `applyMilitaryInvestment` against the **full** treasury, but `year.ts:159`
+  (recruitment) spends before `year.ts:172` (military investment). The tab can show
+  training/equipment levels the engine will clamp away.
+- Guards are added with no `ESPIONAGE.maxGuards` cap and no affordability check —
+  `espionage.ts:145-148` applies both.
+- Garrison is added with no cost check and no `Math.max(0, 1 - garrison)` cap
+  (`buildings.ts:71`).
+
+The War tab's odds line is the one place in the UI that does **not** go through
+`previewYear()`, even though `preview.ts` already caches the rivals' real
+`planYear` decisions.
+
+### ~~B9. The AI has the same treasury-order bug as B8~~ ✅ FIXED (PR1 silent branch)
+`src/ai/warAggression.ts:147`:
+```ts
+let spendable = self.taler - (isAggressor ? MILITARY_RESERVE_AGGRESSOR_TALER : MILITARY_RESERVE_DEFENDER_TALER)
+```
+`planMilitaryInvestment` is priced **directly**, not through the planner's
+one-year-forward candidate sweep (the file's own header explains why), so its
+affordability assumption is never validated by simulation. It plans against the
+start-of-turn treasury while `year.ts` has already spent on land trade (step 1)
+and recruitment (step 2). `applyMilitaryInvestment` then silently clamps. Unlike
+the human, no one reads the AI's shortfall — the investment just doesn't happen.
+
+### B10. `resolveWar` floors casualties but not population transfer
+`src/engine/war.ts:196-197` vs `:230-232`:
+```ts
+const winnerCasualties = Math.floor(winner.population.peasants * WARFARE.casualtyFractionWinner)
+...
+const populationTransferred = loser.population.peasants * WARFARE.populationTransferFraction
+```
+Casualties are floored; the transfer is not. Every war therefore leaves both sides
+with a fractional peasant count, which then flows into `annualGrainRequirement`,
+`laborGatedFarmland`, rank `populationMin` checks and the UI. Inconsistent within
+a single function — whichever convention is right, both should follow it.
+
+### ~~B11. Grain "available" has two different definitions depending on preview state~~ ✅ FIXED (PR1 silent branch)
+`src/ui/app.ts:887-890`:
+```ts
+const projectedHarvest = preview?.harvestYield ?? expectedHarvestYield(player)
+const available = preview ? feedStockFromChronicle(...) : player.grainStock + projectedHarvest
+```
+The `preview == null` fallback silently drops spoilage **and** the storage cap that
+`feedStockFromChronicle` exists to model — so the same tile means two different
+things depending on whether `previewYear` happened to return a result.
+
+### ~~B12. "Net" in the income breakdown is a third, different definition of Taler change~~ ✅ FIXED (PR1 silent branch)
+`src/ui/app.ts:1443-1472`:
+```ts
+const net = shown.reduce((sum, [, v]) => sum + v, 0)
+```
+Excludes construction spend, land trade, recruitment/military spend, event gold
+loss, raids and war reparations. The footer's `Taler ±delta` (`app.ts:627`) is the
+real `talerAfter − talerBefore`. Two different numbers under the same label — in
+the release whose stated purpose was coherence.
+
+### ~~B13. The UI caps guard/saboteur hiring far below what the data allows~~ ✅ FIXED (PR1 silent branch)
+`src/ui/app.ts:1183,1189` set `max: 10` for guard and saboteur hire, while
+`data/economy.json` sets `maxGuards: 25` / `maxSaboteurs: 25` (applied at
+`espionage.ts:145,150`). A third, different cap exists in the AI at
+`aggression.ts:111` (`Math.min(3, …)`) and `:140` (`Math.min(4, …)`). Three layers,
+three caps, none derived from the data.
+
+## Correctness and robustness (latent — currently masked, still real)
+
+### R1. `war.ts:242` advances the RNG stream conditionally, inside a short-circuit
+```ts
+if (loser.buildings.garrison > 0 && rng.next() < WARFARE.garrisonDestructionChanceLoser) {
+```
+Whether the loser *owns a garrison* decides whether the shared stream advances.
+This is the exact fragility class as D6 above, and it directly contradicts the
+deliberate discipline two files over — `events.ts:287-297` ("Draw BOTH the
+occurrence roll and the severity roll unconditionally") and
+`positiveEvents.ts:48-53` ("Draws exactly 3 values … UNCONDITIONALLY").
+
+### R2. `population.ts:62` is the highest-frequency conditional draw in the pipeline
+Immigration is gated by `population.ts:61`
+(`unrest < 15 && feedAdequacy >= 0.95 && feedAdequacy <= 1.3`). Measured: a
+3-player year draws 60 values; setting one player's unrest to 50 makes it 59. A
+single point of unrest shifts every subsequent weather/event/war roll for **every
+remaining player that year**. Two further conditional draws: `succession.ts:39`
+and `espionage.ts:85`, plus a variable-length one at `war.ts:143` (one per
+surviving requested ally).
+
+### ~~R3. `clonePlayerState` does not coerce NaN, and a comment says it does~~ ✅ FIXED (PR1 silent branch)
+`src/engine/state.ts:23-25` claims both `clonePlayerState()` and `persist.ts`'s
+`normalizePlayer()` "coerce them to a real 0, so neither can silently drop out of a
+cloned or saved state." `persist.ts` does (`Number.isFinite`). `clonePlayerState`
+does **not** — `state.ts:311-312` uses `?? 0`, which does not catch `NaN`.
+Verified: a `PlayerState` carrying `trainingLevel: NaN` survives cloning and
+poisons **12 fields** in one year. Not reachable from a Decision or a save today
+(both are sanitized), but reachable from any hand-constructed state in a test,
+script, or the AI layer. The same wording appears for `dike` at `state.ts:52-53`.
+
+### ~~R4. The hand-written clone's compile-time guarantee doesn't cover optional fields~~ ✅ FIXED (PR1 silent branch)
+`src/engine/state.ts:281-283` claims the clone "fails loudly at compile time if a
+new field is ever added to PlayerState/GameState without also being copied here."
+True for **required** fields only — a new `foo?: number` is silently accepted by
+the object literal and would drop out of every clone. `dike`, `trainingLevel` and
+`equipmentLevel` are all in this category and are currently handled by hand.
+`normalizeBuildings` (`persist.ts:36-49`) is a whitelist with the identical hole.
+
+### ~~R5. `starter.ts:55` shares `buildings` by reference~~ ✅ FIXED (PR1 silent branch)
+`applyStartingMultiplier` spreads `...player` and rebuilds `land` and `population`
+explicitly, but not `buildings`. Verified at runtime: mutating
+`scaled.buildings.markets` leaks into the original. Currently masked because both
+call sites immediately overwrite the source slot — but it is exactly the
+nested-reference pattern the rest of the engine is careful to avoid.
+
+### ~~R6. A typo'd `loss.type` in `data/events.json` would fire a silently inert event~~ ✅ FIXED (PR1 silent branch)
+`validateEventCatalog` (`events.ts`) checks ids, the mitigation hook, mitigation
+bounds, `floorProbability <= maxProbability` and jitter range — but **not**
+`loss.type`. Neither `applyEventLoss` nor `evaluator.ts:240-275` has a `default`
+case. So an unrecognized loss type passes validation, applies no loss, prices no
+risk, and still logs to the chronicle as though it happened.
+
+### ~~R7. `validatePositiveEventCatalog` never checks the reward ranges are finite~~ ✅ FIXED (PR1 silent branch)
+`positiveEvents.ts:31-44` validates ids, text, `rewardType`, and
+`CHANCE_PER_YEAR ∈ [0,1]`, but not `range.min`/`range.max`. `positiveEvents.ts:63`
+(`range.min + magnitudeRoll * (range.max - range.min)`) would then write `NaN`
+directly into `taler`/`peasants`/`grainStock` — the one unguarded numeric write in
+the newest engine file.
+
+### ~~R8. Pre-F5 saves are rejected on fields whose newer siblings default~~ ✅ FIXED (PR1 silent branch)
+`persist.ts:78-79` calls `finiteNumber` unconditionally on `score` and
+`reignYears`, so a save written before F5 fails outright — while `dike`,
+`trainingLevel`, `equipmentLevel` and `heir` all tolerate absence and default.
+Asymmetric with `persist.ts:81-84`'s own stated philosophy ("a save written before
+military investment existed is still a valid save"). Reject-not-lose, so no silent
+data loss, but the rule isn't applied consistently.
+
+## Simplification and data discipline
+
+### S1. `maxLandTransferShare` can never bind — it is a constant-fold, not a cap
+`src/engine/war.ts:205-208`:
+```ts
+const landTransferred = Math.min(
+  loserTotalLand * WARFARE.landTransferFraction,
+  loserTotalLand * WARFARE.maxLandTransferShare
+)
+```
+Both terms scale off the **same** `loserTotalLand`, so this reduces to
+`loserTotalLand * min(0.08, 0.5)` — a comparison of two config constants that
+never depends on game state. Measured from `data/economy.json`:
+`landTransferFraction = 0.08`, `maxLandTransferShare = 0.5`, so the cap never has
+any effect. The comment claims a gameplay rule ("capped so a single war can never
+claim more than maxLandTransferShare of the loser's holdings") that the data
+contradicts by a factor of 6. Either the cap should be measured against a
+different base (cumulative transfer, or the winner's holdings), or it is dead
+config that should say so. Related: `warAggression.ts:196` prices `landAtStake`
+using `landTransferFraction` alone — correct *today* only because 0.08 is the
+smaller constant; raise it above 0.5 and the AI's pricing silently diverges from
+the engine, breaking that file's own stated contract.
+
+### S2. Hardcoded game stats in `src/`, against CLAUDE.md's explicit rule
+"All game data lives in /data JSON. If you are hardcoding a stat in /src, stop."
+- `src/engine/starter.ts:10-31` — **every** starting stat is a literal
+  (`taler: 15000`, `farmland: 10000`, `grainStock: 11000`, `peasants: 1000`). The
+  file's own comment at `:75-78` says "Read from data, never hardcoded" — but that
+  applies only to `kaizerTradePrices` at `:79-83`.
+- `src/engine/population.ts` — the entire unrest/migration model: `:31` `* 60`,
+  `:33` `- 5`, `:40` `1 - unrest / 200`, `:48` `< 0.5` starvation trigger,
+  `:61` the immigration gate constants. Only the rates come from JSON.
+- `src/engine/economy.ts:125,128` — Min/Max feed dials as `* 0.2` / `* 0.8`;
+  `:154-155` `isUnderfed < 0.9` / `isOverfed > 1.4`.
+- `src/engine/tax.ts:38,47,52`; `src/engine/war.ts:126`
+  (`taler + peasants * 10`); `src/engine/events/events.ts:173`.
+
+### S3. Constants duplicated in `src/` that already exist in `data/`
+- **Palace stage count `16`** at `app.ts:652,1069,1073` and `evaluator.ts:160`,
+  while `buildingsData.prestige.palace.stages` is live and used at
+  `buildings.ts:79`. `evaluator.ts` is the worst case: it already imports
+  `PALACE` (line 32) and uses `PALACE.landRequirement` at `:217`, yet writes
+  `player.buildings.cathedral * 16` at `:160`.
+- **Trading-house max `3`** at `app.ts:1140,1141,1152`, while
+  `COMMERCE.tradingHouse.maxCount` is used at `buildings.ts:102`.
+- **`KAISER_RANK = 7`** in `gameLoop.ts:10`, `sim.ts:15`, `app.ts:91`, plus a bare
+  `rank >= 7` at `render.ts:337` — while `getTopRank()` (`ranks.ts:123`) exists and
+  is used only by `scripts/` and `tests/`.
+- **Farmland/building-land prices** `30`/`50` inlined at `sim.ts:45-46`, duplicating
+  `prices.farmlandBasePrice` / `prices.buildingLandBasePrice`.
+- **`app.ts:979,985`** state "~5 ha per peasant" in prose, restating
+  `HARVEST.laborHectaresPerPeasant: 5` — will go stale silently.
+
+### S4. Dead keys in `data/buildings.json`
+Never referenced by any `.ts` file in `src/`, `scripts/` or `tests/`:
+`production.market.laborRequirement`, `production.mill.laborRequirement`,
+`prestige.palace.completeAtStage`, and `mitigation.{hospital,well,granary,garrison,dike}.mitigates`.
+
+The five `mitigates` keys are the notable ones: they are a **second, unenforced
+declaration** of the event↔building mitigation relationship, which actually lives
+in `data/events.json` (`event.mitigation.building`) and is validated one-way only
+(`validateEventCatalog` checks event→building, nothing checks building→event). Two
+sources of truth for one relationship, one of them inert and free to drift. Same
+class as `cornPriceBands` before Phase 12.
+
+### S5. The UI re-implements engine logic that is one `export` away
+- `app.ts:695-743` (`requirementTiles`) reimplements rank gating; the engine's
+  `meetsRequirementGroup()` (`ranks.ts:29-36`) is the same logic but is **not
+  exported**.
+- `app.ts:1067,1097-1099` duplicate the palace/cathedral gates from
+  `buildings.ts:78,84-89` verbatim.
+- `app.ts:830-835` (`expectedHarvestYield`) is a third copy of the weather-band
+  weighted mean, alongside `economy.ts:24` and `evaluator.ts:123-131`.
+- `decisions.ts:150-154` (`yearsOfFoodLabel`) duplicates `evaluator.ts:70-74`'s
+  `yearsOfFoodHeld()`.
+- `app.ts:1031-1040` (`mitigationDetail`) reads `eventsData.events` raw, bypassing
+  `getEventCatalog()` and therefore `validateEventCatalog()`.
+- `decisions.ts:156-159` (`affordableHectares`) is used at `app.ts:959-960` as two
+  independent maxima, but `land.ts:39-52` clamps the **combined** order by
+  proportional scaling — so both maxima can never actually be taken together.
+
+### S6. `land.farmland + land.buildingLand` appears at 12 sites with no helper
+`buildings.ts:38`, `war.ts:204`, `evaluator.ts:147,216`, `planner.ts:73,180`,
+`sim.ts:110`, `balance.ts:72`, `warAggression.ts:196,197`, `app.ts:651,1059`.
+
+### S7. One aggression constant serves two unrelated policies
+`warAggression.ts:28` `MIN_AGGRESSION_TO_CONSIDER_WAR = 0.5` gates **whether to
+declare war** at `:172`, and separately decides the **investment reserve tier**
+(8k vs 30k) via `isAggressor` at `:102`. The file's comments treat these as
+distinct policies ("aggressors arm early and cheaply, defenders only once rich"),
+but retuning one silently retunes the other.
+
+### S8. `aggression.ts` breaks its own stated invariant at exactly 2 saboteurs
+`:147-148` — "Commit most of the barracks, but keep a seed to rebuild from":
+```ts
+const committed = Math.max(2, Math.floor(self.saboteurs * 0.75))
+```
+At `saboteurs === 2` (the smallest value the guard at `:143` admits):
+`floor(1.5) = 1`, `max(2, 1) = 2` — it commits **all** of them, keeping no seed.
+Correct from 3 upward.
+
+### S9. Stale comments
+- `planner.ts:216` cites "year.ts:38" for the clone; it is at `year.ts:54`.
+- `state.ts:23-25` and `:52-53` — see R3.
+- `state.ts:281-283` — see R4.
+- `war.ts:201-203` — see S1.
+
+## Test debt
+
+### T1. `malformedInput.test.ts` never exercises the `war` decision
+`tests/malformedInput.test.ts:121-145` ("a fully malformed sheet — every numeric
+field NaN") omits the `war` decision entirely, so `trainingInvest`/`equipmentInvest`
+as `NaN` never reaches `advanceYear` in the suite that exists to catch exactly
+that. (Checked manually during this audit: it does pass — `war.ts:93,100` sanitize
+correctly. The gap is coverage, not a live defect.) `dikeBuild: NaN` is likewise
+only covered in the construction-only case at `:65`.
+
+### T2. Two AI tests still assert on a single hardcoded seed
+`tests/ai.test.ts:321` and `:330` run `runMatch([...], 500, 60)` / `(…, 500, 120)`
+against one fixed seed. This is the class that broke during Phase 18D when a new
+RNG-consuming step shifted stream positions — the file's neighbour at `:305`
+already averages over `SEEDS = [500, 3000, 9000, 15000, 21000]` for that reason.
+The rest of the suite is in good shape here: most stochastic tests already loop
+200–500 seeds.
+
+### T3. Nothing guards against a same-length-id planning-seed collision
+B7 above went undetected because no test asserts that two rulers in the same match
+receive different planning seeds. A direct assertion would have caught it in the
+5-ruler balance configuration.
+
+## Platform / infra
+
+### P3. `/api/bug-report` is an unauthenticated public endpoint that files real GitHub issues, with no rate limiting
+`api/bug-report.ts` — the one deliberate backend exception (see F8's neighbour
+above) — validates payload shape and length, but has no CAPTCHA, no per-IP/per-
+session throttling, and no origin check. The client
+(`src/ui/app.ts:169-240 mountBugReport`) is a plain unauthenticated `fetch('/api/bug-report', …)`;
+nothing about the request proves it came from the actual game UI.
+
+Browser-only cross-origin abuse is blocked by CORS preflight (the request is
+`Content-Type: application/json`, a non-simple request), but CORS is enforced by
+browsers, not by the server — a script or `curl` can POST directly to the deployed
+URL with no restriction at all. Each accepted POST spends the project's
+`GITHUB_TOKEN` to file a real issue on `jonathanbasler-a11y/kaiser3` labeled
+`bug-report`. Low likelihood today (the URL isn't advertised beyond the in-game
+button), but the blast radius if found is real: issue-spam on the repo, or
+exhausting the token's GitHub API rate limit. Worth a lightweight mitigation
+(per-IP throttling, a honeypot field, or a shared-secret header set by the client
+build) before this endpoint is ever linked to or discovered externally.
+
+## User-reported (live bug reports, `gh issue list --repo jonathanbasler-a11y/kaiser3 --label bug-report`)
+
+Three real in-game reports came in via `/api/bug-report` during this session
+(issues #27–#29, all iPhone/mobile). Root-caused against the current code below;
+not fixed, per this pass's document-only instruction.
+
+### B14. Grain sold this turn can never fund a same-turn build (issue #27)
+> "I build without gold and then sold a lot of grain but it did not build? Error
+> message that there was only 14k left at time of build" — Tab: grain, Year 1.
+
+Root cause, confirmed against `year.ts`'s own numbered pipeline comment
+(`year.ts:66-89`): **construction is step 3; the grain market is step 6**,
+*after* feeding (step 5) — deliberately, so a ruler sells genuine surplus rather
+than the grain in the peasants' mouths (`year.ts:224-225`'s comment). That
+ordering is correct for feeding, but it also means **grain-sale income can never
+be spent on construction queued the same turn** — the treasury construction sees
+at step 3 has not yet received step 6's proceeds. This is a distinct instance of
+the same underlying class A2 was built to surface (silent same-turn spending-order
+shortfalls) — but A2's shortfall detection is keyed off requested-vs-actual
+building counts, not off "you tried to fund this with an income source that
+hasn't landed yet," so the shortfall message here (if A2 fires at all) doesn't
+explain *why*. Two independent fixes are possible: reorder the pipeline (risky —
+would need re-verification against every test tied to the current step numbers),
+or make this specific case legible (an explicit note when a construction shortfall
+coincides with a same-turn grain sale: "grain sale proceeds land after
+construction this turn — queue the sale a turn ahead").
+
+### B15. Tax rates silently reset to default every single turn (issue #29)
+> "Goes back to default every turn" — Tab: tax, Year 3.
+
+Root cause, confirmed at `src/ui/app.ts:1428`:
+```ts
+session.draft = trackDraft(defaultDraft(result.state.players[HUMAN_ID]))
+```
+Every End Year advance replaces the **entire** draft object with
+`defaultDraft()`, including `vat`/`incomeTax`/`tariff`/`justiceGraft`
+(`decisions.ts:56-59`, defaults `15/15/5/0`). That reset is correct for the
+one-shot decisions in the same draft (land trade, construction, recruitment,
+military investment, grain trade) — those genuinely should not carry over. But
+tax rates are a **standing policy**, not a one-shot order, and a player who sets
+a rate once should reasonably expect it to hold until changed — instead it
+silently reverts every year, so any deliberate tax strategy is undone the moment
+the player stops re-entering it. Fix shape: carry `vat`/`incomeTax`/`tariff`/
+`justiceGraft` forward from the previous draft into the new one at line 1428,
+rather than sourcing them from `defaultDraft()`.
+
+### B16. Population change has no visible breakdown anywhere in the UI (issue #28)
+> "Unclear where growth and shrinking is coming from - should be seen at end
+> turn stats and during turn in forecast" — Tab: overview, Year 1.
+
+Confirmed: `PlayerChronicle` already computes `births`, `deaths`, `emigration`,
+and `immigration` every year (`year.ts:241-244`, from `applyPopulationDynamics`),
+but the UI renders **only** `emigration`, and only conditionally
+(`app.ts:1584-1585`, gated on `report.emigration > 1`) — `births`, `deaths`, and
+`immigration` are computed and then discarded. `populationProjectionText`
+(`app.ts:831`, A6's forward projection) likewise shows only the net before/after
+delta, not its components. So neither the end-of-turn report nor the in-turn
+forecast the user is asking for actually breaks the number down — the data
+exists end-to-end, it's just never surfaced. Straightforward fix: a births/
+deaths/emigration/immigration line in the year-report log (same pattern as the
+existing emigration entry) and/or a components tooltip on the population
+projection.

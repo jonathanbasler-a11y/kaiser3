@@ -55,6 +55,10 @@ export interface YearPreview {
   talerAfter: number
   populationBefore: number
   populationAfter: number
+  guardsAfter: number
+  garrisonAfter: number
+  trainingLevelAfter: number
+  equipmentLevelAfter: number
   unrestAfter: number
   shortfalls: string[]
   rankPromoted: boolean
@@ -62,6 +66,17 @@ export interface YearPreview {
   harvestYield: number
   spoilage: number
   grainOverflowLost: number
+}
+
+// War-tab odds need the army AFTER same-turn spending, but BEFORE the selected
+// war itself applies casualties, transfers, or reparations.
+export function warSnapshotDraft(draft: DecisionDraft): DecisionDraft {
+  return {
+    ...draft,
+    declareWar: false,
+    warTargetPlayerId: null,
+    warAlliesRequested: []
+  }
 }
 
 // Runs the real advanceYear() with the human's IN-PROGRESS draft and rivals'
@@ -97,6 +112,10 @@ export function previewYear(
     talerAfter: humanAfter.taler,
     populationBefore: humanBefore.population.peasants,
     populationAfter: humanAfter.population.peasants,
+    guardsAfter: humanAfter.guards,
+    garrisonAfter: humanAfter.buildings.garrison,
+    trainingLevelAfter: humanAfter.trainingLevel ?? 0,
+    equipmentLevelAfter: humanAfter.equipmentLevel ?? 0,
     unrestAfter: humanAfter.population.unrest,
     shortfalls: report.shortfalls,
     rankPromoted: report.rankPromoted,

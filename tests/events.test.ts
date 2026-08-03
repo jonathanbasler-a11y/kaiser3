@@ -3,6 +3,7 @@ import {
   resolveEvents, calculateEventProbability, validateEventCatalog, getEventCatalog,
   EventDefinition
 } from '../src/engine/events/events.ts'
+import { validatePositiveEventCatalog } from '../src/engine/events/positiveEvents.ts'
 import { SeededRng } from '../src/engine/rng.ts'
 import { PlayerState, EventId } from '../src/engine/state.ts'
 import { ExposureContext } from '../src/engine/scarcity.ts'
@@ -92,6 +93,32 @@ describe('validateEventCatalog', () => {
   it('rejects duplicate event ids', () => {
     const bad = [findEvent('plague'), findEvent('plague')]
     expect(() => validateEventCatalog(bad)).toThrow(/duplicate event id/)
+  })
+
+  it('rejects an event with an invalid loss type', () => {
+    const bad = [{
+      ...findEvent('plague'),
+      loss: { type: 'not_a_real_loss', fraction: 0.1, severityJitter: 0.1 }
+    }] as unknown as EventDefinition[]
+    expect(() => validateEventCatalog(bad)).toThrow(/invalid loss type/)
+  })
+})
+
+describe('validatePositiveEventCatalog', () => {
+  it('accepts the shipped positive event catalog', () => {
+    expect(() => validatePositiveEventCatalog()).not.toThrow()
+  })
+
+  it('rejects a range with min as NaN', () => {
+    const dummyCatalog = [{ id: 'test', text: 'Test', rewardType: 'taler' as any }]
+    const dummyRanges = { taler: { min: NaN, max: 1 } }
+    expect(() => validatePositiveEventCatalog(dummyCatalog, dummyRanges)).toThrow(/finite|invalid/)
+  })
+
+  it('rejects a range with min > max', () => {
+    const dummyCatalog = [{ id: 'test', text: 'Test', rewardType: 'taler' as any }]
+    const dummyRanges = { taler: { min: 5, max: 2 } }
+    expect(() => validatePositiveEventCatalog(dummyCatalog, dummyRanges)).toThrow(/min > max/)
   })
 })
 

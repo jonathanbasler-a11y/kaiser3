@@ -28,16 +28,32 @@ const REWARD_RANGES = positiveEventsData.rewardRanges as Record<PositiveRewardTy
 // Fails fast on malformed content, same discipline validateEventCatalog()
 // applies to the negative-event catalog — bad data should never reach a
 // running game.
-export function validatePositiveEventCatalog(catalog: PositiveEventDefinition[] = CATALOG): void {
+export function validatePositiveEventCatalog(
+  catalog: PositiveEventDefinition[] = CATALOG,
+  ranges: Record<string, { min: number; max: number }> = REWARD_RANGES
+): void {
   const seenIds = new Set<string>()
   for (const entry of catalog) {
     if (seenIds.has(entry.id)) throw new Error(`Positive event catalog: duplicate id "${entry.id}"`)
     seenIds.add(entry.id)
     if (!entry.text) throw new Error(`Positive event "${entry.id}" has no text`)
-    if (!(entry.rewardType in REWARD_RANGES)) {
+    if (!(entry.rewardType in ranges)) {
       throw new Error(`Positive event "${entry.id}" has unknown rewardType "${entry.rewardType}"`)
     }
   }
+
+  for (const [key, range] of Object.entries(ranges)) {
+    if (!range) {
+      throw new Error(`Positive event range for "${key}" is missing.`)
+    }
+    if (!Number.isFinite(range.min) || !Number.isFinite(range.max)) {
+      throw new Error(`Positive event range for "${key}" must have finite min and max.`)
+    }
+    if (range.min > range.max) {
+      throw new Error(`Positive event range for "${key}" has min > max: ${range.min} > ${range.max}`)
+    }
+  }
+
   if (CHANCE_PER_YEAR < 0 || CHANCE_PER_YEAR > 1) {
     throw new Error(`Positive event chancePerYear must be in [0,1], got ${CHANCE_PER_YEAR}`)
   }

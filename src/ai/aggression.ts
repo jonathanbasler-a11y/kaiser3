@@ -108,6 +108,8 @@ export function planAggression(
   // strike does not need a garrison of spies.
   const worstThreat = Math.max(0, ...rivals.map((id) => state.players[id].saboteurs))
   const guardTarget = worstThreat > 0 ? Math.ceil(worstThreat * 0.6) + 1 : 1
+  // Per-turn batch caps (3 guards, 4 saboteurs) are AI policy; engine enforces
+  // ESPIONAGE.maxGuards / maxSaboteurs as the hard ceiling.
   const guardHire = Math.max(0, Math.min(3, guardTarget - self.guards))
 
   if (profile.aggression <= 0) {

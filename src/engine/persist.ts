@@ -75,8 +75,12 @@ function normalizePlayer(raw: unknown, expectedId: string): PlayerState {
     guards: finiteNumber(raw.guards, `${expectedId}.guards`),
     saboteurs: finiteNumber(raw.saboteurs, `${expectedId}.saboteurs`),
     tradingHouses: finiteNumber(raw.tradingHouses, `${expectedId}.tradingHouses`),
-    score: finiteNumber(raw.score, `${expectedId}.score`),
-    reignYears: finiteNumber(raw.reignYears, `${expectedId}.reignYears`),
+    // Phase F5 succession. Tolerated-and-defaulted rather than required, like
+    // trainingLevel below: a save written before reign score tracking existed
+    // is still a valid save, and must load as "fresh reign" rather than being
+    // rejected. Present but non-finite values still reject.
+    score: raw.score === undefined ? 0 : finiteNumber(raw.score, `${expectedId}.score`),
+    reignYears: raw.reignYears === undefined ? 0 : finiteNumber(raw.reignYears, `${expectedId}.reignYears`),
     dead: Boolean(raw.dead),
     // Phase 18C. Tolerated-and-defaulted rather than required, exactly like
     // buildings.dike above: a save written before military investment existed
