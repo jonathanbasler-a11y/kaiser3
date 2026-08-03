@@ -6,7 +6,7 @@
 import buildingsData from '../../data/buildings.json'
 import economyData from '../../data/economy.json'
 import eventsData from '../../data/events.json'
-import { GameState, Decision, Chronicle, PlayerState, EspionageMode, GrainDecision, PlayerChronicle } from '../engine/state.ts'
+import { GameState, Decision, Chronicle, PlayerState, EspionageMode, PlayerChronicle } from '../engine/state.ts'
 import { eventLossMagnitudeText } from '../engine/events/events.ts'
 import { createStarterState, applyStartingMultiplier } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
@@ -16,9 +16,7 @@ import { getPersonalities, Personality } from '../ai/personalities.ts'
 import { getDifficultyPresets, getDifficultyPreset, DEFAULT_DIFFICULTY_ID, DifficultyPreset } from '../ai/difficulty.ts'
 import { planYear } from '../ai/planner.ts'
 import { compareStanding } from '../ai/sim.ts'
-import { annualGrainRequirement, storageCapacity, grainBuybackPrice, laborGatedFarmland, resolveFeeding } from '../engine/economy.ts'
-import { applyPopulationDynamics } from '../engine/population.ts'
-import { SeededRng } from '../engine/rng.ts'
+import { annualGrainRequirement, storageCapacity, grainBuybackPrice, laborGatedFarmland } from '../engine/economy.ts'
 import { el, clear, stepper, sliderField, segmented, statTile, tooltip } from './dom.ts'
 import { DecisionDraft, defaultDraft, draftToDecisions, rivalOptions, affordableHectares, maxSellableGrain, maxAffordableGrainBuy, yearsOfFoodLabel } from './decisions.ts'
 import { previewYear, YearPreview } from './preview.ts'
@@ -828,21 +826,23 @@ function expectedHarvestYield(player: GameState['players'][string]): number {
   return laborGatedFarmland(player.land, player.population) * economyData.harvest.baseYieldPerHectare * avgWeatherMultiplier
 }
 
-// A6: projected next-year population under the currently drafted feed level.
-// Reuses the real applyPopulationDynamics()/resolveFeeding() formulas rather
-// than restating them — a fixed seed keeps the immigration draw's random
-// component stable across re-renders (this is a read-only estimate, never
-// fed back into engine state).
-const POPULATION_PREVIEW_SEED = 1
-function projectedNextYearPopulation(player: GameState['players'][string], draft: DecisionDraft): number {
-  const grainDecision: GrainDecision = {
-    type: 'grain',
-    feedLevel: draft.feedLevel,
-    customPercentage: draft.feedLevel === 'custom' ? draft.customPercentage : undefined
+// A6: projected next-year population — MUST match the sticky footer's
+// "If you end the year now" population delta. That footer is previewYear()
+// (real advanceYear on a clone). An earlier feed-only estimate disagreed
+// with it: (1) slider edits didn't refresh the Grain-tab line, (2) it fed
+// from pre-harvest stock while year.ts feeds after harvest, (3) it ignored
+// events/trade/etc. that advanceYear applies. One source of truth.
+function populationProjectionText(player: GameState['players'][string], draft: DecisionDraft): string {
+  if (!session) {
+    return `Projected population next year at this feed level: ${player.population.peasants.toFixed(0)} (currently ${player.population.peasants.toFixed(0)}).`
   }
-  const feeding = resolveFeeding(grainDecision, player.population, player.grainStock)
-  const result = applyPopulationDynamics(player.population, feeding, new SeededRng(POPULATION_PREVIEW_SEED))
-  return result.newPopulation.peasants
+  const preview = previewYear(session.state, HUMAN_ID, draft, session.rivals, session.difficulty)
+  if (!preview) {
+    return `Projected population next year at this feed level: ${player.population.peasants.toFixed(0)} (currently ${player.population.peasants.toFixed(0)}).`
+  }
+  const delta = preview.populationAfter - preview.populationBefore
+  const deltaText = `${delta >= 0 ? '+' : ''}${delta.toFixed(0)}`
+  return `Projected population next year at this feed level: ${preview.populationAfter.toFixed(0)} (currently ${preview.populationBefore.toFixed(0)}; ${deltaText}). Same full-year estimate as the footer — includes harvest, feeding, and events.`
 }
 
 function renderGrainTab(player: GameState['players'][string], state: GameState): HTMLElement {
@@ -852,18 +852,21 @@ function renderGrainTab(player: GameState['players'][string], state: GameState):
   const demand = annualGrainRequirement(player.population)
   const projectedHarvest = expectedHarvestYield(player)
   const available = player.grainStock + projectedHarvest
-  const surplus = available - demand
+  // Round once so the three tiles can't disagree by 1 from independent
+  // toFixed(0) on each float (e.g. 19098.6 / 8552.4 / 10546.2).
+  const demandShown = Math.round(demand)
+  const availableShown = Math.round(available)
+  const surplusShown = availableShown - demandShown
   container.appendChild(el('div', { class: 'stat-grid' },
-    statTile('Demand this year', `${demand.toFixed(0)}`),
-    statTile('Available (stock + expected harvest)', `${available.toFixed(0)}`),
-    statTile(surplus >= 0 ? 'Surplus' : 'Deficit', `${Math.abs(surplus).toFixed(0)}`, surplus >= 0 ? 'good' : 'bad')
+    statTile('Demand this year', `${demandShown}`),
+    statTile('Available (stock + expected harvest)', `${availableShown}`),
+    statTile(surplusShown >= 0 ? 'Surplus' : 'Deficit', `${Math.abs(surplusShown)}`, surplusShown >= 0 ? 'good' : 'bad')
   ))
   container.appendChild(el('p', { class: 'help-text' },
     `Storage: ${player.grainStock.toFixed(0)} of ${storageCapacity(player.population, player.buildings.granary).toFixed(0)} capacity. Expected harvest ${projectedHarvest.toFixed(0)} (weather-averaged estimate, not a guarantee).`
   ))
-  container.appendChild(el('p', { class: 'help-text' },
-    `Projected population next year at this feed level: ${projectedNextYearPopulation(player, draft).toFixed(0)} (currently ${player.population.peasants.toFixed(0)}).`
-  ))
+  const projectionLine = el('p', { class: 'help-text' }, populationProjectionText(player, draft))
+  container.appendChild(projectionLine)
 
   container.appendChild(segmented<DecisionDraft['feedLevel']>({
     options: [
@@ -875,14 +878,19 @@ function renderGrainTab(player: GameState['players'][string], state: GameState):
     value: draft.feedLevel,
     onChange: (v) => { draft.feedLevel = v; session!.activeTab = 'grain'; renderGame() },
     title: 'Feed level',
-    tooltip: 'How much grain to give your people this year. Min: cheapest, but hungry peasants raise unrest and can starve. Required: exactly enough, no surplus. Max: happiest and healthiest, but burns through stored grain fastest. Custom: pick an exact percentage below.'
+    tooltip: 'How much grain to give your people this year. Min / Max / Custom are fractions of your stock at feeding time (after harvest; Kaiser’s original dial: 20% / 80% / 20–80%). Required is exactly Demand.'
   }))
 
   if (draft.feedLevel === 'custom') {
     container.appendChild(sliderField({
-      label: 'Feed percentage', value: draft.customPercentage, min: 20, max: 80,
-      onChange: (v) => { draft.customPercentage = v },
-      tooltip: 'Percentage of full rations given to your population this year.'
+      label: 'Feed percentage of stock', value: draft.customPercentage, min: 20, max: 80,
+      // Update the projection in place — full renderGame() on every input event
+      // would rebuild the slider mid-drag.
+      onChange: (v) => {
+        draft.customPercentage = v
+        projectionLine.textContent = populationProjectionText(player, draft)
+      },
+      tooltip: 'Share of stock at feeding time (after this year’s harvest) to hand out — not a percentage of Demand. Kaiser’s original dial.'
     }))
   }
 
