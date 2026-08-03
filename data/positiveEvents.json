@@ -1,0 +1,1024 @@
+{
+  "_comment": "Phase 18D: small, flat-chance positive events — deliberately simpler than data/events.json (no exposure/mitigation modeling). Rolled once per player per year (src/engine/events/positiveEvents.ts). Rewards are flat regardless of realm size by design: this is flavor, not a strategy lever, so it stays small relative to a mature economy while still meaning something early. \"some funny ones as well\" per the playtest request that asked for this.",
+  "chancePerYear": 0.1,
+  "rewardRanges": {
+    "taler": {
+      "min": 200,
+      "max": 900
+    },
+    "population": {
+      "min": 8,
+      "max": 30
+    },
+    "grain": {
+      "min": 150,
+      "max": 500
+    },
+    "unrest": {
+      "min": 3,
+      "max": 10
+    }
+  },
+  "events": [
+    {
+      "id": "taler-001",
+      "text": "A traveling merchant settles an old debt in full, with interest.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-002",
+      "text": "A traveling merchant sells a load of goods at a better price than expected.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-003",
+      "text": "A traveling merchant strikes a favorable one-time trade deal.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-004",
+      "text": "A traveling merchant gifts the treasury a share of a lucky harvest.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-005",
+      "text": "A passing tax collector pays a toll twice by mistake and does not notice.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-006",
+      "text": "A passing tax collector strikes a favorable one-time trade deal.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-007",
+      "text": "A passing tax collector gifts the treasury a share of a lucky harvest.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-008",
+      "text": "A visiting bishop pays a toll twice by mistake and does not notice.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-009",
+      "text": "A visiting bishop donates to the treasury out of sheer good humor.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-010",
+      "text": "A visiting bishop leaves behind a purse after a night at the inn.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-011",
+      "text": "A retired soldier pays a toll twice by mistake and does not notice.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-012",
+      "text": "A retired soldier donates to the treasury out of sheer good humor.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-013",
+      "text": "A retired soldier leaves behind a purse after a night at the inn.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-014",
+      "text": "A grateful pilgrim leaves a generous tip after a good meal.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-015",
+      "text": "A grateful pilgrim repays a loan your predecessor forgot was ever made.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-016",
+      "text": "A grateful pilgrim leaves behind a purse after a night at the inn.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-017",
+      "text": "A wandering minstrel leaves a generous tip after a good meal.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-018",
+      "text": "A wandering minstrel repays a loan your predecessor forgot was ever made.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-019",
+      "text": "A wandering minstrel finds your roads so well-kept they pay extra to use them.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-020",
+      "text": "A shrewd moneylender settles an old debt in full, with interest.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-021",
+      "text": "A shrewd moneylender repays a loan your predecessor forgot was ever made.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-022",
+      "text": "A shrewd moneylender finds your roads so well-kept they pay extra to use them.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-023",
+      "text": "A returning trade caravan settles an old debt in full, with interest.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-024",
+      "text": "A returning trade caravan sells a load of goods at a better price than expected.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-025",
+      "text": "A returning trade caravan strikes a favorable one-time trade deal.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-026",
+      "text": "A minor noble passing through settles an old debt in full, with interest.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-027",
+      "text": "A minor noble passing through sells a load of goods at a better price than expected.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-028",
+      "text": "A minor noble passing through strikes a favorable one-time trade deal.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-029",
+      "text": "A minor noble passing through gifts the treasury a share of a lucky harvest.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-030",
+      "text": "A guild of tanners pays a toll twice by mistake and does not notice.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-031",
+      "text": "A guild of tanners strikes a favorable one-time trade deal.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-032",
+      "text": "A guild of tanners gifts the treasury a share of a lucky harvest.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-033",
+      "text": "A fishing fleet pays a toll twice by mistake and does not notice.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-034",
+      "text": "A fishing fleet donates to the treasury out of sheer good humor.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-035",
+      "text": "A fishing fleet leaves behind a purse after a night at the inn.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-036",
+      "text": "A traveling notary pays a toll twice by mistake and does not notice.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-037",
+      "text": "A traveling notary donates to the treasury out of sheer good humor.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-038",
+      "text": "A traveling notary leaves behind a purse after a night at the inn.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-039",
+      "text": "A cousin twice removed leaves a generous tip after a good meal.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-040",
+      "text": "A cousin twice removed repays a loan your predecessor forgot was ever made.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-041",
+      "text": "A cousin twice removed leaves behind a purse after a night at the inn.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-042",
+      "text": "A vineyard owner leaves a generous tip after a good meal.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-043",
+      "text": "A vineyard owner repays a loan your predecessor forgot was ever made.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-044",
+      "text": "A vineyard owner finds your roads so well-kept they pay extra to use them.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-045",
+      "text": "A cartwright settles an old debt in full, with interest.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-046",
+      "text": "A cartwright repays a loan your predecessor forgot was ever made.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-047",
+      "text": "A cartwright finds your roads so well-kept they pay extra to use them.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-048",
+      "text": "A wool merchant settles an old debt in full, with interest.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-049",
+      "text": "A wool merchant sells a load of goods at a better price than expected.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-050",
+      "text": "A wool merchant strikes a favorable one-time trade deal.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "population-001",
+      "text": "A family of weavers decides to settle within your borders.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-002",
+      "text": "A family of weavers brings several new households to your lands.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-003",
+      "text": "A family of weavers chooses your principality over three others.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-004",
+      "text": "A band of hardy farmers decides to settle within your borders.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-005",
+      "text": "A band of hardy farmers convinces a whole hamlet to relocate here.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-006",
+      "text": "A band of hardy farmers arrives looking for steady work and stays.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-007",
+      "text": "A group of skilled masons decides to settle within your borders.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-008",
+      "text": "A group of skilled masons convinces a whole hamlet to relocate here.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-009",
+      "text": "A group of skilled masons arrives looking for steady work and stays.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-010",
+      "text": "Word of your fair rule spreads to a neighboring village, drawing new arrivals.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-011",
+      "text": "Word of your fair rule is the talk of the region, and more follow.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-012",
+      "text": "Word of your fair rule arrives looking for steady work and stays.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-013",
+      "text": "A small caravan of refugees spreads to a neighboring village, drawing new arrivals.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-014",
+      "text": "A small caravan of refugees is the talk of the region, and more follow.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-015",
+      "text": "A small caravan of refugees finds your markets full and your peace real.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-016",
+      "text": "A traveling blacksmith and his kin brings several new households to your lands.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-017",
+      "text": "A traveling blacksmith and his kin is the talk of the region, and more follow.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-018",
+      "text": "A traveling blacksmith and his kin finds your markets full and your peace real.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-019",
+      "text": "A cheerful young couple brings several new households to your lands.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-020",
+      "text": "A cheerful young couple chooses your principality over three others.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-021",
+      "text": "A troupe of craftsmen decides to settle within your borders.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-022",
+      "text": "A troupe of craftsmen brings several new households to your lands.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-023",
+      "text": "A troupe of craftsmen chooses your principality over three others.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-024",
+      "text": "News of your prosperity decides to settle within your borders.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-025",
+      "text": "News of your prosperity convinces a whole hamlet to relocate here.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-026",
+      "text": "News of your prosperity arrives looking for steady work and stays.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-027",
+      "text": "A group of shepherds decides to settle within your borders.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-028",
+      "text": "A group of shepherds convinces a whole hamlet to relocate here.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-029",
+      "text": "A group of shepherds arrives looking for steady work and stays.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-030",
+      "text": "A midwife's good year spreads to a neighboring village, drawing new arrivals.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-031",
+      "text": "A midwife's good year is the talk of the region, and more follow.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-032",
+      "text": "A midwife's good year arrives looking for steady work and stays.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-033",
+      "text": "A returning group of your own emigrants spreads to a neighboring village, drawing new arrivals.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-034",
+      "text": "A returning group of your own emigrants is the talk of the region, and more follow.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-035",
+      "text": "A returning group of your own emigrants finds your markets full and your peace real.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-036",
+      "text": "A family fleeing a harsher lord brings several new households to your lands.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-037",
+      "text": "A family fleeing a harsher lord is the talk of the region, and more follow.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-038",
+      "text": "A family fleeing a harsher lord finds your markets full and your peace real.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-039",
+      "text": "A pair of newlyweds brings several new households to your lands.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-040",
+      "text": "A pair of newlyweds chooses your principality over three others.",
+      "rewardType": "population"
+    },
+    {
+      "id": "grain-001",
+      "text": "A neighboring miller shares a surplus with your barns.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-002",
+      "text": "A neighboring miller turns out to have been under-counted, to your benefit.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-003",
+      "text": "A neighboring miller trades a favor for grain your barns can spare — and it comes back doubled.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-004",
+      "text": "A neighboring miller sends a tithe of grain your way unasked.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-005",
+      "text": "A grateful village gifts a wagonload of grain out of goodwill.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-006",
+      "text": "A grateful village sends thanks in the form of good wheat.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-007",
+      "text": "A grateful village discovers an overlooked store still sound and dry.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-008",
+      "text": "An old grain store shares a surplus with your barns.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-009",
+      "text": "An old grain store turns out to have been under-counted, to your benefit.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-010",
+      "text": "An old grain store trades a favor for grain your barns can spare — and it comes back doubled.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-011",
+      "text": "An old grain store sends a tithe of grain your way unasked.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-012",
+      "text": "A traveling monk gifts a wagonload of grain out of goodwill.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-013",
+      "text": "A traveling monk sends thanks in the form of good wheat.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-014",
+      "text": "A traveling monk discovers an overlooked store still sound and dry.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-015",
+      "text": "A passing quartermaster shares a surplus with your barns.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-016",
+      "text": "A passing quartermaster turns out to have been under-counted, to your benefit.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-017",
+      "text": "A passing quartermaster trades a favor for grain your barns can spare — and it comes back doubled.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-018",
+      "text": "A passing quartermaster sends a tithe of grain your way unasked.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-019",
+      "text": "A returning harvest crew gifts a wagonload of grain out of goodwill.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-020",
+      "text": "A returning harvest crew sends thanks in the form of good wheat.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-021",
+      "text": "A returning harvest crew discovers an overlooked store still sound and dry.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-022",
+      "text": "A charitable abbey shares a surplus with your barns.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-023",
+      "text": "A charitable abbey turns out to have been under-counted, to your benefit.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-024",
+      "text": "A charitable abbey trades a favor for grain your barns can spare — and it comes back doubled.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-025",
+      "text": "A charitable abbey sends a tithe of grain your way unasked.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-026",
+      "text": "A friendly rival ruler gifts a wagonload of grain out of goodwill.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-027",
+      "text": "A friendly rival ruler sends thanks in the form of good wheat.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-028",
+      "text": "A friendly rival ruler discovers an overlooked store still sound and dry.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-029",
+      "text": "A retired granary keeper shares a surplus with your barns.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-030",
+      "text": "A retired granary keeper turns out to have been under-counted, to your benefit.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-031",
+      "text": "A retired granary keeper trades a favor for grain your barns can spare — and it comes back doubled.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-032",
+      "text": "A retired granary keeper sends a tithe of grain your way unasked.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-033",
+      "text": "A well-stocked mill gifts a wagonload of grain out of goodwill.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-034",
+      "text": "A well-stocked mill sends thanks in the form of good wheat.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-035",
+      "text": "A well-stocked mill discovers an overlooked store still sound and dry.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "unrest-001",
+      "text": "A well-timed festival lifts the mood of the whole principality.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-002",
+      "text": "A well-timed festival settles nerves that had been fraying.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-003",
+      "text": "A well-timed festival brings the town together for an evening.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-004",
+      "text": "A well-timed festival reminds people why they are proud to live here.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-005",
+      "text": "A local wedding lifts the mood of the whole principality.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-006",
+      "text": "A local wedding settles nerves that had been fraying.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-007",
+      "text": "A local wedding brings the town together for an evening.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-008",
+      "text": "A local wedding reminds people why they are proud to live here.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-009",
+      "text": "A good rumor about the harvest gives the peasants something to smile about.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-010",
+      "text": "A good rumor about the harvest has everyone talking for days, in a good way.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-011",
+      "text": "A good rumor about the harvest quiets grumbling that had been building.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-012",
+      "text": "A good rumor about the harvest turns a dull week into a memorable one.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-013",
+      "text": "A traveling storyteller gives the peasants something to smile about.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-014",
+      "text": "A traveling storyteller has everyone talking for days, in a good way.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-015",
+      "text": "A traveling storyteller quiets grumbling that had been building.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-016",
+      "text": "A minor tax dispute resolved fairly lifts the mood of the whole principality.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-017",
+      "text": "A minor tax dispute resolved fairly settles nerves that had been fraying.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-018",
+      "text": "A minor tax dispute resolved fairly brings the town together for an evening.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-019",
+      "text": "A minor tax dispute resolved fairly reminds people why they are proud to live here.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-020",
+      "text": "An unexpected holiday lifts the mood of the whole principality.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-021",
+      "text": "An unexpected holiday settles nerves that had been fraying.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-022",
+      "text": "An unexpected holiday brings the town together for an evening.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-023",
+      "text": "An unexpected holiday reminds people why they are proud to live here.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-024",
+      "text": "A popular local victory at the fair gives the peasants something to smile about.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-025",
+      "text": "A popular local victory at the fair has everyone talking for days, in a good way.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-026",
+      "text": "A popular local victory at the fair quiets grumbling that had been building.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-027",
+      "text": "A popular local victory at the fair turns a dull week into a memorable one.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-028",
+      "text": "A well-loved priest's sermon gives the peasants something to smile about.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-029",
+      "text": "A well-loved priest's sermon has everyone talking for days, in a good way.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-030",
+      "text": "A well-loved priest's sermon quiets grumbling that had been building.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-031",
+      "text": "A round of free ale at the tavern lifts the mood of the whole principality.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-032",
+      "text": "A round of free ale at the tavern settles nerves that had been fraying.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-033",
+      "text": "A round of free ale at the tavern brings the town together for an evening.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-034",
+      "text": "A round of free ale at the tavern reminds people why they are proud to live here.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-035",
+      "text": "A juggler passing through town lifts the mood of the whole principality.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-036",
+      "text": "A juggler passing through town settles nerves that had been fraying.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-037",
+      "text": "A juggler passing through town brings the town together for an evening.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-038",
+      "text": "A juggler passing through town reminds people why they are proud to live here.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-039",
+      "text": "A rare clear night for stargazing gives the peasants something to smile about.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-040",
+      "text": "A rare clear night for stargazing has everyone talking for days, in a good way.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-041",
+      "text": "A rare clear night for stargazing quiets grumbling that had been building.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-042",
+      "text": "A rare clear night for stargazing turns a dull week into a memorable one.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-043",
+      "text": "A surprise reunion of old friends gives the peasants something to smile about.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-044",
+      "text": "A surprise reunion of old friends has everyone talking for days, in a good way.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-045",
+      "text": "A surprise reunion of old friends quiets grumbling that had been building.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "taler-051",
+      "text": "A traveling salesman insists your castle needs a slightly bigger flag. You decline; he tips out of embarrassment.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-052",
+      "text": "Someone finally pays back the Baron who ruled three reigns ago. You were not expecting this.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-053",
+      "text": "A rival's messenger delivers a bribe to the wrong address. Yours.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-054",
+      "text": "A traveling dentist sets up shop, does brisk business, and leaves a \"thank you\" donation.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-055",
+      "text": "Your court jester wins a bet with a visiting noble. He shares the winnings, mostly.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-056",
+      "text": "A merchant caravan mistakes your border for a toll road that stopped existing decades ago. They pay anyway.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-057",
+      "text": "An anonymous benefactor leaves a sack of coin at the gate with a note reading simply \"well governed.\"",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-058",
+      "text": "A traveling astrologer predicts your prosperity, and several nobles pay handsomely to hear it confirmed.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-059",
+      "text": "Your scribes discover a clerical error that has been quietly costing the Kaiser money and not you.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "taler-060",
+      "text": "A duel over a card game ends peacefully, and the loser insists on paying your treasury instead of his opponent.",
+      "rewardType": "taler"
+    },
+    {
+      "id": "population-041",
+      "text": "A famous chef relocates to your lands purely for the produce. His apprentices follow within the year.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-042",
+      "text": "A traveling theater troupe likes it here so much they simply never leave.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-043",
+      "text": "Twins are born in the same week to three different families. Word travels; more families arrive hoping for luck.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-044",
+      "text": "A minor prophecy names your principality \"a good place to raise children.\" People take it seriously.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-045",
+      "text": "A beekeeper's spectacular honey harvest becomes regional gossip, and with it, your reputation.",
+      "rewardType": "population"
+    },
+    {
+      "id": "population-046",
+      "text": "An old hermit comes down from the hills, likes what he sees, and tells everyone he knows. He knows a lot of people.",
+      "rewardType": "population"
+    },
+    {
+      "id": "grain-036",
+      "text": "A visiting friar blesses the harvest. The harvest, coincidentally or not, turns out slightly better than expected.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-037",
+      "text": "A miller's scale was broken for months, undercounting deliveries. It is fixed, and the barns are fuller than the books claimed.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-038",
+      "text": "A rival principality's granary roof collapses. They sell the contents cheap rather than let it spoil, and you buy in.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "grain-039",
+      "text": "A field thought exhausted produces one unexpectedly generous crop before finally giving out.",
+      "rewardType": "grain"
+    },
+    {
+      "id": "unrest-046",
+      "text": "A traveling comedian performs in the square and the whole town is still laughing about it a week later.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-047",
+      "text": "A pig escapes the market and leads half the town on a chase. Nobody catches it, but everyone has a good story now.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-048",
+      "text": "Two feuding families settle their dispute over ale instead of at the gallows, to general relief.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-049",
+      "text": "A local legend turns out to be true, or at least everyone agrees to believe it is. Morale improves regardless.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-050",
+      "text": "The tavern keeper announces a \"harvest special\" and, for one evening, nobody complains about anything.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-051",
+      "text": "A traveling bard writes a song about your realm. It is not entirely accurate, but it is very catchy.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-052",
+      "text": "A stray dog adopts the guardhouse. Morale among the guards — and by extension everyone else — noticeably improves.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-053",
+      "text": "A minor miracle is reported at the local chapel. Investigation is inconclusive; enthusiasm is not.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-054",
+      "text": "The weather clears just in time for a long-planned market day, and everyone remembers it fondly for months.",
+      "rewardType": "unrest"
+    },
+    {
+      "id": "unrest-055",
+      "text": "A visiting acrobat troupe puts on an unscheduled show in the square. Even the tax collector stops to watch.",
+      "rewardType": "unrest"
+    }
+  ]
+}
