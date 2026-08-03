@@ -97,6 +97,11 @@ export function validateEventCatalog(catalog: EventDefinition[] = CATALOG): void
     if (event.loss.severityJitter < 0 || event.loss.severityJitter > 2) {
       throw new Error(`Event "${event.id}" has an out-of-range severityJitter (expected 0-2).`)
     }
+
+    const validLossTypes = ['population', 'gold', 'buildings', 'grain', 'farmland']
+    if (!validLossTypes.includes(event.loss.type)) {
+      throw new Error(`Event "${event.id}" has an invalid loss type "${event.loss.type}".`)
+    }
   }
 }
 
