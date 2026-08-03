@@ -442,7 +442,7 @@ intended decorrelation of evaluation noise is simply absent. **Fixing this will
 shift the golden fixture and the ai-bench baseline**, so it needs a deliberate,
 reviewed regeneration, not an incidental one.
 
-### B8. The War tab computes odds from a treasury the engine will have already spent
+### ~~B8. The War tab computes odds from a treasury the engine will have already spent~~ ✅ FIXED (PR1 silent branch)
 `src/ui/app.ts:857-868` (`pendingWarAttacker`) re-implements `year.ts` steps
 2/2.5/3 with none of the engine's clamps:
 ```ts
@@ -462,7 +462,7 @@ The War tab's odds line is the one place in the UI that does **not** go through
 `previewYear()`, even though `preview.ts` already caches the rivals' real
 `planYear` decisions.
 
-### B9. The AI has the same treasury-order bug as B8
+### ~~B9. The AI has the same treasury-order bug as B8~~ ✅ FIXED (PR1 silent branch)
 `src/ai/warAggression.ts:147`:
 ```ts
 let spendable = self.taler - (isAggressor ? MILITARY_RESERVE_AGGRESSOR_TALER : MILITARY_RESERVE_DEFENDER_TALER)
@@ -486,7 +486,7 @@ with a fractional peasant count, which then flows into `annualGrainRequirement`,
 `laborGatedFarmland`, rank `populationMin` checks and the UI. Inconsistent within
 a single function — whichever convention is right, both should follow it.
 
-### B11. Grain "available" has two different definitions depending on preview state
+### ~~B11. Grain "available" has two different definitions depending on preview state~~ ✅ FIXED (PR1 silent branch)
 `src/ui/app.ts:887-890`:
 ```ts
 const projectedHarvest = preview?.harvestYield ?? expectedHarvestYield(player)
@@ -496,7 +496,7 @@ The `preview == null` fallback silently drops spoilage **and** the storage cap t
 `feedStockFromChronicle` exists to model — so the same tile means two different
 things depending on whether `previewYear` happened to return a result.
 
-### B12. "Net" in the income breakdown is a third, different definition of Taler change
+### ~~B12. "Net" in the income breakdown is a third, different definition of Taler change~~ ✅ FIXED (PR1 silent branch)
 `src/ui/app.ts:1443-1472`:
 ```ts
 const net = shown.reduce((sum, [, v]) => sum + v, 0)
@@ -506,7 +506,7 @@ loss, raids and war reparations. The footer's `Taler ±delta` (`app.ts:627`) is 
 real `talerAfter − talerBefore`. Two different numbers under the same label — in
 the release whose stated purpose was coherence.
 
-### B13. The UI caps guard/saboteur hiring far below what the data allows
+### ~~B13. The UI caps guard/saboteur hiring far below what the data allows~~ ✅ FIXED (PR1 silent branch)
 `src/ui/app.ts:1183,1189` set `max: 10` for guard and saboteur hire, while
 `data/economy.json` sets `maxGuards: 25` / `maxSaboteurs: 25` (applied at
 `espionage.ts:145,150`). A third, different cap exists in the AI at
@@ -534,7 +534,7 @@ remaining player that year**. Two further conditional draws: `succession.ts:39`
 and `espionage.ts:85`, plus a variable-length one at `war.ts:143` (one per
 surviving requested ally).
 
-### R3. `clonePlayerState` does not coerce NaN, and a comment says it does
+### ~~R3. `clonePlayerState` does not coerce NaN, and a comment says it does~~ ✅ FIXED (PR1 silent branch)
 `src/engine/state.ts:23-25` claims both `clonePlayerState()` and `persist.ts`'s
 `normalizePlayer()` "coerce them to a real 0, so neither can silently drop out of a
 cloned or saved state." `persist.ts` does (`Number.isFinite`). `clonePlayerState`
@@ -544,7 +544,7 @@ poisons **12 fields** in one year. Not reachable from a Decision or a save today
 (both are sanitized), but reachable from any hand-constructed state in a test,
 script, or the AI layer. The same wording appears for `dike` at `state.ts:52-53`.
 
-### R4. The hand-written clone's compile-time guarantee doesn't cover optional fields
+### ~~R4. The hand-written clone's compile-time guarantee doesn't cover optional fields~~ ✅ FIXED (PR1 silent branch)
 `src/engine/state.ts:281-283` claims the clone "fails loudly at compile time if a
 new field is ever added to PlayerState/GameState without also being copied here."
 True for **required** fields only — a new `foo?: number` is silently accepted by
@@ -552,28 +552,28 @@ the object literal and would drop out of every clone. `dike`, `trainingLevel` an
 `equipmentLevel` are all in this category and are currently handled by hand.
 `normalizeBuildings` (`persist.ts:36-49`) is a whitelist with the identical hole.
 
-### R5. `starter.ts:55` shares `buildings` by reference
+### ~~R5. `starter.ts:55` shares `buildings` by reference~~ ✅ FIXED (PR1 silent branch)
 `applyStartingMultiplier` spreads `...player` and rebuilds `land` and `population`
 explicitly, but not `buildings`. Verified at runtime: mutating
 `scaled.buildings.markets` leaks into the original. Currently masked because both
 call sites immediately overwrite the source slot — but it is exactly the
 nested-reference pattern the rest of the engine is careful to avoid.
 
-### R6. A typo'd `loss.type` in `data/events.json` would fire a silently inert event
+### ~~R6. A typo'd `loss.type` in `data/events.json` would fire a silently inert event~~ ✅ FIXED (PR1 silent branch)
 `validateEventCatalog` (`events.ts`) checks ids, the mitigation hook, mitigation
 bounds, `floorProbability <= maxProbability` and jitter range — but **not**
 `loss.type`. Neither `applyEventLoss` nor `evaluator.ts:240-275` has a `default`
 case. So an unrecognized loss type passes validation, applies no loss, prices no
 risk, and still logs to the chronicle as though it happened.
 
-### R7. `validatePositiveEventCatalog` never checks the reward ranges are finite
+### ~~R7. `validatePositiveEventCatalog` never checks the reward ranges are finite~~ ✅ FIXED (PR1 silent branch)
 `positiveEvents.ts:31-44` validates ids, text, `rewardType`, and
 `CHANCE_PER_YEAR ∈ [0,1]`, but not `range.min`/`range.max`. `positiveEvents.ts:63`
 (`range.min + magnitudeRoll * (range.max - range.min)`) would then write `NaN`
 directly into `taler`/`peasants`/`grainStock` — the one unguarded numeric write in
 the newest engine file.
 
-### R8. Pre-F5 saves are rejected on fields whose newer siblings default
+### ~~R8. Pre-F5 saves are rejected on fields whose newer siblings default~~ ✅ FIXED (PR1 silent branch)
 `persist.ts:78-79` calls `finiteNumber` unconditionally on `score` and
 `reignYears`, so a save written before F5 fails outright — while `dike`,
 `trainingLevel`, `equipmentLevel` and `heir` all tolerate absence and default.
@@ -710,3 +710,86 @@ The rest of the suite is in good shape here: most stochastic tests already loop
 B7 above went undetected because no test asserts that two rulers in the same match
 receive different planning seeds. A direct assertion would have caught it in the
 5-ruler balance configuration.
+
+## Platform / infra
+
+### P3. `/api/bug-report` is an unauthenticated public endpoint that files real GitHub issues, with no rate limiting
+`api/bug-report.ts` — the one deliberate backend exception (see F8's neighbour
+above) — validates payload shape and length, but has no CAPTCHA, no per-IP/per-
+session throttling, and no origin check. The client
+(`src/ui/app.ts:169-240 mountBugReport`) is a plain unauthenticated `fetch('/api/bug-report', …)`;
+nothing about the request proves it came from the actual game UI.
+
+Browser-only cross-origin abuse is blocked by CORS preflight (the request is
+`Content-Type: application/json`, a non-simple request), but CORS is enforced by
+browsers, not by the server — a script or `curl` can POST directly to the deployed
+URL with no restriction at all. Each accepted POST spends the project's
+`GITHUB_TOKEN` to file a real issue on `jonathanbasler-a11y/kaiser3` labeled
+`bug-report`. Low likelihood today (the URL isn't advertised beyond the in-game
+button), but the blast radius if found is real: issue-spam on the repo, or
+exhausting the token's GitHub API rate limit. Worth a lightweight mitigation
+(per-IP throttling, a honeypot field, or a shared-secret header set by the client
+build) before this endpoint is ever linked to or discovered externally.
+
+## User-reported (live bug reports, `gh issue list --repo jonathanbasler-a11y/kaiser3 --label bug-report`)
+
+Three real in-game reports came in via `/api/bug-report` during this session
+(issues #27–#29, all iPhone/mobile). Root-caused against the current code below;
+not fixed, per this pass's document-only instruction.
+
+### B14. Grain sold this turn can never fund a same-turn build (issue #27)
+> "I build without gold and then sold a lot of grain but it did not build? Error
+> message that there was only 14k left at time of build" — Tab: grain, Year 1.
+
+Root cause, confirmed against `year.ts`'s own numbered pipeline comment
+(`year.ts:66-89`): **construction is step 3; the grain market is step 6**,
+*after* feeding (step 5) — deliberately, so a ruler sells genuine surplus rather
+than the grain in the peasants' mouths (`year.ts:224-225`'s comment). That
+ordering is correct for feeding, but it also means **grain-sale income can never
+be spent on construction queued the same turn** — the treasury construction sees
+at step 3 has not yet received step 6's proceeds. This is a distinct instance of
+the same underlying class A2 was built to surface (silent same-turn spending-order
+shortfalls) — but A2's shortfall detection is keyed off requested-vs-actual
+building counts, not off "you tried to fund this with an income source that
+hasn't landed yet," so the shortfall message here (if A2 fires at all) doesn't
+explain *why*. Two independent fixes are possible: reorder the pipeline (risky —
+would need re-verification against every test tied to the current step numbers),
+or make this specific case legible (an explicit note when a construction shortfall
+coincides with a same-turn grain sale: "grain sale proceeds land after
+construction this turn — queue the sale a turn ahead").
+
+### B15. Tax rates silently reset to default every single turn (issue #29)
+> "Goes back to default every turn" — Tab: tax, Year 3.
+
+Root cause, confirmed at `src/ui/app.ts:1428`:
+```ts
+session.draft = trackDraft(defaultDraft(result.state.players[HUMAN_ID]))
+```
+Every End Year advance replaces the **entire** draft object with
+`defaultDraft()`, including `vat`/`incomeTax`/`tariff`/`justiceGraft`
+(`decisions.ts:56-59`, defaults `15/15/5/0`). That reset is correct for the
+one-shot decisions in the same draft (land trade, construction, recruitment,
+military investment, grain trade) — those genuinely should not carry over. But
+tax rates are a **standing policy**, not a one-shot order, and a player who sets
+a rate once should reasonably expect it to hold until changed — instead it
+silently reverts every year, so any deliberate tax strategy is undone the moment
+the player stops re-entering it. Fix shape: carry `vat`/`incomeTax`/`tariff`/
+`justiceGraft` forward from the previous draft into the new one at line 1428,
+rather than sourcing them from `defaultDraft()`.
+
+### B16. Population change has no visible breakdown anywhere in the UI (issue #28)
+> "Unclear where growth and shrinking is coming from - should be seen at end
+> turn stats and during turn in forecast" — Tab: overview, Year 1.
+
+Confirmed: `PlayerChronicle` already computes `births`, `deaths`, `emigration`,
+and `immigration` every year (`year.ts:241-244`, from `applyPopulationDynamics`),
+but the UI renders **only** `emigration`, and only conditionally
+(`app.ts:1584-1585`, gated on `report.emigration > 1`) — `births`, `deaths`, and
+`immigration` are computed and then discarded. `populationProjectionText`
+(`app.ts:831`, A6's forward projection) likewise shows only the net before/after
+delta, not its components. So neither the end-of-turn report nor the in-turn
+forecast the user is asking for actually breaks the number down — the data
+exists end-to-end, it's just never surfaced. Straightforward fix: a births/
+deaths/emigration/immigration line in the year-report log (same pattern as the
+existing emigration entry) and/or a components tooltip on the population
+projection.
