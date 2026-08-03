@@ -35,6 +35,7 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **19D** | Opus→Sonnet | High | Economy depth design spike (trade routes / guilds vs NPCs) | Spec approved; not F2 bilateral trade |
 | **20.1** | Sonnet | Medium | PR #35 regressions — truce/weariness UI, contrast, rival names | Truce targets disabled; AA contrast; epithet names |
 | **20.2** | Opus | High | Population ceiling retune + breakdown fix + profile | Breakdown sums in plague years; balance + pop profile |
+| **20.3** | Sonnet | Medium | Events made visible — cards, live risk, catalog | Per-event cards; calculateEventProbability in UI |
 
 ## Phase 0: Scaffold & Ground Rules ✓
 
@@ -1159,3 +1160,16 @@ Fixed plague-year breakdown sum (`eventPopulationLoss` as fifth term). Retuned p
 - ✓ Breakdown identity holds when events kill peasants (uiCoherence)
 - ✓ Plague drag slows growth rather than hard-capping at the Cathedral gate
 - ✓ `population-profile` script + balance gate green
+
+---
+
+## Phase 20.3: Events Made Visible ✓
+
+Dismissible per-event scene cards (queue, then year report); Overview live risk via `calculateEventProbability`; collapsible event catalog with telegraphs.
+
+### Acceptance Criteria
+- ✓ Each fired negative event gets its own lazy-loaded scene card; positives get parchment treatment
+- ✓ Live risk % on Overview from the engine oracle
+- ✓ Catalog lists drivers, mitigation, telegraphs
+
+---

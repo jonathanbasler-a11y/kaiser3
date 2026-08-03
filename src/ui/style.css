@@ -325,6 +325,65 @@ h1.row { align-items: center; gap: 10px; }
 }
 .scene-banner .sprite-thumb.scene-full img { width: 100%; height: auto; object-fit: contain; }
 
+/* Phase 20.3 — dismissible per-event cards */
+.event-card-screen { padding-bottom: 80px; }
+.event-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.event-card-art {
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.event-card-art .sprite-thumb.scene-full {
+  width: 100%;
+  height: auto;
+  border: none;
+  border-radius: 0;
+  background: none;
+}
+.event-card-art .sprite-thumb.scene-full img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+.event-card-parchment {
+  min-height: 140px;
+  border-radius: 12px;
+  border: 2px solid var(--accent);
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(184, 134, 11, 0.15), transparent 55%),
+    var(--bg-panel);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.event-card-reward-label {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+.event-risk-row { padding: 4px 0; font-size: 0.95rem; }
+.event-catalog summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-family: 'Cinzel', Georgia, serif;
+  color: var(--accent);
+}
+.event-catalog-entry {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+
 .save-slots { margin-top: 12px; }
 .save-slot-row {
   display: flex;

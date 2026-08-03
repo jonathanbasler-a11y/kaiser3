@@ -223,7 +223,7 @@
       {
         "type": "grain",
         "feedLevel": "required",
-        "sellGrain": 5941
+        "sellGrain": 5358
       },
       {
         "type": "land_trade",
@@ -309,7 +309,7 @@
       {
         "type": "grain",
         "feedLevel": "required",
-        "sellGrain": 3040
+        "sellGrain": 9226
       },
       {
         "type": "land_trade",
@@ -352,7 +352,7 @@
       {
         "type": "grain",
         "feedLevel": "required",
-        "sellGrain": 7784
+        "sellGrain": 8187
       },
       {
         "type": "land_trade",
@@ -395,7 +395,7 @@
       {
         "type": "grain",
         "feedLevel": "required",
-        "sellGrain": 7784
+        "sellGrain": 9226
       },
       {
         "type": "land_trade",
