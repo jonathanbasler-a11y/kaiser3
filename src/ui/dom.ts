@@ -30,8 +30,10 @@ export function clear(node: HTMLElement): void {
 // Only one bubble is open at a time; tapping anywhere else closes it.
 let closeOpenTooltip: (() => void) | null = null
 
-export function tooltip(text: string): HTMLElement {
-  const bubble = el('div', { class: 'tooltip-bubble hidden' }, text)
+export function tooltip(content: string | Node): HTMLElement {
+  const bubble = el('div', { class: 'tooltip-bubble hidden' })
+  if (typeof content === 'string') bubble.textContent = content
+  else bubble.appendChild(content)
   const dot = el('button', {
     type: 'button',
     class: 'tooltip-dot',
@@ -47,8 +49,11 @@ export function tooltip(text: string): HTMLElement {
     closeOpenTooltip?.()
     if (wasHidden) {
       bubble.classList.remove('hidden')
+      bubble.classList.remove('align-right', 'align-left', 'align-above')
       const rect = bubble.getBoundingClientRect()
-      bubble.classList.toggle('align-right', rect.right > window.innerWidth)
+      if (rect.right > window.innerWidth) bubble.classList.add('align-right')
+      if (rect.left < 0) bubble.classList.add('align-left')
+      if (rect.bottom > window.innerHeight) bubble.classList.add('align-above')
       closeOpenTooltip = close
     } else {
       closeOpenTooltip = null
@@ -173,9 +178,14 @@ export function segmented<T extends string>(opts: {
   )
 }
 
-export function statTile(label: string, value: string, tone?: 'good' | 'bad'): HTMLElement {
+export function statTile(
+  label: string,
+  value: string,
+  tone?: 'good' | 'bad',
+  tip?: string | Node
+): HTMLElement {
   return el('div', { class: 'stat' },
-    el('div', { class: 'label' }, label),
+    el('div', { class: 'label' }, label, tip ? tooltip(tip) : null),
     el('div', { class: `value${tone ? ' ' + tone : ''}` }, value)
   )
 }

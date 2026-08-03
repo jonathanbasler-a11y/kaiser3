@@ -13,7 +13,8 @@ import {
   roundedDelta,
   roundedLandSplit,
   roundedStrength,
-  roundedSurplus
+  roundedSurplus,
+  roundedBreakdown
 } from '../src/ui/displayCoherence.ts'
 import { annualGrainRequirement } from '../src/engine/economy.ts'
 import type { Personality } from '../src/ai/personalities.ts'
@@ -215,5 +216,17 @@ describe('previewYear surfaces population components (bug report #28)', () => {
       if (preview.eventPopulationLoss > 0) foundEventLoss = true
     }
     expect(foundEventLoss).toBe(true)
+  })
+})
+
+describe('roundedBreakdown', () => {
+  it('displayed parts sum to displayed total', () => {
+    const b = roundedBreakdown([
+      { label: 'a', value: 10.4 },
+      { label: 'b', value: -3.6 },
+      { label: 'c', value: 1.2 }
+    ])
+    expect(b.parts.reduce((s, p) => s + p.value, 0)).toBe(b.total)
+    expect(b.total).toBe(10 - 4 + 1)
   })
 })
