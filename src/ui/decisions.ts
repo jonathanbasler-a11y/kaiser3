@@ -158,6 +158,11 @@ export function affordableHectares(taler: number, pricePerHectare: number): numb
   return Math.floor(taler / pricePerHectare)
 }
 
+/** How many new hires the stepper may offer this turn (standing → data cap). */
+export function maxNewHires(standing: number, cap: number): number {
+  return Math.max(0, cap - standing)
+}
+
 export function rivalOptions(state: GameState, humanId: string): Array<{ id: string; name: string }> {
   return state.activePlayerIds
     .filter((id) => id !== humanId)

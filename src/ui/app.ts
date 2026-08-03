@@ -18,7 +18,7 @@ import { planYear } from '../ai/planner.ts'
 import { compareStanding } from '../ai/sim.ts'
 import { annualGrainRequirement, storageCapacity, grainBuybackPrice, laborGatedFarmland, resolveFeeding } from '../engine/economy.ts'
 import { el, clear, stepper, sliderField, segmented, statTile, tooltip } from './dom.ts'
-import { DecisionDraft, defaultDraft, draftToDecisions, rivalOptions, affordableHectares, maxSellableGrain, maxAffordableGrainBuy, yearsOfFoodLabel } from './decisions.ts'
+import { DecisionDraft, defaultDraft, draftToDecisions, rivalOptions, affordableHectares, maxSellableGrain, maxAffordableGrainBuy, yearsOfFoodLabel, maxNewHires } from './decisions.ts'
 import { previewYear, YearPreview } from './preview.ts'
 import {
   feedStockFromChronicle,
@@ -1180,13 +1180,13 @@ function renderSpyTab(player: GameState['players'][string], state: GameState, dr
     el('p', { class: 'help-text' }, 'The counts above carry over year to year and are never reduced by upkeep (only Taler is spent) — the steppers below are NEW hires to add this turn, and correctly start at 0 every year. Hires this turn can strike this turn.'),
     stepper({
       label: `Hire NEW guards this turn (defence) — ${costSuffix(ESPIONAGE.guardCost, { upkeep: ESPIONAGE.guardUpkeepPerYear })} each, max ${ESPIONAGE.maxGuards} standing`,
-      value: draft.guardHire, min: 0, max: 10, step: 1,
+      value: draft.guardHire, min: 0, max: maxNewHires(player.guards, ESPIONAGE.maxGuards), step: 1,
       onChange: (v) => { draft.guardHire = v; session!.activeTab = 'spy'; renderGame() },
       tooltip: 'Lowers the chance a rival\'s strike against you succeeds, and adds defensive strength if a rival declares war. Does nothing on offence.'
     }),
     stepper({
       label: `Hire NEW saboteurs this turn (offence) — ${costSuffix(ESPIONAGE.saboteurCost, { upkeep: ESPIONAGE.saboteurUpkeepPerYear })} each, max ${ESPIONAGE.maxSaboteurs} standing`,
-      value: draft.saboteurHire, min: 0, max: 10, step: 1,
+      value: draft.saboteurHire, min: 0, max: maxNewHires(player.saboteurs, ESPIONAGE.maxSaboteurs), step: 1,
       onChange: (v) => { draft.saboteurHire = v; session!.activeTab = 'spy'; renderGame() },
       tooltip: 'Needed to strike a rival (Strike section below, once standing + this turn\'s hires ≥ 1). Committing more against a rival\'s guards raises your odds of success; a failed strike loses some of the committed saboteurs.'
     })
