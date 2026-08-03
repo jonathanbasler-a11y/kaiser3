@@ -33,17 +33,33 @@ export function createStarterPlayer(id: string, name: string): PlayerState {
 
 // Difficulty presets (Phase 13, src/ai/difficulty.ts) apply a head-start or
 // handicap to RIVALS only, never the human — the research doc's baseline
-// (15,000 Taler, 10,000 ha) is the fixed human starting point every preset is
-// measured relative to. Deliberately a separate step from createStarterPlayer
-// rather than a parameter on it: every other caller (tests, ai-bench, the
-// balance harness, the golden fixture) must keep constructing the exact same
-// starter player with zero new arguments, or their committed baselines drift
-// for reasons that have nothing to do with what they're testing.
-export function applyStartingMultiplier(player: PlayerState, multiplier: { taler: number; farmland: number }): PlayerState {
+// (15,000 Taler, 10,000 ha, 1,000 peasants) is the fixed human starting point
+// every preset is measured relative to. Deliberately a separate step from
+// createStarterPlayer rather than a parameter on it: every other caller
+// (tests, ai-bench, the balance harness, the golden fixture) must keep
+// constructing the exact same starter player with zero new arguments, or
+// their committed baselines drift for reasons that have nothing to do with
+// what they're testing.
+//
+// Population is part of the multiplier (D6): taler/farmland cuts alone that
+// stay above laborGatedFarmland's capacity do not reduce early productive
+// output and can scramble Builder plans into path-dependent outcomes that
+// sometimes FAVOR the "handicapped" side. Scaling peasants (and grainStock
+// with them, so the ~1-year food buffer stays proportional) is what actually
+// moves harvest capacity on day one.
+export function applyStartingMultiplier(
+  player: PlayerState,
+  multiplier: { taler: number; farmland: number; population: number }
+): PlayerState {
   return {
     ...player,
     taler: player.taler * multiplier.taler,
-    land: { ...player.land, farmland: player.land.farmland * multiplier.farmland }
+    land: { ...player.land, farmland: player.land.farmland * multiplier.farmland },
+    population: {
+      ...player.population,
+      peasants: player.population.peasants * multiplier.population
+    },
+    grainStock: player.grainStock * multiplier.population
   }
 }
 

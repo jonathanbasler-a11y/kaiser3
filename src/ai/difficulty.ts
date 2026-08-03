@@ -2,17 +2,21 @@
 // data-driven pattern as personalities.ts (Phase 13). A preset varies rival
 // EVALUATOR QUALITY (how many futures a rival's planner weighs before
 // committing — see planner.ts's optional evaluationSeeds override) and rival
-// STARTING ASYMMETRY (a head-start/handicap on taler and farmland, applied
-// only to rivals via starter.ts's applyStartingMultiplier). It never touches
-// game rules — no threshold, upkeep curve, or event formula moves. See
-// data/difficulty.json's own comment and docs/kaiser-research.md's product
-// requirement that difficulty vary opponent competence, not the rules.
+// STARTING ASYMMETRY (a head-start/handicap on taler, farmland, and
+// population, applied only to rivals via starter.ts's
+// applyStartingMultiplier). It never touches game rules — no threshold,
+// upkeep curve, or event formula moves. See data/difficulty.json's own
+// comment and docs/kaiser-research.md's product requirement that difficulty
+// vary opponent competence, not the rules. Population is required (D6):
+// taler/farmland alone do not reliably handicap when farmland stays above
+// the labor gate.
 
 import difficultyData from '../../data/difficulty.json'
 
 export interface StartingMultiplier {
   taler: number
   farmland: number
+  population: number
 }
 
 export interface DifficultyPreset {
@@ -39,8 +43,8 @@ export function validateDifficultyPresets(presets: DifficultyPreset[] = PRESETS)
       throw new Error(`Difficulty "${preset.id}" must have rivalEvaluationSeeds >= 1 (got ${preset.rivalEvaluationSeeds})`)
     }
     const mult = preset.rivalStartingMultiplier
-    if (!mult || !(mult.taler > 0) || !(mult.farmland > 0)) {
-      throw new Error(`Difficulty "${preset.id}" must have positive taler/farmland starting multipliers`)
+    if (!mult || !(mult.taler > 0) || !(mult.farmland > 0) || !(mult.population > 0)) {
+      throw new Error(`Difficulty "${preset.id}" must have positive taler/farmland/population starting multipliers`)
     }
   }
 }
