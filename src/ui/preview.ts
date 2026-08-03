@@ -70,6 +70,8 @@ export interface YearPreview {
   deaths: number
   emigration: number
   immigration: number
+  /** Event deaths (plague etc.) applied AFTER population dynamics — must be in the UI sum. */
+  eventPopulationLoss: number
   /** Chronicle fields so Grain tiles can share the same harvest oracle as the footer. */
   harvestYield: number
   spoilage: number
@@ -131,6 +133,7 @@ export function previewYear(
     deaths: report.deaths,
     emigration: report.emigration,
     immigration: report.immigration,
+    eventPopulationLoss: report.eventPopulationLoss,
     harvestYield: report.harvestYield,
     spoilage: report.spoilage,
     grainOverflowLost: report.grainOverflowLost

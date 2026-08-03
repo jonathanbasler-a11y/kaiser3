@@ -851,7 +851,9 @@ function populationProjectionText(player: GameState['players'][string], draft: D
   }
   const { before, after, delta } = roundedDelta(preview.populationBefore, preview.populationAfter)
   const deltaText = `${delta >= 0 ? '+' : ''}${delta}`
-  const breakdown = populationBreakdownText(preview.births, preview.deaths, preview.immigration, preview.emigration)
+  const breakdown = populationBreakdownText(
+    preview.births, preview.deaths, preview.immigration, preview.emigration, preview.eventPopulationLoss
+  )
   return `Projected population next year at this feed level: ${after} (currently ${before}; ${deltaText}${breakdown ? ` — ${breakdown}` : ''}). Same full-year estimate as the footer — includes harvest, feeding, and events.`
 }
 
@@ -861,12 +863,23 @@ function populationProjectionText(player: GameState['players'][string], draft: D
 // (PlayerChronicle) but only emigration ever reached the UI, and only above a
 // threshold. This is the single source both the forecast above and the
 // year-end report below draw from, so the two can't disagree.
-function populationBreakdownText(births: number, deaths: number, immigration: number, emigration: number): string {
+//
+// Phase 20.2: eventPopulationLoss is applied AFTER applyPopulationDynamics, so
+// it is a fifth term — without it the breakdown silently fails to sum in a
+// plague year.
+function populationBreakdownText(
+  births: number,
+  deaths: number,
+  immigration: number,
+  emigration: number,
+  eventPopulationLoss: number = 0
+): string {
   const parts: string[] = []
   if (births > 0) parts.push(`+${births.toFixed(0)} born`)
   if (deaths > 0) parts.push(`−${deaths.toFixed(0)} died`)
   if (immigration > 0) parts.push(`+${immigration.toFixed(0)} immigrated`)
   if (emigration > 0) parts.push(`−${emigration.toFixed(0)} emigrated`)
+  if (eventPopulationLoss > 0) parts.push(`−${eventPopulationLoss.toFixed(0)} to events`)
   return parts.join(', ')
 }
 
@@ -1055,10 +1068,15 @@ function mitigationDetail(building: string): string {
     name: string
     mitigation: { building: string; probabilityReduction: number; severityReduction: number }
   }>
-  return events
+  const parts = events
     .filter((e) => e.mitigation.building === building)
     .map((e) => `${e.name} risk −${Math.round(e.mitigation.probabilityReduction * 100)}%, severity −${Math.round(e.mitigation.severityReduction * 100)}%`)
-    .join('; ')
+  // Hospital is also the population unlock: plague severity scales with realm
+  // size, so without one a mid-game realm sits near its own growth ceiling.
+  if (building === 'hospital') {
+    parts.push('Without a hospital, plague severity rises with population and can cap growth near the Cathedral gate (~2,600); the hospital is the unlock that restores headroom')
+  }
+  return parts.join('; ')
 }
 
 // A one-time mitigation building (well/hospital/granary/garrison — max 1, never
@@ -1648,10 +1666,12 @@ function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement
   if (report.rankPromoted) {
     entries.push(el('div', { class: 'log-entry good' }, `Raised to the rank of ${getRankName(report.newRank!)}.`))
   }
-  const popBreakdown = populationBreakdownText(report.births, report.deaths, report.immigration, report.emigration)
+  const popBreakdown = populationBreakdownText(
+    report.births, report.deaths, report.immigration, report.emigration, report.eventPopulationLoss
+  )
   if (popBreakdown) {
-    const net = report.births - report.deaths + report.immigration - report.emigration
-    const tone = report.emigration > 1 ? 'bad' : undefined
+    const net = report.births - report.deaths + report.immigration - report.emigration - report.eventPopulationLoss
+    const tone = report.emigration > 1 || report.eventPopulationLoss > 0 ? 'bad' : undefined
     entries.push(el('div', { class: tone ? `log-entry ${tone}` : 'log-entry' },
       `Population: ${popBreakdown} (net ${net >= 0 ? '+' : ''}${net.toFixed(0)}).`
       + (report.emigration > 1 ? ' Unrest is taking its toll.' : '')

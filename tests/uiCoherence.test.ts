@@ -167,7 +167,7 @@ describe('pending war attacker includes same-turn army', () => {
 })
 
 describe('previewYear surfaces population components (bug report #28)', () => {
-  it('births/deaths/immigration/emigration are present and net to the before/after delta', () => {
+  it('births/deaths/immigration/emigration/events net to the before/after delta', () => {
     const state = createStarterState([
       { id: 'human', name: 'You' },
       { id: 'rival1', name: 'Rival' }
@@ -182,11 +182,38 @@ describe('previewYear surfaces population components (bug report #28)', () => {
     expect(preview.deaths).toBeGreaterThanOrEqual(0)
     expect(preview.immigration).toBeGreaterThanOrEqual(0)
     expect(preview.emigration).toBeGreaterThanOrEqual(0)
+    expect(preview.eventPopulationLoss).toBeGreaterThanOrEqual(0)
 
-    // Same components the engine actually applied (population.ts), so the
-    // forecast and the year-end report can never show a breakdown that
-    // disagrees with the net delta both already display.
+    // Dynamics terms + event losses (applied later in advanceYear) must sum to
+    // the displayed before→after delta — including plague years.
     const net = preview.births - preview.deaths + preview.immigration - preview.emigration
+      - preview.eventPopulationLoss
     expect(Math.round(preview.populationAfter - preview.populationBefore)).toBe(Math.round(net))
+  })
+
+  it('still sums when an event kills peasants', () => {
+    const state = createStarterState([
+      { id: 'human', name: 'You' },
+      { id: 'rival1', name: 'Rival' }
+    ])
+    // Large unmitigated realm → plague is likely and severe enough to fire.
+    state.players.human.population.peasants = 8000
+    state.players.human.taler = 120000
+    state.players.human.buildings.markets = 8
+    state.players.human.buildings.mills = 4
+    const rivals = new Map<string, Personality>([['rival1', getPersonality('builder')]])
+    const difficulty = getDifficultyPreset('standard')
+    const draft = defaultDraft(state.players.human)
+
+    let foundEventLoss = false
+    for (let year = 0; year < 40; year++) {
+      state.year = year
+      const preview = previewYear(state, 'human', draft, rivals, difficulty)!
+      const net = preview.births - preview.deaths + preview.immigration - preview.emigration
+        - preview.eventPopulationLoss
+      expect(Math.round(preview.populationAfter - preview.populationBefore)).toBe(Math.round(net))
+      if (preview.eventPopulationLoss > 0) foundEventLoss = true
+    }
+    expect(foundEventLoss).toBe(true)
   })
 })
