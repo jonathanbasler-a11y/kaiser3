@@ -13,12 +13,13 @@
   --bg-panel-raised:#dece9e;   /* raised element (stat boxes, steppers) */
   --ink:            #1a1008;   /* near-black calligraphy ink */
   --ink-dim:        #5c4828;   /* warm brown dim / labels */
-  --accent:         #8b6914;   /* dark-goldenrod gilt */
-  --accent-bright:  #b8860b;   /* brighter gilt for highlights */
+  --accent:         #6b4f0a;   /* darker gilt for text / buttons (AA on parchment) */
+  --accent-bright:  #8b6914;   /* mid gilt for borders / rules (not body text) */
+  --accent-rule:    #b8860b;   /* bright gilt for decorative rules only */
   --good:           #2d5a1e;   /* forest-green positive */
   --bad:            #7a1a1a;   /* deep-crimson negative */
   --border:         #b8a070;   /* warm tan rule / border */
-  --ink-on-accent:  #1a1008;   /* dark ink written on gilt buttons */
+  --ink-on-accent:  #f2e8ce;   /* parchment ink on dark gilt buttons */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
@@ -65,8 +66,8 @@ html, body {
 }
 
 h1, h2, h3 { margin: 0.4em 0 0.3em; font-weight: 700; font-family: 'Cinzel', 'EB Garamond', Georgia, serif; letter-spacing: 0.02em; }
-h1 { font-size: 1.4rem; color: var(--accent-bright); }
-h2 { font-size: 1.1rem; color: var(--accent-bright); }
+h1 { font-size: 1.4rem; color: var(--accent); }
+h2 { font-size: 1.1rem; color: var(--accent); }
 p { margin: 0.3em 0; line-height: 1.5; }
 
 .subtitle { color: var(--ink-dim); font-size: 0.9rem; }
@@ -209,7 +210,7 @@ input[type="range"] {
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--bg-panel-raised);
 }
 
 .log {
@@ -475,7 +476,8 @@ span.bad { color: var(--bad); font-weight: 600; }
   font-variant-numeric: tabular-nums;
   padding: 2px 6px;
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--bg);
+  border: 1px solid var(--border);
 }
 .req-tile.ok .req-tile-value { color: var(--good); }
 .req-tile.deficit .req-tile-value { color: var(--bad); }
@@ -627,7 +629,7 @@ h2::after {
     to right,
     transparent 0%,
     var(--accent) 20%,
-    var(--accent-bright) 50%,
+    var(--accent-rule) 50%,
     var(--accent) 80%,
     transparent 100%
   );
@@ -640,7 +642,7 @@ h2::after {
   font-family: 'Cinzel', Georgia, serif;
   font-size: 1.7em;
   font-weight: 700;
-  color: var(--accent-bright);
+  color: var(--accent);
   line-height: 1;
   float: left;
   margin-right: 0.08em;

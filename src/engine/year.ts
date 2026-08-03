@@ -18,7 +18,7 @@ import { resolveEvents } from './events/events.ts'
 import { rollPositiveEvent } from './events/positiveEvents.ts'
 import { applyRecruitment, espionageUpkeep, resolveStrike } from './espionage.ts'
 import { applySuccession, checkExtinction } from './succession.ts'
-import { resolveAllianceRequests, resolveWar, applyMilitaryInvestment, militaryUpkeep, isTruceActive, registerTruce } from './war.ts'
+import { resolveAllianceRequests, resolveWar, applyMilitaryInvestment, militaryUpkeep, isTruceActive, registerTruce, trucePairKey } from './war.ts'
 import economyData from '../../data/economy.json'
 
 const WARFARE = economyData.warfare
@@ -385,7 +385,18 @@ export function advanceYear(
     // espionage gives a stale strike target.
     if (!defender || defender.dead || defender.id === attackerId) continue
     if (!newState.activePlayerIds.includes(defender.id)) continue
-    if (isTruceActive(newState.truces, attacker.id, defender.id, newState.year)) continue
+    if (isTruceActive(newState.truces, attacker.id, defender.id, newState.year)) {
+      // Belt-and-braces: UI should disable truce targets, but if a declaration
+      // still arrives, explain the refuse on the year report (silent-failure class).
+      const report = chronicle.playerReports[attackerId]
+      const expiry = newState.truces[trucePairKey(attacker.id, defender.id)]
+      if (report) {
+        report.shortfalls.push(
+          `Truce with ${defender.name} holds until year ${expiry} — war declaration ignored.`
+        )
+      }
+      continue
+    }
 
     const requestedAllies = (war.alliesRequested ?? [])
       .map((id) => newState.players[id])

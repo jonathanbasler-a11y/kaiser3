@@ -33,9 +33,19 @@ export function isTruceActive(
   b: string,
   year: number
 ): boolean {
-  if (!truces) return false
+  const expiry = truceExpiryYear(truces, a, b)
+  return expiry !== undefined && year < expiry
+}
+
+/** First year the pair may fight again, or undefined if no truce is recorded. */
+export function truceExpiryYear(
+  truces: Record<string, number> | undefined,
+  a: string,
+  b: string
+): number | undefined {
+  if (!truces) return undefined
   const expiry = truces[trucePairKey(a, b)]
-  return typeof expiry === 'number' && Number.isFinite(expiry) && year < expiry
+  return typeof expiry === 'number' && Number.isFinite(expiry) ? expiry : undefined
 }
 
 /**

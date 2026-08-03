@@ -11,7 +11,8 @@ import { eventLossMagnitudeText } from '../engine/events/events.ts'
 import { createStarterState, applyStartingMultiplier } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
 import { getRankName, isFeatureUnlocked, getNextRank, groupProgress, getAllRanks, getTopRank, RankRequirement } from '../engine/ranks.ts'
-import { warStrength, warWinProbability, militaryMultiplier } from '../engine/war.ts'
+import { warStrength, warWinProbability, militaryMultiplier, isTruceActive, truceExpiryYear } from '../engine/war.ts'
+import { medievalRivalName } from '../engine/gameLoop.ts'
 import { totalLand } from '../engine/land.ts'
 import { getPersonalities, Personality } from '../ai/personalities.ts'
 import { getDifficultyPresets, getDifficultyPreset, DEFAULT_DIFFICULTY_ID, DifficultyPreset } from '../ai/difficulty.ts'
@@ -327,7 +328,12 @@ function startGame(opponentCount: number, maxYears: number, difficultyId: string
 
   const playerIds = [
     { id: HUMAN_ID, name: 'You' },
-    ...rivalIds.map((id) => ({ id, name: rivals.get(id)!.name }))
+    ...rivalIds.map((id, i) => {
+      const personality = rivals.get(id)!
+      // Proper name + archetype epithet so the personality tell stays readable.
+      const epithet = personality.name.replace(/^The\s+/i, 'the ')
+      return { id, name: `${medievalRivalName(i)}, ${epithet}` }
+    })
   ]
   const state = createStarterState(playerIds)
 
@@ -644,12 +650,17 @@ function statGrid(player: PlayerState, _state: GameState): HTMLElement {
   const grainYears = Number(yearsOfFoodLabel(player))
   const grainTone = grainYears < 0.5 ? 'bad' : grainYears >= 1 ? 'good' : undefined
   const unrestTone = player.population.unrest > 60 ? 'bad' : player.population.unrest < 20 ? 'good' : undefined
+  const weariness = player.warWeariness ?? 0
+  const wearinessUnrest = weariness * WARFARE.wearinessUnrestMultiplier
+  const unrestLabel = weariness > 0
+    ? `${player.population.unrest.toFixed(0)}/100 (weariness +${wearinessUnrest.toFixed(1)}/yr)`
+    : `${player.population.unrest.toFixed(0)}/100`
 
   return el('div', { class: 'stat-grid' },
     statTile('Taler', player.taler.toFixed(0)),
     statTile('Population', player.population.peasants.toFixed(0)),
     statTile('Grain', `${player.grainStock.toFixed(0)} (${yearsOfFoodLabel(player)}y)`, grainTone),
-    statTile('Unrest', `${player.population.unrest.toFixed(0)}/100`, unrestTone),
+    statTile('Unrest', unrestLabel, unrestTone),
     statTile('Land', `${totalLand(player.land).toFixed(0)} ha`),
     statTile('Palace', `${player.buildings.palace}/${PALACE.stages}${player.buildings.cathedral ? ' + Cathedral' : ''}`),
   )
@@ -1253,24 +1264,30 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
   // strength first, then find it has moved the odds below.
   const trainingLevel = player.trainingLevel ?? 0
   const equipmentLevel = player.equipmentLevel ?? 0
+  const weariness = player.warWeariness ?? 0
+  const wearinessUnrest = weariness * WARFARE.wearinessUnrestMultiplier
   let armyPreview = previewYear(session!.state, HUMAN_ID, warSnapshotDraft(draft), session!.rivals, session!.difficulty)
   let pending = previewWarAttacker(player, armyPreview)
   const strengthShown = roundedStrength(warStrength(pending), militaryMultiplier(pending))
   const strengthGrid = el('div', { class: 'stat-grid' },
     statTile('Base strength', `${strengthShown.base}`),
     statTile('Army multiplier', `${strengthShown.multiplier.toFixed(2)}x`),
-    statTile('Total strength', `${strengthShown.total}`)
+    statTile('Total strength', `${strengthShown.total}`),
+    statTile('War weariness', weariness > 0 ? `${weariness.toFixed(0)} (+${wearinessUnrest.toFixed(1)} unrest/yr)` : '0')
   )
 
   const refreshArmyDisplay = () => {
     armyPreview = previewYear(session!.state, HUMAN_ID, warSnapshotDraft(draft), session!.rivals, session!.difficulty)
     pending = previewWarAttacker(player, armyPreview)
     const shown = roundedStrength(warStrength(pending), militaryMultiplier(pending))
+    const wear = pending.warWeariness ?? 0
+    const wearUnrest = wear * WARFARE.wearinessUnrestMultiplier
     clear(strengthGrid)
     strengthGrid.append(
       statTile('Base strength', `${shown.base}`),
       statTile('Army multiplier', `${shown.multiplier.toFixed(2)}x`),
-      statTile('Total strength', `${shown.total}`)
+      statTile('Total strength', `${shown.total}`),
+      statTile('War weariness', wear > 0 ? `${wear.toFixed(0)} (+${wearUnrest.toFixed(1)} unrest/yr)` : '0')
     )
     if (oddsLine && draft.warTargetPlayerId) {
       const defender = state.players[draft.warTargetPlayerId]
@@ -1322,16 +1339,36 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
     session!.activeTab = 'war'
     renderGame()
   })
+  // Clear a stale declaration if the selected target is under truce.
+  if (draft.warTargetPlayerId && isTruceActive(state.truces, HUMAN_ID, draft.warTargetPlayerId, state.year)) {
+    draft.warTargetPlayerId = null
+    draft.declareWar = false
+  }
+  noneBtn.className = draft.warTargetPlayerId === null ? 'active' : ''
+
   targetRow.appendChild(noneBtn)
   for (const rival of rivals) {
-    const btn = el('button', { textContent: rival.name, className: draft.warTargetPlayerId === rival.id ? 'active' : '' })
-    btn.addEventListener('click', () => {
-      draft.warTargetPlayerId = rival.id
-      draft.declareWar = true
-      draft.warAlliesRequested = draft.warAlliesRequested.filter((id) => id !== rival.id)
-      session!.activeTab = 'war'
-      renderGame()
-    })
+    const underTruce = isTruceActive(state.truces, HUMAN_ID, rival.id, state.year)
+    const expiry = truceExpiryYear(state.truces, HUMAN_ID, rival.id)
+    const label = underTruce && expiry !== undefined
+      ? `${rival.name} (truce → ${expiry})`
+      : rival.name
+    const btn = el('button', {
+      textContent: label,
+      className: draft.warTargetPlayerId === rival.id ? 'active' : ''
+    }) as HTMLButtonElement
+    if (underTruce) {
+      btn.disabled = true
+      btn.title = `Truce until year ${expiry}`
+    } else {
+      btn.addEventListener('click', () => {
+        draft.warTargetPlayerId = rival.id
+        draft.declareWar = true
+        draft.warAlliesRequested = draft.warAlliesRequested.filter((id) => id !== rival.id)
+        session!.activeTab = 'war'
+        renderGame()
+      })
+    }
     targetRow.appendChild(btn)
   }
   container.appendChild(targetRow)
