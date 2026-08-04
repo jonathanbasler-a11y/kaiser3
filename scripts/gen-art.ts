@@ -100,11 +100,11 @@ const ASSET_SPECS: Record<string, Record<string, string>> = {
     // Tightened: charge shape repeated/reinforced, ornamentation explicitly
     // forbidden where it must stay plain, mitre/tower moved to the FRONT of
     // the sentence since SDXL Turbo weights early tokens more heavily.
-    baron: `single dull gray-iron plowshare blade charge, plain unadorned brown heater shield, no gold, no wreath, no scrollwork, no coronet, humble worn metal only, flat vector heraldic icon, empty dark brown square background`,
-    duke: `golden skeleton key charge (bow and teeth clearly visible) on a quartered olive-and-gray heater shield, thin open gold circlet above the shield, smooth plain shield edge, no corner scrollwork, no border flourish, flat vector heraldic icon, empty dark brown square background`,
+    baron: `plain dented gray farm plow-blade shape, ONE simple flat metal triangle only, dull unpolished iron, sitting on a plain flat brown shield with a bare metal rim and NOTHING else on the shield, no gold anywhere, no leaves, no vines, no scrollwork of any kind, minimalist and humble, flat vector heraldic icon, empty dark brown square background`,
+    duke: `one golden hunting horn (a curved bugle-shaped drinking horn with a mouthpiece at the narrow end and a wide bell at the other end, slung on a cord) as the single shield charge, on a quartered olive-and-gray heater shield, thin open gold circlet above the shield, smooth plain shield edge, no corner scrollwork, flat vector heraldic icon, empty dark brown square background`,
     prince: `silver fleur-de-lis charge on a blue heater shield, three-pointed open gold coronet above the shield, flat vector heraldic icon, empty dark brown square background`,
     count: `golden lion rampant charge on a black-and-gold per-bend heater shield, pearl coronet above the shield, flat vector heraldic icon, empty dark brown square background`,
-    margrave: `a gray square stone castle tower with battlements as the main shield charge (tower shape must be clearly recognizable, not a cross or fleur), red heater shield background, banded gold coronet above, flat vector heraldic icon, empty dark brown square background`,
+    margrave: `a gray stone watchtower with a pointed conical roof and three square battlement notches below the roofline, standing on a stone base — a real castle turret WITH A ROOF, not a game piece — as the ONLY shield charge, absolutely NOT a cross, NOT a fleur-de-lis, NOT a flower, NOT a plant, NOT a chess piece — red heater shield background, banded gold coronet above, flat vector heraldic icon, empty dark brown square background`,
     archbishop: `a tall pointed bishop's mitre hat sitting on top of a purple heater shield, white Latin cross charge below the mitre on the shield, golden crozier staff crossed behind the shield, flat vector heraldic icon, empty dark brown square background`,
     king: `golden lion rampant charge on a blue heater shield, jeweled arched royal crown above the shield, red-and-gold mantling draping both sides, flat vector heraldic icon, empty dark brown square background`,
     kaiser: `Holy Roman Empire double-headed eagle Reichsadler with two eagle heads facing opposite directions on a black heater shield, closed imperial crown with cross above, orb and sceptre behind, flat vector heraldic icon, empty dark brown square background`
@@ -178,11 +178,11 @@ const EXTRA_NEGATIVE: Record<string, string> = {
 // Per-crest negatives: stop low ranks from growing crowns/mantling, and keep
 // Archbishop sacred (mitre) rather than royal (crown).
 const EXTRA_NEGATIVE_BY_CREST: Record<string, string> = {
-  baron: 'crown, coronet, mitre, mantling, wreath, vines, flowers, tree of life, filigree, spears, weapons, supporters, banners, ermine, jewels, ornate, baroque, nested shield, inner shield, empty shield, blank field',
-  duke: 'arched crown, closed crown, heavy mantling, wreath, spears, supporters, ermine, jewels, outer frame, wood picture frame, corner filigree, empty shield, blank field, no charge',
+  baron: 'crown, coronet, mitre, mantling, wreath, vines, flowers, tree of life, filigree, spears, weapons, supporters, banners, ermine, jewels, ornate, baroque, nested shield, inner shield, empty shield, blank field, corner ornament, corner scrollwork, gold leaf, gold trim, dragon, griffin, wings, animal, bird, letter, monogram, initial, text',
+  duke: 'arched crown, closed crown, heavy mantling, wreath, spears, supporters, ermine, jewels, outer frame, wood picture frame, corner filigree, empty shield, blank field, no charge, skull, skeleton, bone, bones, ribcage, eye socket, teeth, jaw, face, horns, demon, goat, wings, tentacle, spider',
   prince: 'closed crown, imperial crown, heavy ermine mantle, outer frame, circular gemmed rim, wood frame, nested shields',
   count: 'imperial crown, double-headed eagle, outer frame, circular gemmed rim, oak leaves filling shield, deformed lion, extra limbs, horse, unicorn',
-  margrave: 'lion, eagle, cross, mitre, outer frame, landscape castle, town, oak sprig, leaves, plant, foliage charge, crossed swords, sword, animal',
+  margrave: 'lion, eagle, cross, crucifix, mitre, outer frame, landscape castle, town, oak sprig, leaves, plant, flower, fleur-de-lis, foliage charge, crossed swords, sword, axe, weapon, animal, diamond frame, star, gem',
   archbishop: 'royal crown, arched crown, closed crown, ermine mantle, lion, eagle, secular king, outer frame, circular gold plaque, corner seals, no mitre',
   king: 'double-headed eagle, mitre, crozier, outer frame, circular gemmed rim, extra paws, mutated limbs, horse, unicorn, stag, deer, pony',
   kaiser: 'outer frame, corner seals, square border, circular gemmed plaque, single-headed eagle, one head only, foliage charge, oak leaves, antlers, no eagle'
