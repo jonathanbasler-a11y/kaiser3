@@ -37,6 +37,7 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **20.2** | Opus | High | Population ceiling retune + breakdown fix + profile | Breakdown sums in plague years; balance + pop profile |
 | **20.3** | Sonnet | Medium | Events made visible — cards, live risk, catalog | Per-event cards; calculateEventProbability in UI |
 | **20.4** | Sonnet | Medium | Explain every number (UI pass-through) | Footer breakdowns; Tax outputs; spy %; Breakdown type |
+| **20.5** | Sonnet | Medium | Art wiring, procedural icons, status tones, gen list | Terrain/war/chronicle art; --warn; gen-art checklist |
 
 ## Phase 0: Scaffold & Ground Rules ✓
 
@@ -1137,7 +1138,7 @@ machinery), then D1 (requires new data file, RNG stream extension, 19A interacti
 
 ---
 
-**Last updated:** Phase 20.1 (PR #35 regressions) in progress on `cursor-phase20-1-regressions`. Deferred still: F2, F7; D1/D2 implementation; Phase 20.2–20.5.
+**Last updated:** Phase 20.5 complete (art + status tones). Deferred still: F2, F7; D1/D2 implementation.
 
 ---
 
@@ -1185,5 +1186,15 @@ UI-only: `tooltip` accepts nodes + bottom overflow; footer Taler/Population tips
 - ✓ Breakdown summing invariant tested
 
 ---
+
+## Phase 20.5: Art Consistency + Status Colour ✓
+
+Wired existing terrain/battlefield/chronicle/market/stats art onto Land/Grain/Tax/Spies/War/year-report/game-over; parchment-aware `drawUiIconProcedural`; `--warn` + shared `statusTone.ts`; gen list at `docs/art-generation-list-phase20.md`. Removed unused canvas `loadSprite` path; declared `dike` in tileset for gen-art.
+
+### Acceptance Criteria
+- ✓ Bare tabs (Land/Grain/Tax/Spies/War) show art; collapse/timeout get scenes
+- ✓ Tab-icon procedural fallbacks look deliberate on parchment
+- ✓ Generation checklist handed back for missing crests/icons/reward scenes/dike
+- ✓ Status tones unified (`good`/`warn`/`bad`) across stats, odds, idle land, event risk
 
 ---

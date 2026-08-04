@@ -51,7 +51,8 @@ const ASSET_SPECS: Record<string, Record<string, string>> = {
     well: `Isometric game prop: ONE open circular stone water well only. Short knee-high ring of stacked round cobblestones, TWO thin wooden posts, tiny peaked shingle canopy the size of an umbrella, rope and wooden bucket hanging in the open center. Plain grass pedestal. Absolutely not a house, cottage, barn, or hut.`,
     granary: `A single large timber-frame building with a sloped roof, small ventilation windows along its side, an external staircase, and grain sacks stacked at its door. One isolated storage building, nothing else in the background.`,
     garrison: `A single fortified stone structure with narrow defensive windows, one guard tower on its corner, and a small catapult beside it. One isolated martial building standing alone, nothing else in the background.`,
-    trading_house: `A single ornate merchant's house with fancy tiled walls, silk banners hanging from its front, and imported goods displayed at its entrance. One isolated, ostentatiously wealthy building standing alone, nothing else in the background.`
+    trading_house: `A single ornate merchant's house with fancy tiled walls, silk banners hanging from its front, and imported goods displayed at its entrance. One isolated, ostentatiously wealthy building standing alone, nothing else in the background.`,
+    dike: `A single earthen flood dike / embankment with wooden piles and a short stone retaining wall along a river edge. One isolated civil-works structure on grass, no town, no people.`
   },
   eventIcons: {
     plague_flag: `Quarantine flag with skull/crossbones, sickly green mist wisps around it. Dark background. Ominous, diseased tone.`,

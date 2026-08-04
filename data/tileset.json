@@ -19,7 +19,8 @@
     "well": "art/buildings/well.png",
     "granary": "art/buildings/granary.png",
     "garrison": "art/buildings/garrison.png",
-    "trading_house": "art/buildings/trading_house.png"
+    "trading_house": "art/buildings/trading_house.png",
+    "dike": "art/buildings/dike.png"
   },
   "portraits": {
     "builder": "art/portraits/builder.png",
