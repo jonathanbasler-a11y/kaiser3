@@ -69,18 +69,13 @@
     "buildings": "art/uiIcons/buildings.png",
     "taler": "art/uiIcons/taler.png",
     "grain": "art/uiIcons/grain.png",
-    "income": "art/uiIcons/income.png",
-    "expense": "art/uiIcons/expense.png",
     "army": "art/uiIcons/army.png",
     "spy": "art/uiIcons/spy.png",
-    "points": "art/uiIcons/points.png",
     "stats": "art/uiIcons/stats.png",
-    "chart_parchment": "art/uiIcons/chart_parchment.png",
     "req_wealth": "art/uiIcons/req_wealth.png",
     "req_population": "art/uiIcons/req_population.png",
     "req_palace": "art/uiIcons/req_palace.png",
     "req_cathedral": "art/uiIcons/req_cathedral.png",
-    "req_land": "art/uiIcons/req_land.png",
     "req_trading_house": "art/uiIcons/req_trading_house.png"
   }
 }

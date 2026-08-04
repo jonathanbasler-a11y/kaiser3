@@ -52,7 +52,7 @@ const ASSET_SPECS: Record<string, Record<string, string>> = {
     granary: `A single large timber-frame building with a sloped roof, small ventilation windows along its side, an external staircase, and grain sacks stacked at its door. One isolated storage building, nothing else in the background.`,
     garrison: `A single fortified stone structure with narrow defensive windows, one guard tower on its corner, and a small catapult beside it. One isolated martial building standing alone, nothing else in the background.`,
     trading_house: `A single ornate merchant's house with fancy tiled walls, silk banners hanging from its front, and imported goods displayed at its entrance. One isolated, ostentatiously wealthy building standing alone, nothing else in the background.`,
-    dike: `A single earthen flood dike / embankment with wooden piles and a short stone retaining wall along a river edge. One isolated civil-works structure on grass, no town, no people.`
+    dike: `A long earthen mound / embankment (a raised bank of packed dirt and grass, NOT a building) running alongside a blue river, rows of wooden support piles driven into the mound's face, a low stone retaining wall at its base. Absolutely NO roof, NO walls, NO windows, NO doors — this is a landform of heaped earth and timber piles, not a house or structure. No town, no people.`
   },
   eventIcons: {
     plague_flag: `Quarantine flag with skull/crossbones, sickly green mist wisps around it. Dark background. Ominous, diseased tone.`,
@@ -92,35 +92,42 @@ const ASSET_SPECS: Record<string, Record<string, string>> = {
   crests: {
     // Subject-first literal icons. SDXL ignores soft "rank" language — name the
     // charge first, then the shield, then ornamentation allowed for that rank.
-    baron: `black plowshare farming tool charge on a plain brown heater shield, iron rim only, flat vector heraldic icon, empty dark brown square background`,
-    duke: `golden skeleton key charge on a quartered olive-and-gray heater shield, thin open gold circlet above the shield, flat vector heraldic icon, empty dark brown square background`,
+    //
+    // Round 2 (Phase 20.5 art QA): baron/duke/margrave/archbishop all missed
+    // their named charge on round 1 (baron came back gold-and-wreathed instead
+    // of plain iron; duke grew forbidden corner scrollwork; margrave's tower
+    // charge never appeared; archbishop's mitre/crozier never appeared).
+    // Tightened: charge shape repeated/reinforced, ornamentation explicitly
+    // forbidden where it must stay plain, mitre/tower moved to the FRONT of
+    // the sentence since SDXL Turbo weights early tokens more heavily.
+    baron: `single dull gray-iron plowshare blade charge, plain unadorned brown heater shield, no gold, no wreath, no scrollwork, no coronet, humble worn metal only, flat vector heraldic icon, empty dark brown square background`,
+    duke: `golden skeleton key charge (bow and teeth clearly visible) on a quartered olive-and-gray heater shield, thin open gold circlet above the shield, smooth plain shield edge, no corner scrollwork, no border flourish, flat vector heraldic icon, empty dark brown square background`,
     prince: `silver fleur-de-lis charge on a blue heater shield, three-pointed open gold coronet above the shield, flat vector heraldic icon, empty dark brown square background`,
     count: `golden lion rampant charge on a black-and-gold per-bend heater shield, pearl coronet above the shield, flat vector heraldic icon, empty dark brown square background`,
-    margrave: `gray stone battlement tower keep charge on a red heater shield, banded gold coronet above, two thin side ribbons, flat vector heraldic icon, empty dark brown square background`,
-    archbishop: `white Latin cross on a purple heater shield, tall pointed bishop mitre with twin ribbons resting ON TOP of the shield, golden crozier crossed behind, flat vector heraldic icon, empty dark brown square background`,
+    margrave: `a gray square stone castle tower with battlements as the main shield charge (tower shape must be clearly recognizable, not a cross or fleur), red heater shield background, banded gold coronet above, flat vector heraldic icon, empty dark brown square background`,
+    archbishop: `a tall pointed bishop's mitre hat sitting on top of a purple heater shield, white Latin cross charge below the mitre on the shield, golden crozier staff crossed behind the shield, flat vector heraldic icon, empty dark brown square background`,
     king: `golden lion rampant charge on a blue heater shield, jeweled arched royal crown above the shield, red-and-gold mantling draping both sides, flat vector heraldic icon, empty dark brown square background`,
     kaiser: `Holy Roman Empire double-headed eagle Reichsadler with two eagle heads facing opposite directions on a black heater shield, closed imperial crown with cross above, orb and sceptre behind, flat vector heraldic icon, empty dark brown square background`
   },
   // Optional Kaiser-II-inspired hub / requirement icons — see docs/kaiser2-inspired-features.md.
-  // Ultra-literal single-object icons — SDXL otherwise invents ornate medallions.
+  // Ultra-literal single-object icons — SDXL otherwise invents ornate medallions
+  // OR, for anything phrased as "N small things", tiles a whole sprite-sheet
+  // grid instead of composing one icon (round 1: people/grain/req_population
+  // all came back as grids). Round 2 rephrases every multi-figure ask as one
+  // fused/single silhouette shape and drops explicit counts.
   uiIcons: {
-    people: `ONE flat game UI icon: exactly three simple brown peasant silhouettes standing side by side, empty dark brown square background, no frame, no border`,
+    people: `ONE flat game UI icon: a single brown peasant-family silhouette shape (adult and child overlapping as one fused silhouette, not separate figures), empty dark brown square background, no frame, no border, no grid, no sprite sheet, single image only`,
     land: `ONE flat game UI icon: a folded paper map only, empty dark brown square background, no frame`,
     buildings: `ONE flat game UI icon: one small stone house with peaked roof only, empty dark brown square background, no frame`,
-    taler: `ONE flat game UI icon: a single round gold coin facing the viewer, empty dark brown square background, no frame, no text`,
-    grain: `ONE flat game UI icon: one wheat sheaf bundle only, empty dark brown square background, no frame`,
-    income: `ONE flat game UI icon: two small gold coin bags stacked, empty dark brown square background, no frame`,
-    expense: `ONE flat game UI icon: one open coin pouch spilling three coins, empty dark brown square background, no frame`,
+    taler: `ONE flat game UI icon: one large solid gold coin disc, plain circular shape with a thin raised rim, no engraving, no face, no text, centered alone, empty dark brown square background, no frame, single image only, no grid`,
+    grain: `ONE flat game UI icon: a single wheat sheaf silhouette, tied bundle of stalks, nothing else in the frame, empty dark brown square background, no frame, no grid, no sprite sheet, single image only`,
     army: `ONE flat game UI icon: one heater shield with two crossed swords behind it, empty dark brown square background, no frame`,
     spy: `ONE flat game UI icon: a dark hooded cloak silhouette and one dagger, empty dark brown square background, no face, no frame`,
-    points: `ONE flat game UI icon: a green laurel wreath circle, empty dark brown square background, no frame`,
-    stats: `ONE flat game UI icon: three solid vertical bars of increasing height like a bar chart, empty dark brown square background, no numbers, no frame`,
-    chart_parchment: `full-bleed blank aged parchment paper texture only, fibrous grain, no icons, no chart, no numbers, no frame, no border ornaments`,
+    stats: `ONE flat game UI icon: exactly three solid rectangular bars side by side, short-medium-tall, like a simple bar chart, flat silhouette shapes only, empty dark brown square background, no numbers, no frame, single image only, no grid`,
     req_wealth: `ONE flat game UI icon: a wooden treasure chest overflowing with gold coins, empty dark brown square background, no frame`,
-    req_population: `ONE flat game UI icon: two adult silhouettes and one child silhouette, empty dark brown square background, no frame`,
+    req_population: `ONE flat game UI icon: a single fused family silhouette shape (one adult figure with one smaller child figure overlapping as one combined silhouette, not separate icons), empty dark brown square background, no frame, no grid, no sprite sheet, single image only`,
     req_palace: `ONE flat game UI icon: a small palace building with one tower silhouette, empty dark brown square background, no frame`,
     req_cathedral: `ONE flat game UI icon: a gothic cathedral with one tall spire silhouette, empty dark brown square background, no frame`,
-    req_land: `ONE flat game UI icon: four farmland field patches from above, empty dark brown square background, no frame`,
     req_trading_house: `ONE flat game UI icon: a merchant townhouse with one hanging banner, empty dark brown square background, no frame`
   }
 }
