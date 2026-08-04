@@ -10,7 +10,7 @@ import { eventLossMagnitudeText, calculateEventProbability, getEventCatalog } fr
 import { createStarterState, applyStartingMultiplier } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
 import { getRankName, isFeatureUnlocked, getNextRank, groupProgressDetail, getAllRanks, getTopRank, RankRequirement, requirementGroupStatus } from '../engine/ranks.ts'
-import { warStrength, warWinProbability, militaryMultiplier, isTruceActive, truceExpiryYear } from '../engine/war.ts'
+import { warStrength, warStrengthBreakdown, warWinProbability, militaryMultiplier, isTruceActive, truceExpiryYear } from '../engine/war.ts'
 import { medievalRivalName } from '../engine/gameLoop.ts'
 import { strikeSuccessProbability } from '../engine/espionage.ts'
 import { totalLand, remainingLandBuyBudget, affordableHectares } from '../engine/land.ts'
@@ -120,6 +120,11 @@ interface Session {
     eventCards: EventCard[]
     cardIndex: number
   } | null
+  // Phase 20 follow-up: the human's own report from the year that just
+  // resolved, kept around so header stat tiles (Unrest, etc.) can explain
+  // what changed since last turn instead of showing a bare current value.
+  // Null before the first year ever resolves.
+  lastChronicle: PlayerChronicle | null
 }
 
 type Outcome =
@@ -368,7 +373,8 @@ function startGame(opponentCount: number, maxYears: number, difficultyId: string
     difficulty,
     draft: trackDraft(defaultDraft(state.players[HUMAN_ID])),
     activeTab: 'overview',
-    yearReport: null
+    yearReport: null,
+    lastChronicle: null
   }
   renderGame()
 }
@@ -395,7 +401,8 @@ function resumeFromSave(payload: SavePayload): void {
     difficulty: getDifficultyPreset(payload.difficultyId),
     draft: trackDraft(defaultDraft(payload.game.players[HUMAN_ID])),
     activeTab: 'overview',
-    yearReport: null
+    yearReport: null,
+    lastChronicle: null
   }
   renderGame()
 }
@@ -703,11 +710,20 @@ function statGrid(player: PlayerState, _state: GameState): HTMLElement {
     ? `${player.population.unrest.toFixed(0)}/100 (weariness +${wearinessUnrest.toFixed(1)}/yr)`
     : `${player.population.unrest.toFixed(0)}/100`
 
+  const lastYear = session?.lastChronicle
+  const unrestTip = lastYear
+    ? breakdownTip([
+        { label: 'Feeding (shortfall/decay)', value: lastYear.unrestFromFeeding },
+        { label: 'Taxation', value: lastYear.unrestFromTax },
+        { label: 'War weariness', value: lastYear.unrestFromWarWeariness }
+      ])
+    : 'Accumulates from underfeeding and heavy taxation; decays slowly in peacetime. Resolve at least one year to see last year\'s breakdown.'
+
   return el('div', { class: 'stat-grid' },
     statTile('Taler', player.taler.toFixed(0), undefined, 'Treasury after last year. End-year preview breaks down the next delta.'),
     statTile('Population', player.population.peasants.toFixed(0), undefined, 'Peasants. Plague severity rises with size — see hospital on Build.'),
     statTile('Grain', `${player.grainStock.toFixed(0)} (${yearsOfFoodLabel(player)}y)`, grainTone),
-    statTile('Unrest', unrestLabel, unrestTone),
+    statTile('Unrest', unrestLabel, unrestTone, unrestTip),
     statTile('Land', `${totalLand(player.land).toFixed(0)} ha`),
     statTile('Palace', `${player.buildings.palace}/${PALACE.stages}${player.buildings.cathedral ? ' + Cathedral' : ''}`),
   )
@@ -1444,8 +1460,16 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
   let armyPreview = previewYear(session!.state, HUMAN_ID, warSnapshotDraft(draft), session!.rivals, session!.difficulty)
   let pending = previewWarAttacker(player, armyPreview)
   const strengthShown = roundedStrength(warStrength(pending), militaryMultiplier(pending))
+  const strengthTip = (p: PlayerState): HTMLElement => {
+    const b = warStrengthBreakdown(p)
+    return breakdownTip([
+      { label: 'Garrison', value: b.garrison },
+      { label: 'Guards', value: b.guards },
+      { label: 'Population levy', value: b.levy }
+    ], false)
+  }
   const strengthGrid = el('div', { class: 'stat-grid' },
-    statTile('Base strength', `${strengthShown.base}`),
+    statTile('Base strength', `${strengthShown.base}`, undefined, strengthTip(pending)),
     statTile('Army multiplier', `${strengthShown.multiplier.toFixed(2)}x`),
     statTile('Total strength', `${strengthShown.total}`),
     statTile('War weariness', weariness > 0 ? `${weariness.toFixed(0)} (+${wearinessUnrest.toFixed(1)} unrest/yr)` : '0')
@@ -1459,7 +1483,7 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
     const wearUnrest = wear * WARFARE.wearinessUnrestMultiplier
     clear(strengthGrid)
     strengthGrid.append(
-      statTile('Base strength', `${shown.base}`),
+      statTile('Base strength', `${shown.base}`, undefined, strengthTip(pending)),
       statTile('Army multiplier', `${shown.multiplier.toFixed(2)}x`),
       statTile('Total strength', `${shown.total}`),
       statTile('War weariness', wear > 0 ? `${wear.toFixed(0)} (+${wearUnrest.toFixed(1)} unrest/yr)` : '0')
@@ -1631,6 +1655,7 @@ function resolveYear(): void {
   const seed = 1 + year * 1000
   const result = advanceYear(state, decisions, seed)
   session.state = result.state
+  session.lastChronicle = result.chronicle.playerReports[HUMAN_ID] ?? null
 
   session.yearReport = {
     entries: buildReportEntries(result.chronicle, result.state),
@@ -1678,6 +1703,23 @@ function resolveYear(): void {
 // grain trade line — tax, tariffs, market/mill/trading-house income, judicial
 // graft, and upkeep were all silently absorbed into the Taler stat with no
 // visible cause. This surfaces every line the engine already tracks.
+// Shared row-per-part breakdown, used for tooltip content anywhere a total
+// needs to show what it's made of (upkeep, unrest, war strength). Rounds each
+// part first so the displayed parts always sum to the displayed total —
+// same rule roundedBreakdown enforces for the numbers themselves.
+function breakdownTip(parts: Array<{ label: string; value: number }>, signed = true): HTMLElement {
+  const b = roundedBreakdown(parts)
+  return el('div', {},
+    ...b.parts.map((p) =>
+      el('div', { class: 'row between' },
+        el('span', {}, p.label),
+        el('span', {}, signed ? `${p.value >= 0 ? '+' : ''}${p.value}` : `${p.value}`)
+      )
+    ),
+    el('p', { class: 'help-text' }, `Total ${signed && b.total >= 0 ? '+' : ''}${b.total}`)
+  )
+}
+
 function buildIncomeBreakdown(report: Chronicle['playerReports'][string]): HTMLElement {
   const pair = (label: string, value: number): [string, number] => [label, value]
   const lines: Array<[string, number]> = [
@@ -1688,17 +1730,38 @@ function buildIncomeBreakdown(report: Chronicle['playerReports'][string]): HTMLE
     pair('Mill income', report.millIncome),
     pair('Trading house income', report.tradingHouseIncome),
     pair('Grain trade', report.grainTradeIncome),
+    pair('Land trade', report.landTradeNet),
+    pair('Construction', -report.constructionSpend),
+    pair('Recruitment (guards/saboteurs)', -report.recruitmentSpend),
+    pair('Training & equipment', -report.militarySpend),
     pair('Upkeep (buildings, secret service, army, tribute)', -report.upkeepCost)
   ].filter(([, v]) => Math.abs(v) >= 1)
   // Round each line first so displayed Operating net equals the sum of displayed lines.
   const shown = lines.map(([label, v]) => [label, Math.round(v)] as [string, number])
   const net = shown.reduce((sum, [, v]) => sum + v, 0)
 
+  const upkeepTip = report.upkeepBreakdown
+    ? breakdownTip([
+        { label: 'Markets', value: -report.upkeepBreakdown.markets },
+        { label: 'Mills', value: -report.upkeepBreakdown.mills },
+        { label: 'Palace', value: -report.upkeepBreakdown.palace },
+        { label: 'Cathedral', value: -report.upkeepBreakdown.cathedral },
+        { label: 'Hospital', value: -report.upkeepBreakdown.hospital },
+        { label: 'Well', value: -report.upkeepBreakdown.well },
+        { label: 'Granary', value: -report.upkeepBreakdown.granary },
+        { label: 'Garrison', value: -report.upkeepBreakdown.garrison },
+        { label: 'Dike', value: -report.upkeepBreakdown.dike },
+        { label: 'Trading-house tribute', value: -report.upkeepBreakdown.tradingHouseTribute },
+        { label: 'Secret service (guards/saboteurs)', value: -report.upkeepBreakdown.secretService },
+        { label: 'Army (training/equipment)', value: -report.upkeepBreakdown.army }
+      ])
+    : null
+
   return el('div', { class: 'card' },
     el('h3', {}, 'Income & spending'),
     ...shown.map(([label, v]) =>
       el('div', { class: 'row between' },
-        el('span', { class: 'help-text' }, label),
+        el('span', { class: 'help-text' }, label, label.startsWith('Upkeep') && upkeepTip ? tooltip(upkeepTip) : null),
         el('span', { class: v >= 0 ? 'good' : 'bad' }, `${v >= 0 ? '+' : ''}${v}`)
       )
     ),
@@ -1708,7 +1771,7 @@ function buildIncomeBreakdown(report: Chronicle['playerReports'][string]): HTMLE
         el('span', { class: net >= 0 ? 'good' : 'bad' }, `${net >= 0 ? '+' : ''}${net}`)
       ),
       el('p', { class: 'help-text' },
-        'Excludes land, builds, recruits, army spend, events, raids, and war.'
+        'Excludes event losses, raids, and war reparations/casualties — see the entries below.'
       )
     )
   )
