@@ -27,8 +27,8 @@ import { getEventCatalog, calculateEventProbability } from '../engine/events/eve
 import { ExposureContext } from '../engine/scarcity.ts'
 import { rankProgress, getNextRank, groupProgress } from '../engine/ranks.ts'
 import { totalLand } from '../engine/land.ts'
+import { yearsOfFoodHeld } from '../engine/economy.ts'
 
-const POP_ECONOMY = economyData.population
 const HARVEST = economyData.harvest
 const PRESTIGE = buildingsData.prestige
 const PALACE = PRESTIGE.palace
@@ -69,12 +69,6 @@ export interface PersonalityWeights {
   riskHorizonYears: number
 }
 
-function yearsOfFoodHeld(player: PlayerState): number {
-  const required = player.population.peasants * POP_ECONOMY.populationGrainRequirement
-  if (required <= 0) return Infinity
-  return player.grainStock / required
-}
-
 // The reserve that actually buys safety, expressed as a 0-1 score.
 //
 // Deliberately measured against TWO years of food, not one. A drought harvests at
@@ -86,7 +80,7 @@ function yearsOfFoodHeld(player: PlayerState): number {
 const SECURE_RESERVE_YEARS = 2
 
 function grainSecurityRatio(player: PlayerState): number {
-  return Math.min(1, yearsOfFoodHeld(player) / SECURE_RESERVE_YEARS)
+  return Math.min(1, yearsOfFoodHeld(player.grainStock, player.population) / SECURE_RESERVE_YEARS)
 }
 
 // The feeding adequacy this player can expect to achieve NEXT year given the grain
@@ -97,7 +91,7 @@ function grainSecurityRatio(player: PlayerState): number {
 // Capped at one year, unlike the security score above: you cannot be better than
 // fully fed, however deep the barns.
 export function projectedFeedAdequacy(player: PlayerState): number {
-  return Math.min(1, yearsOfFoodHeld(player))
+  return Math.min(1, yearsOfFoodHeld(player.grainStock, player.population))
 }
 
 // F6: next year's weather is exogenous — nothing in player state predicts it,

@@ -41,6 +41,13 @@ export function annualGrainRequirement(population: PopulationState): number {
   return population.peasants * POP_ECONOMY.populationGrainRequirement
 }
 
+/** Years of consumption currently in the barn (Infinity if demand is zero). */
+export function yearsOfFoodHeld(grainStock: number, population: PopulationState): number {
+  const required = annualGrainRequirement(population)
+  if (required <= 0) return Infinity
+  return grainStock / required
+}
+
 // How much grain a realm can actually keep, expressed in years of consumption so
 // it scales with the realm rather than becoming irrelevant as it grows. Grain
 // above this simply rots in the barn.

@@ -5,7 +5,8 @@
 // (engine/decisions.ts validates both).
 
 import { GameState, Decision, EspionageMode, PlayerState } from '../engine/state.ts'
-import { annualGrainRequirement } from '../engine/economy.ts'
+import { yearsOfFoodHeld } from '../engine/economy.ts'
+import { affordableHectares as engineAffordableHectares } from '../engine/land.ts'
 import economyData from '../../data/economy.json'
 
 const FEEDING = economyData.feeding
@@ -151,14 +152,14 @@ export function maxAffordableGrainBuy(player: PlayerState, cornBuyPrice: number)
 }
 
 export function yearsOfFoodLabel(player: PlayerState): string {
-  const needed = annualGrainRequirement(player.population)
-  if (needed <= 0) return '—'
-  return (player.grainStock / needed).toFixed(1)
+  const years = yearsOfFoodHeld(player.grainStock, player.population)
+  if (!Number.isFinite(years)) return '—'
+  return years.toFixed(1)
 }
 
+/** Re-export engine helper so UI call sites stay on one import path. */
 export function affordableHectares(taler: number, pricePerHectare: number): number {
-  if (pricePerHectare <= 0) return 0
-  return Math.floor(taler / pricePerHectare)
+  return engineAffordableHectares(taler, pricePerHectare)
 }
 
 /** How many new hires the stepper may offer this turn (standing → data cap). */
