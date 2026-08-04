@@ -385,7 +385,6 @@ export function drawUiIconProcedural(ctx: CanvasRenderingContext2D, w: number, h
       break
     case 'taler':
     case 'req_wealth':
-    case 'income':
       ctx.beginPath()
       ctx.arc(cx, cy, s, 0, Math.PI * 2)
       ctx.stroke()
