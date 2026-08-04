@@ -26,13 +26,41 @@ export interface RankDef {
 
 const RANKS: RankDef[] = ranksData.ranks as RankDef[]
 
-function meetsRequirementGroup(player: PlayerState, req: RankRequirement): boolean {
-  if (player.taler < req.wealthMin) return false
-  if (player.population.peasants < req.populationMin) return false
-  if (req.palaceStages !== undefined && player.buildings.palace < req.palaceStages) return false
-  if (req.cathedral === true && player.buildings.cathedral < 1) return false
-  if (req.tradingHousesMin !== undefined && player.tradingHouses < req.tradingHousesMin) return false
-  return true
+/** Per-field status for one alternative requirement-group (UI OK/deficit tiles). */
+export interface RequirementGroupStatus {
+  met: boolean
+  wealthOk: boolean
+  populationOk: boolean
+  palaceOk?: boolean
+  cathedralOk?: boolean
+  tradingHousesOk?: boolean
+}
+
+/** Single source of truth for rank-gate checks — UI and promotion share this. */
+export function requirementGroupStatus(player: PlayerState, req: RankRequirement): RequirementGroupStatus {
+  const wealthOk = player.taler >= req.wealthMin
+  const populationOk = player.population.peasants >= req.populationMin
+  const status: RequirementGroupStatus = { met: false, wealthOk, populationOk }
+  if (req.palaceStages !== undefined) {
+    status.palaceOk = player.buildings.palace >= req.palaceStages
+  }
+  if (req.cathedral === true) {
+    status.cathedralOk = player.buildings.cathedral >= 1
+  }
+  if (req.tradingHousesMin !== undefined) {
+    status.tradingHousesOk = player.tradingHouses >= req.tradingHousesMin
+  }
+  status.met =
+    wealthOk &&
+    populationOk &&
+    (status.palaceOk !== false) &&
+    (status.cathedralOk !== false) &&
+    (status.tradingHousesOk !== false)
+  return status
+}
+
+export function meetsRequirementGroup(player: PlayerState, req: RankRequirement): boolean {
+  return requirementGroupStatus(player, req).met
 }
 
 function meetsRequirements(player: PlayerState, groups: RankRequirement[]): boolean {
@@ -96,21 +124,43 @@ export function getNextRank(currentRank: number): RankDef | undefined {
 // itself: both the AI's valuation and the standings comparator need it, and two
 // copies would be free to drift apart.
 export function groupProgress(player: PlayerState, req: RankRequirement): number {
-  const ratios: number[] = [
-    req.wealthMin > 0 ? player.taler / req.wealthMin : 1,
-    req.populationMin > 0 ? player.population.peasants / req.populationMin : 1
+  return groupProgressDetail(player, req).progress
+}
+
+export interface RequirementRatio {
+  label: string
+  ratio: number
+}
+
+export interface GroupProgressDetail {
+  ratios: RequirementRatio[]
+  /** Label of the ratio that is currently Math.min — the constraint actually
+   *  holding this path back. Same requirementTiles labels used in app.ts, so
+   *  the UI can say "capped by Population" without inventing a second name. */
+  binding: string
+  progress: number
+}
+
+// Itemised version of groupProgress — same MIN-of-ratios rule, but keeps each
+// named ratio and which one is currently binding, so the UI's "N% toward
+// Duke" can say WHICH requirement is holding it back instead of a bare number.
+export function groupProgressDetail(player: PlayerState, req: RankRequirement): GroupProgressDetail {
+  const ratios: RequirementRatio[] = [
+    { label: 'Taler', ratio: req.wealthMin > 0 ? player.taler / req.wealthMin : 1 },
+    { label: 'People', ratio: req.populationMin > 0 ? player.population.peasants / req.populationMin : 1 }
   ]
   if (req.palaceStages !== undefined && req.palaceStages > 0) {
-    ratios.push(player.buildings.palace / req.palaceStages)
+    ratios.push({ label: 'Palace', ratio: player.buildings.palace / req.palaceStages })
   }
   if (req.cathedral === true) {
-    ratios.push(player.buildings.cathedral >= 1 ? 1 : 0)
+    ratios.push({ label: 'Cathedral', ratio: player.buildings.cathedral >= 1 ? 1 : 0 })
   }
   if (req.tradingHousesMin !== undefined && req.tradingHousesMin > 0) {
-    ratios.push(player.tradingHouses / req.tradingHousesMin)
+    ratios.push({ label: 'Trading houses', ratio: player.tradingHouses / req.tradingHousesMin })
   }
 
-  return Math.max(0, Math.min(1, Math.min(...ratios)))
+  const binding = ratios.reduce((min, r) => (r.ratio < min.ratio ? r : min), ratios[0])
+  return { ratios, binding: binding.label, progress: Math.max(0, Math.min(1, binding.ratio)) }
 }
 
 export function rankProgress(player: PlayerState): number {

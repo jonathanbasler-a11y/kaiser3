@@ -667,23 +667,14 @@ in `data/events.json` (`event.mitigation.building`) and is validated one-way onl
 sources of truth for one relationship, one of them inert and free to drift. Same
 class as `cornPriceBands` before Phase 12.
 
-### S5. The UI re-implements engine logic that is one `export` away
-**Deferred (`cursor-audit-s-t-cleanup`):** deep UI-vs-engine reimplementation
-cleanup remains open by scope.
-- `app.ts:695-743` (`requirementTiles`) reimplements rank gating; the engine's
-  `meetsRequirementGroup()` (`ranks.ts:29-36`) is the same logic but is **not
-  exported**.
-- `app.ts:1067,1097-1099` duplicate the palace/cathedral gates from
-  `buildings.ts:78,84-89` verbatim.
-- `app.ts:830-835` (`expectedHarvestYield`) is a third copy of the weather-band
-  weighted mean, alongside `economy.ts:24` and `evaluator.ts:123-131`.
-- `decisions.ts:150-154` (`yearsOfFoodLabel`) duplicates `evaluator.ts:70-74`'s
-  `yearsOfFoodHeld()`.
-- `app.ts:1031-1040` (`mitigationDetail`) reads `eventsData.events` raw, bypassing
-  `getEventCatalog()` and therefore `validateEventCatalog()`.
-- `decisions.ts:156-159` (`affordableHectares`) is used at `app.ts:959-960` as two
-  independent maxima, but `land.ts:39-52` clamps the **combined** order by
-  proportional scaling — so both maxima can never actually be taken together.
+### ~~S5. The UI re-implements engine logic that is one `export` away~~ ✅ FIXED (`cursor-s5-ui-engine-parity`)
+Exported shared helpers and wired UI/AI to them:
+- `requirementGroupStatus` / `meetsRequirementGroup` (`ranks.ts`) — rank OK tiles
+- `meetsPalaceLandGate` / `meetsCathedralGates` / `meetsHospitalPopulationGate` (`buildings.ts`)
+- `yearsOfFoodHeld` (`economy.ts`) — UI label + AI evaluator
+- `mitigationDetail` uses `getEventCatalog()` (validated catalog)
+- `affordableHectares` + `remainingLandBuyBudget` (`land.ts`) — Land tab buy caps net the other order
+- `expectedHarvestYield` third copy was already removed earlier (harvest via `previewYear`)
 
 ### ~~S6. `land.farmland + land.buildingLand` appears at 12 sites with no helper~~ ✅ FIXED (`cursor-audit-s-t-cleanup`)
 `buildings.ts:38`, `war.ts:204`, `evaluator.ts:147,216`, `planner.ts:73,180`,

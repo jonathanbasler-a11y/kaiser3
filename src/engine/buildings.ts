@@ -17,6 +17,24 @@ const MITIGATION = buildingsData.mitigation
 const COMMERCE = buildingsData.commerce
 const UPKEEP = economyData.upkeep
 
+/** Same land gate applyConstruction uses before palace stages can begin. */
+export function meetsPalaceLandGate(landHeld: number): boolean {
+  return landHeld >= PRESTIGE.palace.landRequirement
+}
+
+/** Same land+population gates applyConstruction uses for the cathedral attempt. */
+export function meetsCathedralGates(landHeld: number, peasants: number): boolean {
+  return (
+    landHeld >= PRESTIGE.cathedral.landRequirement &&
+    peasants >= PRESTIGE.cathedral.requiresMinPopulation
+  )
+}
+
+/** Same population gate that caps hospital construction. */
+export function meetsHospitalPopulationGate(peasants: number): boolean {
+  return peasants >= MITIGATION.hospital.requiresMinPopulation
+}
+
 export interface ConstructionResult {
   newBuildings: BuildingState
   newTaler: number
@@ -64,7 +82,7 @@ export function applyConstruction(
 
   // Mitigation buildings: affordability-gated only (no ratio cap — one of each is
   // enough to reduce risk; more upkeep for more isn't modeled in Phase 2).
-  const hospitalMax = population.peasants >= MITIGATION.hospital.requiresMinPopulation ? 1 : 0
+  const hospitalMax = meetsHospitalPopulationGate(population.peasants) ? 1 : 0
   newBuildings.hospital += buildCapped(decision.hospitalBuild, MITIGATION.hospital.cost, Math.max(0, hospitalMax - newBuildings.hospital))
 
   newBuildings.well += buildCapped(decision.wellBuild, MITIGATION.well.cost, Math.max(0, 1 - newBuildings.well))
@@ -76,7 +94,7 @@ export function applyConstruction(
     + buildCapped(decision.dikeBuild ?? 0, MITIGATION.dike.cost, Math.max(0, 1 - (newBuildings.dike ?? 0)))
 
   // Palace: requires enough land to begin, then up to 16 stages, 5,000 Taler each.
-  if (landHeld >= PRESTIGE.palace.landRequirement) {
+  if (meetsPalaceLandGate(landHeld)) {
     const stagesBuilt = buildCapped(decision.palaceStages, PRESTIGE.palace.costPerStage, Math.max(0, PRESTIGE.palace.stages - newBuildings.palace))
     newBuildings.palace += stagesBuilt
   }
@@ -85,8 +103,7 @@ export function applyConstruction(
   if (
     decision.cathedralBuild &&
     newBuildings.cathedral === 0 &&
-    landHeld >= PRESTIGE.cathedral.landRequirement &&
-    population.peasants >= PRESTIGE.cathedral.requiresMinPopulation
+    meetsCathedralGates(landHeld, population.peasants)
   ) {
     const built = buildCapped(1, PRESTIGE.cathedral.cost, 1)
     newBuildings.cathedral += built
@@ -122,20 +139,47 @@ export function calculateBuildingIncome(buildings: BuildingState, tradingHouses:
   }
 }
 
+export interface BuildingUpkeepBreakdown {
+  markets: number
+  mills: number
+  palace: number
+  cathedral: number
+  hospital: number
+  well: number
+  granary: number
+  garrison: number
+  dike: number
+  tradingHouseTribute: number
+  total: number
+}
+
+// Itemised version of calculateUpkeep below — same terms, kept as separate
+// named fields so the UI can show WHERE upkeep goes instead of one opaque
+// scalar (Phase 20 follow-up: "explain every number").
+export function calculateUpkeepBreakdown(
+  buildings: BuildingState,
+  tradingHouses: number,
+  taler: number
+): BuildingUpkeepBreakdown {
+  const markets = buildings.markets * PRODUCTION.market.upkeepPerYear
+  const mills = buildings.mills * PRODUCTION.mill.upkeepPerYear
+  const palace = buildings.palace > 0 ? PRESTIGE.palace.upkeepPerYear : 0
+  const cathedral = buildings.cathedral * PRESTIGE.cathedral.upkeepPerYear
+  const hospital = buildings.hospital * MITIGATION.hospital.upkeepPerYear
+  const well = buildings.well * MITIGATION.well.upkeepPerYear
+  const granary = buildings.granary * MITIGATION.granary.upkeepPerYear
+  const garrison = buildings.garrison * MITIGATION.garrison.upkeepPerYear
+  const dike = (buildings.dike ?? 0) * MITIGATION.dike.upkeepPerYear
+  const tradingHouseTribute = tradingHouses > 0 ? taler * UPKEEP.tradingHouseTributePercentage : 0
+  return {
+    markets, mills, palace, cathedral, hospital, well, garrison, granary, dike, tradingHouseTribute,
+    total: markets + mills + palace + cathedral + hospital + well + granary + garrison + dike + tradingHouseTribute
+  }
+}
+
 // Total annual upkeep across all buildings plus trading-house tribute to the Kaiser
 // (a percentage of wealth — the anti-snowball lever from Hanse/Kaiser research:
 // bigger treasuries pay bigger tribute, not a flat fee).
 export function calculateUpkeep(buildings: BuildingState, tradingHouses: number, taler: number): number {
-  let upkeep = 0
-  upkeep += buildings.markets * PRODUCTION.market.upkeepPerYear
-  upkeep += buildings.mills * PRODUCTION.mill.upkeepPerYear
-  upkeep += buildings.palace > 0 ? PRESTIGE.palace.upkeepPerYear : 0
-  upkeep += buildings.cathedral * PRESTIGE.cathedral.upkeepPerYear
-  upkeep += buildings.hospital * MITIGATION.hospital.upkeepPerYear
-  upkeep += buildings.well * MITIGATION.well.upkeepPerYear
-  upkeep += buildings.granary * MITIGATION.granary.upkeepPerYear
-  upkeep += buildings.garrison * MITIGATION.garrison.upkeepPerYear
-  upkeep += (buildings.dike ?? 0) * MITIGATION.dike.upkeepPerYear
-  upkeep += tradingHouses > 0 ? taler * UPKEEP.tradingHouseTributePercentage : 0
-  return upkeep
+  return calculateUpkeepBreakdown(buildings, tradingHouses, taler).total
 }

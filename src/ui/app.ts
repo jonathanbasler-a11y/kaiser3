@@ -5,16 +5,16 @@
 
 import buildingsData from '../../data/buildings.json'
 import economyData from '../../data/economy.json'
-import eventsData from '../../data/events.json'
 import { GameState, Decision, Chronicle, PlayerState, EspionageMode, PlayerChronicle, GrainDecision } from '../engine/state.ts'
 import { eventLossMagnitudeText, calculateEventProbability, getEventCatalog } from '../engine/events/events.ts'
 import { createStarterState, applyStartingMultiplier } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
-import { getRankName, isFeatureUnlocked, getNextRank, groupProgress, getAllRanks, getTopRank, RankRequirement } from '../engine/ranks.ts'
+import { getRankName, isFeatureUnlocked, getNextRank, groupProgressDetail, getAllRanks, getTopRank, RankRequirement, requirementGroupStatus } from '../engine/ranks.ts'
 import { warStrength, warWinProbability, militaryMultiplier, isTruceActive, truceExpiryYear } from '../engine/war.ts'
 import { medievalRivalName } from '../engine/gameLoop.ts'
 import { strikeSuccessProbability } from '../engine/espionage.ts'
-import { totalLand } from '../engine/land.ts'
+import { totalLand, remainingLandBuyBudget, affordableHectares } from '../engine/land.ts'
+import { meetsPalaceLandGate, meetsCathedralGates } from '../engine/buildings.ts'
 import { getPersonalities, Personality } from '../ai/personalities.ts'
 import { getDifficultyPresets, getDifficultyPreset, DEFAULT_DIFFICULTY_ID, DifficultyPreset } from '../ai/difficulty.ts'
 import { planYear } from '../ai/planner.ts'
@@ -22,7 +22,7 @@ import { planningSeed } from '../ai/planningSeed.ts'
 import { compareStanding } from '../ai/sim.ts'
 import { annualGrainRequirement, storageCapacity, grainBuybackPrice, laborGatedFarmland, resolveFeeding } from '../engine/economy.ts'
 import { el, clear, stepper, sliderField, segmented, statTile, tooltip } from './dom.ts'
-import { DecisionDraft, defaultDraft, draftToDecisions, rivalOptions, affordableHectares, maxSellableGrain, maxAffordableGrainBuy, yearsOfFoodLabel, maxNewHires } from './decisions.ts'
+import { DecisionDraft, defaultDraft, draftToDecisions, rivalOptions, maxSellableGrain, maxAffordableGrainBuy, yearsOfFoodLabel, maxNewHires } from './decisions.ts'
 import { previewYear, warSnapshotDraft, YearPreview } from './preview.ts'
 import {
   feedStockFromChronicle,
@@ -751,28 +751,29 @@ interface ReqTile {
   valueText: string
 }
 
-// Kaiser-II-style checklist: green OK vs red remaining amount per hard gate.
+// Kaiser-II-style checklist: green OK vs red remaining — OK flags from
+// requirementGroupStatus() so tiles cannot drift from checkPromotion().
 function requirementTiles(req: RankRequirement, player: PlayerState): ReqTile[] {
-  const tiles: ReqTile[] = []
-
-  const wealthOk = player.taler >= req.wealthMin
-  tiles.push({
-    icon: 'req_wealth',
-    label: 'Taler',
-    ok: wealthOk,
-    valueText: wealthOk ? 'OK' : Math.ceil(req.wealthMin - player.taler).toLocaleString('en-US')
-  })
-
-  const popOk = player.population.peasants >= req.populationMin
-  tiles.push({
-    icon: 'req_population',
-    label: 'People',
-    ok: popOk,
-    valueText: popOk ? 'OK' : Math.ceil(req.populationMin - player.population.peasants).toLocaleString('en-US')
-  })
+  const status = requirementGroupStatus(player, req)
+  const tiles: ReqTile[] = [
+    {
+      icon: 'req_wealth',
+      label: 'Taler',
+      ok: status.wealthOk,
+      valueText: status.wealthOk ? 'OK' : Math.ceil(req.wealthMin - player.taler).toLocaleString('en-US')
+    },
+    {
+      icon: 'req_population',
+      label: 'People',
+      ok: status.populationOk,
+      valueText: status.populationOk
+        ? 'OK'
+        : Math.ceil(req.populationMin - player.population.peasants).toLocaleString('en-US')
+    }
+  ]
 
   if (req.palaceStages !== undefined) {
-    const ok = player.buildings.palace >= req.palaceStages
+    const ok = status.palaceOk === true
     tiles.push({
       icon: 'req_palace',
       label: 'Palace',
@@ -781,7 +782,7 @@ function requirementTiles(req: RankRequirement, player: PlayerState): ReqTile[] 
     })
   }
   if (req.cathedral === true) {
-    const ok = player.buildings.cathedral >= 1
+    const ok = status.cathedralOk === true
     tiles.push({
       icon: 'req_cathedral',
       label: 'Cathedral',
@@ -790,7 +791,7 @@ function requirementTiles(req: RankRequirement, player: PlayerState): ReqTile[] 
     })
   }
   if (req.tradingHousesMin !== undefined) {
-    const ok = player.tradingHouses >= req.tradingHousesMin
+    const ok = status.tradingHousesOk === true
     tiles.push({
       icon: 'req_trading_house',
       label: 'Trade houses',
@@ -836,17 +837,26 @@ function renderRankProgress(player: PlayerState): HTMLElement | null {
   if (!next) return el('p', { class: 'help-text' }, 'You hold the highest rank — Kaiser of the Holy Roman Empire.')
 
   const rows = next.requirements.map((req) => {
-    const pct = Math.round(groupProgress(player, req) * 100)
-    return { label: pathLabel(req), pct, tiles: requirementTiles(req, player) }
+    const detail = groupProgressDetail(player, req)
+    const pct = Math.round(detail.progress * 100)
+    return {
+      label: pathLabel(req),
+      pct,
+      binding: detail.binding,
+      tiles: requirementTiles(req, player)
+    }
   })
   const leadPct = Math.max(...rows.map((r) => r.pct))
 
   return el('div', { class: 'card' },
     el('h2', {}, `Path to ${next.name}`),
-    el('p', { class: 'help-text' }, 'Green OK = met. Red = still missing (amount or stages).'),
+    el('p', { class: 'help-text' }, 'Green OK = met. Red = still missing (amount or stages). Progress is capped by the binding requirement.'),
     ...rows.map((row) =>
       el('div', { class: `rank-progress-row${row.pct === leadPct ? ' leading' : ''}` },
-        el('div', { class: 'rank-progress-label' }, el('span', {}, row.label), el('span', {}, `${row.pct}%`)),
+        el('div', { class: 'rank-progress-label' },
+          el('span', {}, row.label),
+          el('span', {}, row.pct < 100 ? `${row.pct}% · capped by ${row.binding}` : `${row.pct}%`)
+        ),
         el('div', { class: 'progress-track' }, el('div', { class: 'progress-fill', style: `width:${row.pct}%` } as never)),
         el('div', { class: 'req-tile-grid' }, ...row.tiles.map(renderReqTile))
       )
@@ -1091,8 +1101,18 @@ function renderGrainTab(player: GameState['players'][string], state: GameState):
 
 function renderLandTab(player: GameState['players'][string], state: GameState): HTMLElement {
   const draft = session!.draft
-  const maxFarmBuy = affordableHectares(player.taler, state.kaizerTradePrices.farmland)
-  const maxBuildBuy = affordableHectares(player.taler, state.kaizerTradePrices.buildingLand)
+  const prices = state.kaizerTradePrices
+  // Combined order shares one treasury — same netting applyLandTrade uses.
+  const maxFarmBuy = affordableHectares(
+    remainingLandBuyBudget(player.taler, draft.buildingLandBuy, prices.buildingLand),
+    prices.farmland
+  )
+  const maxBuildBuy = affordableHectares(
+    remainingLandBuyBudget(player.taler, draft.farmlanbuy, prices.farmland),
+    prices.buildingLand
+  )
+  if (draft.farmlanbuy > maxFarmBuy) draft.farmlanbuy = maxFarmBuy
+  if (draft.buildingLandBuy > maxBuildBuy) draft.buildingLandBuy = maxBuildBuy
 
   // D3 (BACKLOG.md): farmland beyond what the current population can work
   // produces nothing (economy.ts's laborGatedFarmland — the same function
@@ -1118,19 +1138,19 @@ function renderLandTab(player: GameState['players'][string], state: GameState): 
       statTile('Building land', `${Math.round(player.land.buildingLand)} ha`)
     ),
     el('p', { class: 'help-text' },
-      `Farmland is worked at ~${HARVEST.laborHectaresPerPeasant} ha per peasant — buying beyond that leaves hectares idle until your population grows into them.`
+      `Farmland is worked at ~${HARVEST.laborHectaresPerPeasant} ha per peasant — buying beyond that leaves hectares idle until your population grows into them. Farmland and building-land buys share one treasury; the buy caps above already net the other order.`
     ),
     stepper({
       label: `Farmland (buy up to ${maxFarmBuy}, or sell what you hold)`,
       value: draft.farmlanbuy, min: -player.land.farmland, max: maxFarmBuy, step: 100,
-      onChange: (v) => { draft.farmlanbuy = v },
-      tooltip: `Grows grain. At ${state.kaizerTradePrices.farmland.toFixed(0)}/ha this turn. Only worked hectares (~${HARVEST.laborHectaresPerPeasant} per peasant) produce anything — buying far ahead of your population just sits idle.`
+      onChange: (v) => { draft.farmlanbuy = v; session!.activeTab = 'land'; renderGame() },
+      tooltip: `Grows grain. At ${prices.farmland.toFixed(0)}/ha this turn. Only worked hectares (~${HARVEST.laborHectaresPerPeasant} per peasant) produce anything — buying far ahead of your population just sits idle.`
     }),
     stepper({
       label: `Building land (buy up to ${maxBuildBuy}, or sell what you hold)`,
       value: draft.buildingLandBuy, min: -player.land.buildingLand, max: maxBuildBuy, step: 100,
-      onChange: (v) => { draft.buildingLandBuy = v },
-      tooltip: `At ${state.kaizerTradePrices.buildingLand.toFixed(0)}/ha this turn. Required to construct markets, mills, the palace, and the cathedral (Build tab) — farmland can't be built on.`
+      onChange: (v) => { draft.buildingLandBuy = v; session!.activeTab = 'land'; renderGame() },
+      tooltip: `At ${prices.buildingLand.toFixed(0)}/ha this turn. Required to construct markets, mills, the palace, and the cathedral (Build tab) — farmland can't be built on.`
     })
   )
 }
@@ -1191,11 +1211,8 @@ function buildRow(assetId: string, label: string, control: HTMLElement): HTMLEle
 // severityReduction rather than one qualitative "reduces chance AND
 // severity" line for all of them.
 function mitigationDetail(building: string): string {
-  const events = eventsData.events as Array<{
-    name: string
-    mitigation: { building: string; probabilityReduction: number; severityReduction: number }
-  }>
-  const parts = events
+  // Validated catalog only — same getEventCatalog() the risk panel / year use.
+  const parts = getEventCatalog()
     .filter((e) => e.mitigation.building === building)
     .map((e) => `${e.name} risk −${Math.round(e.mitigation.probabilityReduction * 100)}%, severity −${Math.round(e.mitigation.severityReduction * 100)}%`)
   // Hospital is also the population unlock: plague severity scales with realm
@@ -1231,7 +1248,7 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
   // entire order silently below that line, so a player could queue stages or
   // attempt the cathedral, see nothing happen at year-end, and have no way to
   // know why. Gate the control here and say what's missing instead.
-  const palaceLandOk = landHeld >= PALACE.landRequirement
+  const palaceLandOk = meetsPalaceLandGate(landHeld)
   const palaceRow = buildRow(
     player.buildings.palace >= PALACE.stages ? 'palace_stage_16' : player.buildings.palace >= 1 ? 'palace_stage_2' : 'palace_stage_1',
     'Palace',
@@ -1263,7 +1280,7 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
   if (!player.buildings.cathedral) {
     const cathedralLandOk = landHeld >= CATHEDRAL.landRequirement
     const cathedralPopOk = player.population.peasants >= CATHEDRAL.requiresMinPopulation
-    const cathedralOk = cathedralLandOk && cathedralPopOk
+    const cathedralOk = meetsCathedralGates(landHeld, player.population.peasants)
     if (!cathedralOk) draft.cathedralBuild = false
 
     const cathedralLabel = `Attempt Cathedral — ${costSuffix(CATHEDRAL.cost, { upkeep: CATHEDRAL.upkeepPerYear })}`

@@ -16,6 +16,20 @@ export function totalLand(land: { farmland: number; buildingLand: number }): num
   return land.farmland + land.buildingLand
 }
 
+/** Max hectares of one land type affordable in isolation (no other land order). */
+export function affordableHectares(taler: number, pricePerHectare: number): number {
+  if (pricePerHectare <= 0) return 0
+  return Math.floor(Math.max(0, taler) / pricePerHectare)
+}
+
+/**
+ * Treasury left for land buys after another land delta settles — same netting
+ * applyLandTrade uses (sells credit the budget; buys consume it).
+ */
+export function remainingLandBuyBudget(taler: number, otherDelta: number, otherPrice: number): number {
+  return Math.max(0, taler - otherDelta * otherPrice)
+}
+
 export function applyLandTrade(
   land: LandHolding,
   taler: number,
