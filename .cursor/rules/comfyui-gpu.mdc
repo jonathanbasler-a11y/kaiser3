@@ -1,0 +1,14 @@
+---
+description: Always use GPU ComfyUI for art generation — never CPU torch
+alwaysApply: true
+---
+
+# ComfyUI — GPU only
+
+When generating or verifying Kaiser art via ComfyUI / `npm run gen-art`:
+
+- **Use the GPU install:** ComfyUI at `C:\Users\Joni\ComfyUI` with venv PyTorch **CUDA** (`2.x+cu128`), device `cuda:0` (RTX 5060 Ti, 16 GB).
+- **Never use system `python` for Comfy/torch** — PATH Python may be `torch+cpu` (`cuda.is_available() == False`). Always prefer `C:\Users\Joni\ComfyUI\venv\Scripts\python.exe` or the already-running server at `http://127.0.0.1:8188`.
+- **Do not pass `--cpu`** (or any CPU-forcing launch flag) when starting ComfyUI.
+- Before a batch: confirm via Comfy MCP `health_check` / `get_system_stats` that the device is `cuda:0` and VRAM is free — not CPU.
+- `gen-art` talks to the local API only (`COMFYUI_URL`); it does not pick CPU vs GPU itself — wrong torch in the Comfy process is the failure mode to avoid.
