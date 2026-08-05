@@ -1,0 +1,636 @@
+{
+  "scenario": {
+    "players": [
+      "alfred",
+      "brigitta",
+      "conrad"
+    ],
+    "totalYears": 35,
+    "seedBase": 42,
+    "checkpointYears": [
+      1,
+      10,
+      25,
+      35
+    ],
+    "decisions": {
+      "alfred": [
+        {
+          "type": "grain",
+          "feedLevel": "required"
+        },
+        {
+          "type": "tax",
+          "vat": 20,
+          "incomeTax": 20,
+          "tariff": 0,
+          "justiceGraft": 0
+        },
+        {
+          "type": "construction",
+          "marketBuild": 1,
+          "millBuild": 1,
+          "palaceStages": 0,
+          "cathedralBuild": false,
+          "wellBuild": 1,
+          "hospitalBuild": 1,
+          "granaryBuild": 1,
+          "garrisonBuild": 0,
+          "tradingHouseBuild": 0
+        },
+        {
+          "type": "espionage",
+          "guardHire": 1,
+          "saboteurHire": 0
+        }
+      ],
+      "brigitta": [
+        {
+          "type": "grain",
+          "feedLevel": "min"
+        },
+        {
+          "type": "tax",
+          "vat": 60,
+          "incomeTax": 60,
+          "tariff": 20,
+          "justiceGraft": 30
+        },
+        {
+          "type": "construction",
+          "marketBuild": 0,
+          "millBuild": 0,
+          "palaceStages": 1,
+          "cathedralBuild": false,
+          "wellBuild": 0,
+          "hospitalBuild": 0,
+          "granaryBuild": 0,
+          "garrisonBuild": 1,
+          "tradingHouseBuild": 0
+        },
+        {
+          "type": "espionage",
+          "guardHire": 0,
+          "saboteurHire": 0
+        },
+        {
+          "type": "war",
+          "declare": true,
+          "targetPlayerId": "conrad",
+          "alliesRequested": [
+            "alfred"
+          ],
+          "trainingInvest": 1,
+          "equipmentInvest": 1
+        }
+      ],
+      "conrad": [
+        {
+          "type": "grain",
+          "feedLevel": "required",
+          "sellGrain": 40
+        },
+        {
+          "type": "tax",
+          "vat": 25,
+          "incomeTax": 25,
+          "tariff": 0,
+          "justiceGraft": 10
+        },
+        {
+          "type": "construction",
+          "marketBuild": 0,
+          "millBuild": 0,
+          "palaceStages": 0,
+          "cathedralBuild": false,
+          "wellBuild": 0,
+          "hospitalBuild": 0,
+          "granaryBuild": 0,
+          "garrisonBuild": 0,
+          "tradingHouseBuild": 0
+        },
+        {
+          "type": "land_trade",
+          "farmlanbuy": 50,
+          "buildingLandBuy": 0,
+          "partnerPlayerId": "kaiser"
+        },
+        {
+          "type": "espionage",
+          "guardHire": 0,
+          "saboteurHire": 1,
+          "targetPlayerId": "alfred",
+          "saboteursCommitted": 1,
+          "mode": "sabotage"
+        }
+      ]
+    }
+  },
+  "coverage": {
+    "strikesResolved": 8,
+    "warsResolved": 7,
+    "eventsFired": 64,
+    "positiveEventsFired": 13,
+    "promotions": 1,
+    "shortfallsNoted": 338
+  },
+  "checkpoints": {
+    "1": {
+      "year": 1,
+      "players": {
+        "alfred": {
+          "id": "alfred",
+          "name": "Alfred",
+          "taler": 4333.579277139054,
+          "land": {
+            "farmland": 10000,
+            "buildingLand": 0
+          },
+          "grainStock": 13539.818663839163,
+          "population": {
+            "peasants": 1039.2987952317571,
+            "unrest": 0
+          },
+          "buildings": {
+            "markets": 1,
+            "mills": 1,
+            "palace": 0,
+            "cathedral": 0,
+            "hospital": 1,
+            "well": 1,
+            "granary": 1,
+            "garrison": 0,
+            "dike": 0
+          },
+          "rank": 0,
+          "guards": 1,
+          "saboteurs": 0,
+          "tradingHouses": 0,
+          "score": 1723.5792771390543,
+          "reignYears": 1,
+          "dead": false,
+          "trainingLevel": 0,
+          "equipmentLevel": 0,
+          "warWeariness": 0
+        },
+        "brigitta": {
+          "id": "brigitta",
+          "name": "Brigitta",
+          "taler": 11404.342637952384,
+          "land": {
+            "farmland": 10804,
+            "buildingLand": 0
+          },
+          "grainStock": 16000,
+          "population": {
+            "peasants": 873.8099391522252,
+            "unrest": 28.6
+          },
+          "buildings": {
+            "markets": 0,
+            "mills": 0,
+            "palace": 0,
+            "cathedral": 0,
+            "hospital": 0,
+            "well": 0,
+            "granary": 0,
+            "garrison": 1,
+            "dike": 0
+          },
+          "rank": 0,
+          "guards": 0,
+          "saboteurs": 0,
+          "tradingHouses": 0,
+          "score": 1961.4506399999998,
+          "reignYears": 1,
+          "dead": false,
+          "trainingLevel": 1,
+          "equipmentLevel": 1,
+          "warWeariness": 8
+        },
+        "conrad": {
+          "id": "conrad",
+          "name": "Conrad",
+          "taler": 11576.387988396846,
+          "land": {
+            "farmland": 9246,
+            "buildingLand": 0
+          },
+          "grainStock": 11960,
+          "population": {
+            "peasants": 967.2556457595228,
+            "unrest": 2
+          },
+          "buildings": {
+            "markets": 0,
+            "mills": 0,
+            "palace": 0,
+            "cathedral": 0,
+            "hospital": 0,
+            "well": 0,
+            "granary": 0,
+            "garrison": 0,
+            "dike": 0
+          },
+          "rank": 0,
+          "guards": 0,
+          "saboteurs": 0,
+          "tradingHouses": 0,
+          "score": 801.2799863492314,
+          "reignYears": 1,
+          "dead": false,
+          "trainingLevel": 0,
+          "equipmentLevel": 0,
+          "warWeariness": 8
+        }
+      },
+      "activePlayerIds": [
+        "alfred",
+        "brigitta",
+        "conrad"
+      ],
+      "kaizerTradePrices": {
+        "corn": 3.168,
+        "farmland": 30,
+        "buildingLand": 50
+      },
+      "truces": {
+        "brigitta|conrad": 5
+      }
+    },
+    "10": {
+      "year": 10,
+      "players": {
+        "alfred": {
+          "id": "alfred",
+          "name": "Alfred",
+          "taler": 2842.242204456915,
+          "land": {
+            "farmland": 10000,
+            "buildingLand": 0
+          },
+          "grainStock": 28116.410800708327,
+          "population": {
+            "peasants": 1427.1841173338748,
+            "unrest": 0
+          },
+          "buildings": {
+            "markets": 4,
+            "mills": 1,
+            "palace": 0,
+            "cathedral": 0,
+            "hospital": 1,
+            "well": 1,
+            "granary": 1,
+            "garrison": 0,
+            "dike": 0
+          },
+          "rank": 0,
+          "guards": 10,
+          "saboteurs": 0,
+          "tradingHouses": 0,
+          "score": 26862.451369076454,
+          "reignYears": 10,
+          "dead": false,
+          "trainingLevel": 0,
+          "equipmentLevel": 0,
+          "warWeariness": 0
+        },
+        "brigitta": {
+          "id": "brigitta",
+          "name": "Brigitta",
+          "taler": 0,
+          "land": {
+            "farmland": 9834.778606516127,
+            "buildingLand": 0
+          },
+          "grainStock": 4554.962348682136,
+          "population": {
+            "peasants": 247.75277272379685,
+            "unrest": 100
+          },
+          "buildings": {
+            "markets": 0,
+            "mills": 0,
+            "palace": 0,
+            "cathedral": 0,
+            "hospital": 0,
+            "well": 0,
+            "granary": 0,
+            "garrison": 1,
+            "dike": 0
+          },
+          "rank": 0,
+          "guards": 0,
+          "saboteurs": 0,
+          "tradingHouses": 0,
+          "score": 12017.268601819029,
+          "reignYears": 10,
+          "dead": false,
+          "trainingLevel": 5,
+          "equipmentLevel": 5,
+          "warWeariness": 0
+        },
+        "conrad": {
+          "id": "conrad",
+          "name": "Conrad",
+          "taler": 908.4804511238028,
+          "land": {
+            "farmland": 8354.591293677724,
+            "buildingLand": 0
+          },
+          "grainStock": 11976.754602976247,
+          "population": {
+            "peasants": 879.2393329103262,
+            "unrest": 0
+          },
+          "buildings": {
+            "markets": 0,
+            "mills": 0,
+            "palace": 0,
+            "cathedral": 0,
+            "hospital": 0,
+            "well": 0,
+            "granary": 0,
+            "garrison": 0,
+            "dike": 0
+          },
+          "rank": 0,
+          "guards": 0,
+          "saboteurs": 0,
+          "tradingHouses": 0,
+          "score": 8375.087606871539,
+          "reignYears": 10,
+          "dead": false,
+          "trainingLevel": 0,
+          "equipmentLevel": 0,
+          "warWeariness": 0
+        }
+      },
+      "activePlayerIds": [
+        "alfred",
+        "brigitta",
+        "conrad"
+      ],
+      "kaizerTradePrices": {
+        "corn": 2.9568090047479467,
+        "farmland": 30,
+        "buildingLand": 50
+      },
+      "truces": {
+        "brigitta|conrad": 10
+      }
+    },
+    "25": {
+      "year": 25,
+      "players": {
+        "alfred": {
+          "id": "alfred",
+          "name": "Alfred",
+          "taler": 5075.047574443717,
+          "land": {
+            "farmland": 10000,
+            "buildingLand": 0
+          },
+          "grainStock": 38284.25156180472,
+          "population": {
+            "peasants": 2031.1798946584345,
+            "unrest": 0
+          },
+          "buildings": {
+            "markets": 9,
+            "mills": 4,
+            "palace": 0,
+            "cathedral": 0,
+            "hospital": 1,
+            "well": 1,
+            "granary": 1,
+            "garrison": 0,
+            "dike": 0
+          },
+          "rank": 0,
+          "guards": 25,
+          "saboteurs": 0,
+          "tradingHouses": 0,
+          "score": 0,
+          "reignYears": 0,
+          "dead": false,
+          "heir": "alfred",
+          "trainingLevel": 0,
+          "equipmentLevel": 0,
+          "warWeariness": 0
+        },
+        "brigitta": {
+          "id": "brigitta",
+          "name": "Brigitta",
+          "taler": 0,
+          "land": {
+            "farmland": 10242.764097987347,
+            "buildingLand": 0
+          },
+          "grainStock": 771.7398543796556,
+          "population": {
+            "peasants": 42.04344696226632,
+            "unrest": 100
+          },
+          "buildings": {
+            "markets": 0,
+            "mills": 0,
+            "palace": 0,
+            "cathedral": 0,
+            "hospital": 0,
+            "well": 0,
+            "granary": 0,
+            "garrison": 0,
+            "dike": 0
+          },
+          "rank": 0,
+          "guards": 0,
+          "saboteurs": 0,
+          "tradingHouses": 0,
+          "score": 16093.082650660124,
+          "reignYears": 25,
+          "dead": false,
+          "trainingLevel": 5,
+          "equipmentLevel": 5,
+          "warWeariness": 0
+        },
+        "conrad": {
+          "id": "conrad",
+          "name": "Conrad",
+          "taler": 762.0068853530163,
+          "land": {
+            "farmland": 7162.641680956665,
+            "buildingLand": 0
+          },
+          "grainStock": 3230.470759254125,
+          "population": {
+            "peasants": 839.6620211166495,
+            "unrest": 0
+          },
+          "buildings": {
+            "markets": 0,
+            "mills": 0,
+            "palace": 0,
+            "cathedral": 0,
+            "hospital": 0,
+            "well": 0,
+            "granary": 0,
+            "garrison": 0,
+            "dike": 0
+          },
+          "rank": 0,
+          "guards": 0,
+          "saboteurs": 0,
+          "tradingHouses": 0,
+          "score": 0,
+          "reignYears": 0,
+          "dead": false,
+          "heir": "conrad",
+          "trainingLevel": 0,
+          "equipmentLevel": 0,
+          "warWeariness": 0
+        }
+      },
+      "activePlayerIds": [
+        "alfred",
+        "brigitta",
+        "conrad"
+      ],
+      "kaizerTradePrices": {
+        "corn": 2.912139833162893,
+        "farmland": 30,
+        "buildingLand": 50
+      },
+      "truces": {
+        "brigitta|conrad": 25
+      }
+    },
+    "35": {
+      "year": 35,
+      "players": {
+        "alfred": {
+          "id": "alfred",
+          "name": "Alfred",
+          "taler": 37646.975898300974,
+          "land": {
+            "farmland": 9175.675830755232,
+            "buildingLand": 0
+          },
+          "grainStock": 50341.367152346385,
+          "population": {
+            "peasants": 2468.8125916666686,
+            "unrest": 0
+          },
+          "buildings": {
+            "markets": 9,
+            "mills": 9,
+            "palace": 0,
+            "cathedral": 0,
+            "hospital": 1,
+            "well": 1,
+            "granary": 1,
+            "garrison": 0,
+            "dike": 0
+          },
+          "rank": 1,
+          "guards": 25,
+          "saboteurs": 0,
+          "tradingHouses": 0,
+          "score": 113458.7858284845,
+          "reignYears": 10,
+          "dead": false,
+          "heir": "alfred",
+          "trainingLevel": 0,
+          "equipmentLevel": 0,
+          "warWeariness": 0
+        },
+        "brigitta": {
+          "id": "brigitta",
+          "name": "Brigitta",
+          "taler": 0,
+          "land": {
+            "farmland": 9173.706222872024,
+            "buildingLand": 0
+          },
+          "grainStock": 296.8664023279635,
+          "population": {
+            "peasants": 17.4872865121316,
+            "unrest": 100
+          },
+          "buildings": {
+            "markets": 0,
+            "mills": 0,
+            "palace": 0,
+            "cathedral": 0,
+            "hospital": 0,
+            "well": 0,
+            "granary": 0,
+            "garrison": 0,
+            "dike": 0
+          },
+          "rank": 0,
+          "guards": 0,
+          "saboteurs": 0,
+          "tradingHouses": 0,
+          "score": 74.23484461172572,
+          "reignYears": 2,
+          "dead": false,
+          "heir": "brigitta",
+          "trainingLevel": 5,
+          "equipmentLevel": 5,
+          "warWeariness": 0
+        },
+        "conrad": {
+          "id": "conrad",
+          "name": "Conrad",
+          "taler": 924.7143149544521,
+          "land": {
+            "farmland": 7029.536772981234,
+            "buildingLand": 0
+          },
+          "grainStock": 9482.459182508039,
+          "population": {
+            "peasants": 1054.549841232789,
+            "unrest": 0
+          },
+          "buildings": {
+            "markets": 0,
+            "mills": 0,
+            "palace": 0,
+            "cathedral": 0,
+            "hospital": 0,
+            "well": 0,
+            "granary": 0,
+            "garrison": 0,
+            "dike": 0
+          },
+          "rank": 0,
+          "guards": 0,
+          "saboteurs": 0,
+          "tradingHouses": 0,
+          "score": 7204.189593463421,
+          "reignYears": 10,
+          "dead": false,
+          "heir": "conrad",
+          "trainingLevel": 0,
+          "equipmentLevel": 0,
+          "warWeariness": 0
+        }
+      },
+      "activePlayerIds": [
+        "alfred",
+        "brigitta",
+        "conrad"
+      ],
+      "kaizerTradePrices": {
+        "corn": 2.710586104077266,
+        "farmland": 30,
+        "buildingLand": 50
+      },
+      "truces": {
+        "brigitta|conrad": 35
+      }
+    }
+  }
+}
