@@ -139,6 +139,10 @@ let root: HTMLElement
 const PREVIEW_DEBOUNCE_MS = 200
 let previewDebounceId: ReturnType<typeof setTimeout> | null = null
 let previewPanelEl: HTMLElement | null = null
+/** Set by renderGame — rebuilds the active tab body without replacing `.screen` (preserves scroll). */
+let rerenderActiveTab: (() => void) | null = null
+/** Tax tab projected tiles — updated from preview refresh so sliders need not call renderGame(). */
+let taxProjectedRefresh: ((preview: YearPreview | null) => void) | null = null
 
 function clearPreviewSchedule(): void {
   if (previewDebounceId !== null) {
@@ -151,6 +155,7 @@ function refreshPreviewNow(): void {
   if (!session || !previewPanelEl) return
   const preview = previewYear(session.state, HUMAN_ID, session.draft, session.rivals, session.difficulty)
   updatePreviewPanel(previewPanelEl, preview)
+  taxProjectedRefresh?.(preview)
 }
 
 function schedulePreviewRefresh(): void {
@@ -591,12 +596,14 @@ function renderGame(): void {
   const content = el('div', { class: 'card' })
 
   const renderTab = () => {
+    taxProjectedRefresh = null
     clear(content)
     for (const b of Array.from(tabbar.children)) b.classList.remove('active')
     const activeBtn = tabbar.querySelector(`[data-tab="${session!.activeTab}"]`)
     activeBtn?.classList.add('active')
     content.appendChild(renderTabContent(session!.activeTab))
   }
+  rerenderActiveTab = renderTab
 
   for (const tab of tabs) {
     const btn = el('button', { class: 'tab-btn', type: 'button' })
@@ -1055,7 +1062,8 @@ function renderGrainTab(player: GameState['players'][string], state: GameState):
       { value: 'custom', label: 'Custom' }
     ],
     value: draft.feedLevel,
-    onChange: (v) => { draft.feedLevel = v; session!.activeTab = 'grain'; renderGame() },
+    // Feed mode toggles whether the Custom % slider exists — tab body only, not full screen.
+    onChange: (v) => { draft.feedLevel = v; rerenderActiveTab?.() },
     title: 'Feed level',
     tooltip: 'How much grain to give your people this year. Min / Max / Custom are fractions of your stock at feeding time (after harvest; Kaiser’s original dial: 20% / 80% / 20–80%). Required is exactly Demand.'
   }))
@@ -1143,13 +1151,14 @@ function renderLandTab(player: GameState['players'][string], state: GameState): 
     stepper({
       label: `Farmland (buy up to ${maxFarmBuy}, or sell what you hold)`,
       value: draft.farmlanbuy, min: -player.land.farmland, max: maxFarmBuy, step: 100,
-      onChange: (v) => { draft.farmlanbuy = v; session!.activeTab = 'land'; renderGame() },
+      // Tab-only refresh updates the sibling buy cap without resetting `.screen` scroll.
+      onChange: (v) => { draft.farmlanbuy = v; rerenderActiveTab?.() },
       tooltip: `Grows grain. At ${prices.farmland.toFixed(0)}/ha this turn. Only worked hectares (~${HARVEST.laborHectaresPerPeasant} per peasant) produce anything — buying far ahead of your population just sits idle.`
     }),
     stepper({
       label: `Building land (buy up to ${maxBuildBuy}, or sell what you hold)`,
       value: draft.buildingLandBuy, min: -player.land.buildingLand, max: maxBuildBuy, step: 100,
-      onChange: (v) => { draft.buildingLandBuy = v; session!.activeTab = 'land'; renderGame() },
+      onChange: (v) => { draft.buildingLandBuy = v; rerenderActiveTab?.() },
       tooltip: `At ${prices.buildingLand.toFixed(0)}/ha this turn. Required to construct markets, mills, the palace, and the cathedral (Build tab) — farmland can't be built on.`
     })
   )
@@ -1159,38 +1168,56 @@ function renderTaxTab(draft: DecisionDraft): HTMLElement {
   const preview = session
     ? previewYear(session.state, HUMAN_ID, draft, session.rivals, session.difficulty)
     : null
-  const projected = preview
-    ? el('div', { class: 'card' },
-        el('h3', {}, 'Projected this year'),
-        el('div', { class: 'stat-grid' },
-          statTile('Tax', `+${Math.round(preview.taxIncome)}`),
-          statTile('Tariffs', `+${Math.round(preview.tariffIncome)}`),
-          statTile('Graft', `+${Math.round(preview.tributeIncome)}`),
-          statTile('Unrest after', preview.unrestAfter.toFixed(0), tone(preview.unrestAfter, UNREST_TONE))
-        ),
-        el('p', { class: 'help-text' }, 'Same advanceYear preview as the footer — not a second estimate.')
-      )
-    : el('p', { class: 'help-text' }, 'End-year preview unavailable.')
+
+  const taxValue = el('div', { class: 'value' }, preview ? `+${Math.round(preview.taxIncome)}` : '—')
+  const tariffValue = el('div', { class: 'value' }, preview ? `+${Math.round(preview.tariffIncome)}` : '—')
+  const graftValue = el('div', { class: 'value' }, preview ? `+${Math.round(preview.tributeIncome)}` : '—')
+  const unrestValue = el('div', {
+    class: `value${preview ? ` ${tone(preview.unrestAfter, UNREST_TONE) ?? ''}` : ''}`
+  }, preview ? preview.unrestAfter.toFixed(0) : '—')
+
+  taxProjectedRefresh = (next) => {
+    if (!next) return
+    taxValue.textContent = `+${Math.round(next.taxIncome)}`
+    tariffValue.textContent = `+${Math.round(next.tariffIncome)}`
+    graftValue.textContent = `+${Math.round(next.tributeIncome)}`
+    unrestValue.textContent = next.unrestAfter.toFixed(0)
+    const unrestTone = tone(next.unrestAfter, UNREST_TONE)
+    unrestValue.className = `value${unrestTone ? ` ${unrestTone}` : ''}`
+  }
+
+  const projected = el('div', { class: 'card' },
+    el('h3', {}, 'Projected this year'),
+    el('div', { class: 'stat-grid' },
+      el('div', { class: 'stat' }, el('div', { class: 'label' }, 'Tax'), taxValue),
+      el('div', { class: 'stat' }, el('div', { class: 'label' }, 'Tariffs'), tariffValue),
+      el('div', { class: 'stat' }, el('div', { class: 'label' }, 'Graft'), graftValue),
+      el('div', { class: 'stat' }, el('div', { class: 'label' }, 'Unrest after'), unrestValue)
+    ),
+    el('p', { class: 'help-text' }, 'Same advanceYear preview as the footer — not a second estimate.')
+  )
 
   return el('div', {},
     el('div', { class: 'scene-banner' },
       spriteImg('buildings', 'market', 'Taxation', 'scene-full')
     ),
     projected,
+    // Draft mutation alone — trackDraft → debounced preview refresh updates tiles + footer.
+    // Never renderGame() here: recreating `.screen` jumps scroll to top (issue #45).
     sliderField({
-      label: 'VAT', value: draft.vat, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.vat = v; session!.activeTab = 'tax'; renderGame() },
+      label: 'VAT', value: draft.vat, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.vat = v },
       tooltip: 'Taxes the population\'s economic output — averaged with Income tax to set your base revenue rate. Full unrest weight.'
     }),
     sliderField({
-      label: 'Income tax', value: draft.incomeTax, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.incomeTax = v; session!.activeTab = 'tax'; renderGame() },
+      label: 'Income tax', value: draft.incomeTax, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.incomeTax = v },
       tooltip: 'Taxes the population\'s economic output — averaged with VAT to set your base revenue rate. Full unrest weight.'
     }),
     sliderField({
-      label: 'Tariff', value: draft.tariff, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.tariff = v; session!.activeTab = 'tax'; renderGame() },
+      label: 'Tariff', value: draft.tariff, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.tariff = v },
       tooltip: 'Revenue only in years you buy or sell land (Land tab). Unrest from the tariff rate applies every year at full weight, even when you trade nothing.'
     }),
     sliderField({
-      label: 'Judicial graft', value: draft.justiceGraft, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.justiceGraft = v; session!.activeTab = 'tax'; renderGame() },
+      label: 'Judicial graft', value: draft.justiceGraft, min: 0, max: 100, suffix: '%', onChange: (v) => { draft.justiceGraft = v },
       tooltip: 'Skims an extra ~30% on top of whatever VAT/Income tax/Tariff already earned, at HALF their unrest cost per point — the most unrest-efficient way to squeeze more revenue, but it earns nothing on its own if the other three are at 0.'
     }),
     el('p', { class: 'help-text' }, 'Higher rates raise revenue but push unrest up — past a point, revolt becomes likely.')
@@ -1368,13 +1395,14 @@ function renderSpyTab(player: GameState['players'][string], state: GameState, dr
     stepper({
       label: `Hire NEW guards this turn (defence) — ${costSuffix(ESPIONAGE.guardCost, { upkeep: ESPIONAGE.guardUpkeepPerYear })} each, max ${ESPIONAGE.maxGuards} standing`,
       value: draft.guardHire, min: 0, max: maxNewHires(player.guards, ESPIONAGE.maxGuards), step: 1,
-      onChange: (v) => { draft.guardHire = v; session!.activeTab = 'spy'; renderGame() },
+      onChange: (v) => { draft.guardHire = v },
       tooltip: 'Lowers the chance a rival\'s strike against you succeeds, and adds defensive strength if a rival declares war. Does nothing on offence.'
     }),
     stepper({
       label: `Hire NEW saboteurs this turn (offence) — ${costSuffix(ESPIONAGE.saboteurCost, { upkeep: ESPIONAGE.saboteurUpkeepPerYear })} each, max ${ESPIONAGE.maxSaboteurs} standing`,
       value: draft.saboteurHire, min: 0, max: maxNewHires(player.saboteurs, ESPIONAGE.maxSaboteurs), step: 1,
-      onChange: (v) => { draft.saboteurHire = v; session!.activeTab = 'spy'; renderGame() },
+      // Crossing 0↔1 shows/hides the Strike section — tab body only.
+      onChange: (v) => { draft.saboteurHire = v; rerenderActiveTab?.() },
       tooltip: 'Needed to strike a rival (Strike section below, once standing + this turn\'s hires ≥ 1). Committing more against a rival\'s guards raises your odds of success; a failed strike loses some of the committed saboteurs.'
     })
   )
@@ -1383,11 +1411,11 @@ function renderSpyTab(player: GameState['players'][string], state: GameState, dr
     container.appendChild(el('h3', {}, 'Strike'))
     const targetRow = el('div', { class: 'segmented' })
     const noneBtn = el('button', { textContent: 'None', className: draft.targetPlayerId === null ? 'active' : '' })
-    noneBtn.addEventListener('click', () => { draft.targetPlayerId = null; session!.activeTab = 'spy'; renderGame() })
+    noneBtn.addEventListener('click', () => { draft.targetPlayerId = null; rerenderActiveTab?.() })
     targetRow.appendChild(noneBtn)
     for (const rival of rivals) {
       const btn = el('button', { textContent: rival.name, className: draft.targetPlayerId === rival.id ? 'active' : '' })
-      btn.addEventListener('click', () => { draft.targetPlayerId = rival.id; session!.activeTab = 'spy'; renderGame() })
+      btn.addEventListener('click', () => { draft.targetPlayerId = rival.id; rerenderActiveTab?.() })
       targetRow.appendChild(btn)
     }
     container.appendChild(targetRow)
@@ -1396,10 +1424,25 @@ function renderSpyTab(player: GameState['players'][string], state: GameState, dr
       const maxCommit = Math.max(1, availableSaboteurs)
       if (draft.saboteursCommitted > maxCommit) draft.saboteursCommitted = maxCommit
       if (draft.saboteursCommitted < 1) draft.saboteursCommitted = 1
+      const defender = state.players[draft.targetPlayerId]
+      let strikeOddsLine: HTMLElement | null = null
+      if (defender) {
+        const p0 = strikeSuccessProbability(draft.saboteursCommitted, defender.guards)
+        strikeOddsLine = el('p', {
+          class: helpToneClass(tone(p0, WAR_ODDS_TONE))
+        }, `Strike success chance: ${Math.round(p0 * 100)}% (engine formula — same odds the year will roll).`)
+      }
       container.appendChild(stepper({
         label: `Saboteurs to commit (up to ${availableSaboteurs} including this turn's hires)`,
         value: draft.saboteursCommitted, min: 1, max: maxCommit, step: 1,
-        onChange: (v) => { draft.saboteursCommitted = v; session!.activeTab = 'spy'; renderGame() },
+        onChange: (v) => {
+          draft.saboteursCommitted = v
+          if (strikeOddsLine && defender) {
+            const p = strikeSuccessProbability(v, defender.guards)
+            strikeOddsLine.className = helpToneClass(tone(p, WAR_ODDS_TONE))
+            strikeOddsLine.textContent = `Strike success chance: ${Math.round(p * 100)}% (engine formula — same odds the year will roll).`
+          }
+        },
         tooltip: 'Success chance = committed ÷ (committed + the target\'s guards + a small base defence). More committed raises your odds but risks more saboteurs if it fails. Same-turn hires are available to commit.'
       }))
       container.appendChild(segmented<EspionageMode>({
@@ -1409,13 +1452,7 @@ function renderSpyTab(player: GameState['players'][string], state: GameState, dr
         title: 'Strike type',
         tooltip: 'Raid: steals a larger share of the target\'s treasury only. Sabotage: steals a smaller share of treasury plus grain, and destroys some of their production buildings — more damage, less coin.'
       }))
-      const defender = state.players[draft.targetPlayerId]
-      if (defender) {
-        const p = strikeSuccessProbability(draft.saboteursCommitted, defender.guards)
-        container.appendChild(el('p', {
-          class: helpToneClass(tone(p, WAR_ODDS_TONE))
-        }, `Strike success chance: ${Math.round(p * 100)}% (engine formula — same odds the year will roll).`))
-      }
+      if (strikeOddsLine) container.appendChild(strikeOddsLine)
     }
   }
 
@@ -1511,8 +1548,7 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
   noneBtn.addEventListener('click', () => {
     draft.warTargetPlayerId = null
     draft.declareWar = false
-    session!.activeTab = 'war'
-    renderGame()
+    rerenderActiveTab?.()
   })
   // Clear a stale declaration if the selected target is under truce.
   if (draft.warTargetPlayerId && isTruceActive(state.truces, HUMAN_ID, draft.warTargetPlayerId, state.year)) {
@@ -1540,8 +1576,7 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
         draft.warTargetPlayerId = rival.id
         draft.declareWar = true
         draft.warAlliesRequested = draft.warAlliesRequested.filter((id) => id !== rival.id)
-        session!.activeTab = 'war'
-        renderGame()
+        rerenderActiveTab?.()
       })
     }
     targetRow.appendChild(btn)
@@ -1580,8 +1615,7 @@ function renderWarTab(state: GameState, draft: DecisionDraft): HTMLElement {
           draft.warAlliesRequested = active
             ? draft.warAlliesRequested.filter((id) => id !== ally.id)
             : [...draft.warAlliesRequested, ally.id]
-          session!.activeTab = 'war'
-          renderGame()
+          rerenderActiveTab?.()
         })
         allyRow.appendChild(btn)
       }
