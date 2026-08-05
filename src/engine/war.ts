@@ -72,17 +72,35 @@ export function registerTruce(
 // the exact odds the engine will roll, the same contract strikeSuccessProbability
 // already gives espionage.
 export function warStrength(player: PlayerState): number {
-  const base =
-    player.buildings.garrison * WARFARE.garrisonStrengthWeight +
-    player.guards * WARFARE.guardStrengthWeight +
-    (player.population.peasants / 1000) * WARFARE.levyStrengthPerThousandPeasants
+  return warStrengthBreakdown(player).total
+}
+
+export interface WarStrengthBreakdown {
+  garrison: number
+  guards: number
+  levy: number
+  base: number
+  multiplier: number
+  total: number
+}
+
+// Itemised version of warStrength — same formula, named terms, so the UI can
+// show what garrison/guards/levy each contribute instead of re-deriving them
+// from the data/economy.json weights a second time (the "second calculator"
+// displayCoherence.ts exists to forbid).
+export function warStrengthBreakdown(player: PlayerState): WarStrengthBreakdown {
+  const garrison = player.buildings.garrison * WARFARE.garrisonStrengthWeight
+  const guards = player.guards * WARFARE.guardStrengthWeight
+  const levy = (player.population.peasants / 1000) * WARFARE.levyStrengthPerThousandPeasants
+  const base = garrison + guards + levy
 
   // Phase 18C: training and equipment multiply the base rather than adding to
   // it, so the investment is worth the same proportionally at every scale —
   // see data/economy.json's _warfareDepthNote. A flat bonus would be decisive
   // in year 5 and rounding error by year 50, which is exactly the shape that
   // made the garrison stop differentiating anybody (_warfareTuningNote).
-  return base * militaryMultiplier(player)
+  const multiplier = militaryMultiplier(player)
+  return { garrison, guards, levy, base, multiplier, total: base * multiplier }
 }
 
 // Exported so the UI can show what an investment is actually buying, rather

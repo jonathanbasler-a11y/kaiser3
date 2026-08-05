@@ -17,7 +17,7 @@
   --accent-bright:  #8b6914;   /* mid gilt for borders / rules (not body text) */
   --accent-rule:    #b8860b;   /* bright gilt for decorative rules only */
   --good:           #2d5a1e;   /* forest-green positive */
-  --warn:           #8a5a00;   /* amber — AA on parchment */
+  --warn:           #7a4d00;   /* amber — AA on parchment AND on --bg-panel-raised (stat tiles) */
   --bad:            #7a1a1a;   /* deep-crimson negative */
   --border:         #b8a070;   /* warm tan rule / border */
   --ink-on-accent:  #f2e8ce;   /* parchment ink on dark gilt buttons */

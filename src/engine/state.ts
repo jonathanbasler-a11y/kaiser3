@@ -1,6 +1,7 @@
 // Core game state and decision types — the contract between UI/AI and the reducer.
 
 import { finiteOr } from './sanitize.ts'
+import type { BuildingUpkeepBreakdown } from './buildings.ts'
 
 function finiteOrZero(n: number | undefined): number {
   return finiteOr(n, 0)
@@ -136,6 +137,21 @@ export interface PlayerChronicle {
   taxIncome: number
   tariffIncome: number
   upkeepCost: number
+  // Itemised version of upkeepCost, so the UI can show WHERE it went instead
+  // of one lump sum (Phase 20 follow-up). Same total as upkeepCost above,
+  // plus the two standing-force lines calculateUpkeep doesn't cover.
+  upkeepBreakdown?: BuildingUpkeepBreakdown & { secretService: number; army: number }
+  // Signed — net Taler from this year's land trade (positive = sold more than
+  // bought). The "excludes land, builds, recruits, army spend" caveat on the
+  // income card exists because these four were computed and thrown away.
+  landTradeNet: number
+  constructionSpend: number
+  recruitmentSpend: number
+  militarySpend: number
+  // Grain actually consumed by feeding this year (economy.ts resolveFeeding) —
+  // without this the Grain tab's stock identity (before + harvest − spoilage
+  // − overflow − fed − sold + bought) cannot be shown to balance.
+  grainConsumed: number
   // Event losses are recorded PER UNIT, never summed together: adding peasants to
   // Taler produces a number that means nothing. Phase 6's balance harness needs
   // the gold figure on its own to compute net income.
@@ -145,6 +161,13 @@ export interface PlayerChronicle {
   eventGrainLoss: number           // F6: drought scorching stored/standing grain
   eventFarmlandLoss: number        // F6: flood washing out hectares
   unrestGain: number
+  // Components of unrestGain — feeding shortfall/decay (population.ts), tax
+  // burden (tax.ts), and war weariness (year.ts step 12.5+). Measured as
+  // actual before/after state deltas at each step, so they sum to unrestGain
+  // exactly even where the 0-100 clamp bites mid-year.
+  unrestFromFeeding: number
+  unrestFromTax: number
+  unrestFromWarWeariness: number
   events: PlayerEvent[]
   rankPromoted: boolean
   newRank?: number

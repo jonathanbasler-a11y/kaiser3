@@ -12,7 +12,7 @@ import { calculateHarvest, resolveFeeding, applyGrainTrade, storageCapacity, dri
 import { applyLandTrade } from './land.ts'
 import { applyPopulationDynamics } from './population.ts'
 import { applyTaxation } from './tax.ts'
-import { applyConstruction, calculateBuildingIncome, calculateUpkeep } from './buildings.ts'
+import { applyConstruction, calculateBuildingIncome, calculateUpkeepBreakdown } from './buildings.ts'
 import { checkPromotion } from './ranks.ts'
 import { resolveEvents } from './events/events.ts'
 import { rollPositiveEvent } from './events/positiveEvents.ts'
@@ -102,6 +102,13 @@ export function advanceYear(
   let weatherMultiplierSum = 0
   let weatherSamples = 0
 
+  // Phase 20: unrestGain isn't final until AFTER the cross-ruler war-weariness
+  // block below, so each player's year-start unrest has to survive past the
+  // end of this per-ruler loop. Keyed by playerId rather than stashed on the
+  // report itself, since it's bookkeeping for THIS function, not part of the
+  // public Chronicle shape.
+  const unrestStartByPlayer = new Map<string, number>()
+
   for (const playerId of newState.activePlayerIds) {
     const player = newState.players[playerId]
     if (!player || player.dead) continue
@@ -128,12 +135,20 @@ export function advanceYear(
       taxIncome: 0,
       tariffIncome: 0,
       upkeepCost: 0,
+      landTradeNet: 0,
+      constructionSpend: 0,
+      recruitmentSpend: 0,
+      militarySpend: 0,
+      grainConsumed: 0,
       eventGoldLoss: 0,
       eventPopulationLoss: 0,
       eventBuildingsDestroyed: 0,
       eventGrainLoss: 0,
       eventFarmlandLoss: 0,
       unrestGain: 0,
+      unrestFromFeeding: 0,
+      unrestFromTax: 0,
+      unrestFromWarWeariness: 0,
       events: [],
       rankPromoted: false,
       succession: false,
@@ -152,6 +167,7 @@ export function advanceYear(
       player.land = tradeResult.newLand
       player.taler = tradeResult.newTaler
       tradeVolume = Math.abs(tradeResult.talerDelta)
+      report.landTradeNet = tradeResult.talerDelta
     }
 
     // 2. Recruitment (guards and saboteurs) — before construction so the two
@@ -162,6 +178,7 @@ export function advanceYear(
       const recruitResult = applyRecruitment(player, espionageDecision.guardHire, espionageDecision.saboteurHire)
       noteShortfall(report, 'guards', espionageDecision.guardHire, recruitResult.guardsHired, talerBeforeRecruitment)
       noteShortfall(report, 'saboteurs', espionageDecision.saboteurHire, recruitResult.saboteursHired, talerBeforeRecruitment)
+      report.recruitmentSpend = recruitResult.spent
     }
 
     // 2.5. Military investment (F4/Phase 18C) — training and equipment levels.
@@ -179,6 +196,7 @@ export function advanceYear(
       )
       noteShortfall(report, 'training levels', warDecisionForInvestment.trainingInvest ?? 0, militaryResult.trainingBought, talerBeforeMilitary)
       noteShortfall(report, 'equipment levels', warDecisionForInvestment.equipmentInvest ?? 0, militaryResult.equipmentBought, talerBeforeMilitary)
+      report.militarySpend = militaryResult.spent
     }
 
     // 3. Construction
@@ -192,6 +210,7 @@ export function advanceYear(
     player.buildings = constructionResult.newBuildings
     player.taler = constructionResult.newTaler
     player.tradingHouses = constructionResult.newTradingHouses
+    report.constructionSpend = constructionResult.spent
 
     const shortfallsBeforeConstruction = report.shortfalls.length
     noteShortfall(report, 'markets', constructionDecision.marketBuild, player.buildings.markets - buildingsBeforeConstruction.markets, talerBeforeConstruction)
@@ -240,6 +259,7 @@ export function advanceYear(
     const grainDecision = findDecision<GrainDecision>(playerDecisions, 'grain') ?? DEFAULT_GRAIN_DECISION
     const feeding = resolveFeeding(grainDecision, player.population, player.grainStock)
     player.grainStock = feeding.grainStockAfter
+    report.grainConsumed = feeding.grainConsumed
 
     // 6. Grain market — settled AFTER feeding, so a ruler sells genuine surplus
     //    rather than the bread out of its peasants' mouths.
@@ -262,6 +282,7 @@ export function advanceYear(
     report.deaths = popResult.deaths
     report.emigration = popResult.emigration
     report.immigration = popResult.immigration
+    report.unrestFromFeeding = player.population.unrest - unrestAtYearStart
 
     // Extinction: population collapsed to nothing. No heir is possible — this is
     // the one permanent failure state, distinct from succession below.
@@ -278,7 +299,9 @@ export function advanceYear(
     const taxDecision = findDecision<TaxDecision>(playerDecisions, 'tax') ?? DEFAULT_TAX_DECISION
     const taxResult = applyTaxation(player.population, taxDecision, tradeVolume)
     player.taler += taxResult.totalRevenue
+    const unrestBeforeTax = player.population.unrest
     player.population.unrest = Math.min(100, player.population.unrest + taxResult.unrestDelta)
+    report.unrestFromTax = player.population.unrest - unrestBeforeTax
     report.taxIncome = taxResult.taxIncome
     report.tariffIncome = taxResult.tariffIncome
     report.tributeIncome = taxResult.graftBonus
@@ -291,11 +314,13 @@ export function advanceYear(
     // 10. Upkeep (buildings, trading-house tribute, the standing secret service,
     //    and the standing army's training/equipment — all scale with holdings or
     //    ambition, the anti-snowball lever)
-    const upkeep = calculateUpkeep(player.buildings, player.tradingHouses, player.taler)
-      + espionageUpkeep(player)
-      + militaryUpkeep(player)
+    const buildingUpkeep = calculateUpkeepBreakdown(player.buildings, player.tradingHouses, player.taler)
+    const secretService = espionageUpkeep(player)
+    const army = militaryUpkeep(player)
+    const upkeep = buildingUpkeep.total + secretService + army
     player.taler = Math.max(0, player.taler - upkeep)
     report.upkeepCost = upkeep
+    report.upkeepBreakdown = { ...buildingUpkeep, secretService, army }
 
     // 11. Events (plague/fire/banditry scale with prosperity; revolt/famine compound
     //    the player's own bad state). Resolved AFTER taxation so revolt reacts to
@@ -319,8 +344,7 @@ export function advanceYear(
     //    from a consistent RNG position regardless of which fired.
     report.positiveEvent = rollPositiveEvent(player, rng)
 
-    report.unrestGain = player.population.unrest - unrestAtYearStart
-
+    unrestStartByPlayer.set(playerId, unrestAtYearStart)
     chronicle.playerReports[playerId] = report
   }
 
@@ -427,6 +451,9 @@ export function advanceYear(
   for (const playerId of newState.activePlayerIds) {
     const player = newState.players[playerId]
     if (!player || player.dead) continue
+    const report = chronicle.playerReports[playerId]
+
+    const unrestBeforeWeariness = player.population.unrest
     const weariness = player.warWeariness ?? 0
     if (weariness > 0) {
       player.population.unrest = Math.min(
@@ -436,6 +463,12 @@ export function advanceYear(
     }
     if (!belligerents.has(playerId) && weariness > 0) {
       player.warWeariness = Math.max(0, weariness - WARFARE.wearinessDecayPerYear)
+    }
+
+    if (report) {
+      report.unrestFromWarWeariness = player.population.unrest - unrestBeforeWeariness
+      const start = unrestStartByPlayer.get(playerId)
+      report.unrestGain = start !== undefined ? player.population.unrest - start : report.unrestGain
     }
   }
 
