@@ -38,6 +38,9 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **20.3** | Sonnet | Medium | Events made visible — cards, live risk, catalog | Per-event cards; calculateEventProbability in UI |
 | **20.4** | Sonnet | Medium | Explain every number (UI pass-through) | Footer breakdowns; Tax outputs; spy %; Breakdown type |
 | **20.5** | Sonnet | Medium | Art wiring, procedural icons, status tones, gen list | Terrain/war/chronicle art; --warn; gen-art checklist |
+| **20.6** | Sonnet | Medium | Art QA pass — verify, regenerate, delete dead entries | Committed in `2a77644` (#43) |
+| **20.7** | Sonnet | Medium | GPU seed sweep for remaining crests | Committed in `0c7592b` (#44); baron/duke recovered |
+| **21.0** | Sonnet | Low | Reducer golden fixture (baseline ratchet for the 21.x bug-log workstream) | Multi-player/multi-year cross-process fixture; proven to fail on a stray RNG draw; zero `src/` change |
 
 ## Phase 0: Scaffold & Ground Rules ✓
 
@@ -1138,7 +1141,7 @@ machinery), then D1 (requires new data file, RNG stream extension, 19A interacti
 
 ---
 
-**Last updated:** Phase 20.5 complete (art + status tones). Deferred still: F2, F7; D1/D2 implementation.
+**Last updated:** Phase 21.0 complete (reducer golden fixture). 20.6/20.7 were art passes; 21.0 opens the 21.x bug-log workstream (GitHub issues #45–#51), which includes D2 guild implementation at 21.6–21.11. Deferred still: F2, F7; D1 trade routes.
 
 ---
 
@@ -1198,3 +1201,51 @@ Wired existing terrain/battlefield/chronicle/market/stats art onto Land/Grain/Ta
 - ✓ Status tones unified (`good`/`warn`/`bad`) across stats, odds, idle land, event risk
 
 ---
+
+## Phase 21.0: Reducer Golden Fixture (baseline ratchet) ✓
+
+Opens the **21.x workstream** clearing the in-game bug log (GitHub issues #45–#51). Later tranches
+change validated economy math (21.4), the `advanceYear` signature (21.3), and the reducer's step
+sequence (21.8), and each must be able to prove what it did *not* disturb. This phase lays that
+proof down first, from unmodified `HEAD`, before any of them run.
+
+`tests/fixtures/advanceYear-noguild-golden.json` — a cross-process golden snapshot of the reducer.
+Generated only by a manual `npx tsx scripts/gen-year-golden.ts`; the scenario lives in
+`tests/helpers/yearGoldenRun.ts`, shared with `tests/yearGolden.test.ts` so the two cannot drift
+into running different scenarios and comparing the results anyway. Zero changes under `src/` or
+`data/`.
+
+Distinct from the two existing guards, and deliberately so:
+- `determinism.test.ts` compares two runs **in the same process** — a change that *consistently*
+  shifts output passes it. Verified: injecting one conditional `rng.next()` for a single player
+  leaves it green and turns every checkpoint here red.
+- `planner-golden.json` guards `planYear`. This guards `advanceYear` and never calls the planner.
+  The isolation runs one way only: a planner change moves only `planner-golden.json`, but a reducer
+  change moves **both**, because `golden.test.ts` plays 19 real years forward before planning.
+
+Multi-player (3 rulers) because `advanceYear` draws from one `SeededRng` across all
+`activePlayerIds`, so a draw added or skipped for one ruler shifts every later roll for the others —
+a solo fixture is structurally blind to that, and cannot reach the espionage/warfare/succession
+passes at all. 35 years because rank promotion lands ~y29 and phase 21.8 is about to change it.
+
+### Acceptance Criteria
+- ✓ Fixture generated from unmodified `HEAD` (`git diff` on `src/` and `data/` empty)
+- ✓ Proven to fail: a single conditional `rng.next()` for one player reddens all 4 checkpoints
+- ✓ Proven complementary: the same mutation leaves `determinism.test.ts` green
+- ✓ Scenario identity pinned in the fixture (players, span, seed base, checkpoints, **and the
+  literal decision sheets**) and asserted, so editing the shared helper fails loudly instead of
+  quietly shrinking the baseline
+- ✓ Branch-coverage counters asserted non-zero — espionage 8, warfare 7, events 64, positive
+  events 13, promotions 1, shortfalls 338 — so the scenario cannot silently stop exercising a
+  path while still reading as coverage
+- ✓ Checkpoints stored as structured JSON, not escaped strings, so regeneration diffs stay
+  reviewable (matters most when 21.6 adds a `PlayerState` field and a reviewer must confirm the
+  new empty field is the *only* change)
+- ✓ Full suite green: 31 files, 316 tests, `tsc --noEmit` clean
+
+### Known limitation
+`serializeGameState` is a whole-state dump, so adding any field to `PlayerState` changes every
+checkpoint even under provably zero behaviour change. When 21.6 lands, the guild fields must be
+optional-and-unset (`JSON.stringify` drops `undefined`) for the fixture to stay byte-identical —
+and if `clonePlayerState` materialises them to `[]` instead, a reviewed regeneration is required.
+Decide that deliberately in 21.6 rather than discovering it from a red test.
