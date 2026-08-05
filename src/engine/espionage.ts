@@ -40,18 +40,19 @@ export interface StrikeOutcome {
   talerStolen: number
   grainStolen: number
   buildingsDestroyed: number
+  buildingDestroyedKind?: 'market' | 'mill'
 }
 
-function removeOneProductionBuilding(player: PlayerState): number {
+function removeOneProductionBuilding(player: PlayerState): 'market' | 'mill' | null {
   if (player.buildings.markets >= player.buildings.mills && player.buildings.markets > 0) {
     player.buildings.markets -= 1
-    return 1
+    return 'market'
   }
   if (player.buildings.mills > 0) {
     player.buildings.mills -= 1
-    return 1
+    return 'mill'
   }
-  return 0
+  return null
 }
 
 // Resolves one strike, mutating both rulers.
@@ -106,7 +107,11 @@ export function resolveStrike(
     // "transfers their grain/currency to the attacker"). The building itself is
     // destroyed rather than transferred. The coin share is well below a dedicated
     // raid's: sabotage trades plunder for permanent damage.
-    outcome.buildingsDestroyed = removeOneProductionBuilding(defender)
+    const burned = removeOneProductionBuilding(defender)
+    if (burned) {
+      outcome.buildingsDestroyed = 1
+      outcome.buildingDestroyedKind = burned
+    }
 
     outcome.grainStolen = defender.grainStock * ESPIONAGE.lootGrainFraction
     defender.grainStock = Math.max(0, defender.grainStock - outcome.grainStolen)

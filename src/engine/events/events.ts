@@ -149,27 +149,44 @@ function rollSeverity(event: EventDefinition, rng: SeededRng): number {
   return Math.max(0.1, 1 - jitter / 2 + rng.next() * jitter)
 }
 
+export interface ProductionBuildingsDestroyed {
+  markets: number
+  mills: number
+  total: number
+}
+
 // Removes N production buildings, spread across markets and mills. Fire consumes
 // timber workshops, not the stone palace or cathedral — so prestige buildings are
 // deliberately exempt (they are also the rank-progression path, and destroying
 // them would undo hours of investment on a dice roll).
-function destroyProductionBuildings(player: PlayerState, count: number): number {
+function destroyProductionBuildings(player: PlayerState, count: number): ProductionBuildingsDestroyed {
   let remaining = Math.floor(count)
-  let destroyed = 0
+  let markets = 0
+  let mills = 0
 
   while (remaining > 0 && (player.buildings.markets > 0 || player.buildings.mills > 0)) {
     if (player.buildings.markets >= player.buildings.mills && player.buildings.markets > 0) {
       player.buildings.markets -= 1
+      markets += 1
     } else if (player.buildings.mills > 0) {
       player.buildings.mills -= 1
+      mills += 1
     } else {
       break
     }
-    destroyed += 1
     remaining -= 1
   }
 
-  return destroyed
+  return { markets, mills, total: markets + mills }
+}
+
+/** "1 market, 1 mill destroyed" — shared by events and strike log text. */
+export function formatBuildingsDestroyed(markets: number, mills: number): string {
+  const parts: string[] = []
+  if (markets > 0) parts.push(`${markets} market${markets === 1 ? '' : 's'}`)
+  if (mills > 0) parts.push(`${mills} mill${mills === 1 ? '' : 's'}`)
+  if (parts.length === 0) return '0 buildings destroyed'
+  return `${parts.join(', ')} destroyed`
 }
 
 // Applies a fired event's loss to the player, mutating them, and returns a
@@ -199,6 +216,8 @@ function applyEventLoss(
   let populationLoss = 0
   let goldLoss = 0
   let buildingsDestroyed = 0
+  let marketsDestroyed = 0
+  let millsDestroyed = 0
   let grainLoss = 0
   let farmlandLoss = 0
 
@@ -222,7 +241,10 @@ function applyEventLoss(
       const target = productionBuildings * event.loss.fraction * severityFactor
       // Round up so a fire that "hits" always destroys something when there is
       // anything to burn — otherwise small holdings would be silently immune.
-      buildingsDestroyed = destroyProductionBuildings(player, Math.ceil(target))
+      const burned = destroyProductionBuildings(player, Math.ceil(target))
+      buildingsDestroyed = burned.total
+      marketsDestroyed = burned.markets
+      millsDestroyed = burned.mills
       break
     }
     case 'grain': {
@@ -253,7 +275,10 @@ function applyEventLoss(
       mitigated,
       loss: totalLoss,
       lossType: event.loss.type,
-      telegraphText: mitigated ? event.telegraph.mitigated : event.telegraph.unmitigated
+      telegraphText: mitigated ? event.telegraph.mitigated : event.telegraph.unmitigated,
+      ...(event.loss.type === 'buildings' && buildingsDestroyed > 0
+        ? { marketsDestroyed, millsDestroyed }
+        : {})
     },
     populationLoss,
     goldLoss,
@@ -344,7 +369,12 @@ export function eventLossMagnitudeText(event: PlayerEvent): string {
   switch (event.lossType) {
     case 'gold': return `${event.loss.toFixed(0)} Taler lost`
     case 'population': return `${event.loss.toFixed(0)} peasants lost`
-    case 'buildings': return `${event.loss.toFixed(0)} buildings destroyed`
+    case 'buildings': {
+      const markets = event.marketsDestroyed ?? 0
+      const mills = event.millsDestroyed ?? 0
+      if (markets > 0 || mills > 0) return formatBuildingsDestroyed(markets, mills)
+      return `${event.loss.toFixed(0)} buildings destroyed`
+    }
     case 'grain': return `${event.loss.toFixed(0)} grain lost`
     case 'farmland': return `${event.loss.toFixed(0)} hectares of farmland lost`
   }

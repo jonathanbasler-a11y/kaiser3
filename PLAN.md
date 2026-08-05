@@ -1143,7 +1143,7 @@ machinery), then D1 (requires new data file, RNG stream extension, 19A interacti
 
 ---
 
-**Last updated:** Phase 21.1 in progress (scroll jump #45). 21.0 golden fixture merged (#52). Cursor lane: 21.1→21.2; Claude: 21.3+. Deferred still: F2, F7; D1 trade routes.
+**Last updated:** Phase 21.2 (destruction naming #48). 21.0–21.1 merged. Next Cursor: 21.5 (needs 21.4). Claude: 21.3+. Deferred still: F2, F7; D1 trade routes.
 
 ---
 
@@ -1266,5 +1266,19 @@ from the same preview refresh.
 - ✓ Tax "Projected this year" still updates live
 - ✓ Land buy caps still net each other (tab refresh, not full screen)
 - ✓ `advanceYear-noguild-golden.json` untouched / still green
+
+---
+
+## Phase 21.2: Name What Was Destroyed (#48) ✓
+
+Fire/event loss text names markets vs mills (`formatBuildingsDestroyed`). Sabotage
+records `buildingDestroyedKind`; year-report strike log shows Taler, grain, and
+which building burned. Spec note: fire exposure still counts all buildings while
+only markets/mills burn — balance question left for Claude, not changed here.
+
+### Acceptance Criteria
+- ✓ `"1 market, 1 mill destroyed"` (not `"2 buildings destroyed"`) when split known
+- ✓ Successful sabotage log mentions grain stolen and building kind
+- ✓ Year-golden fixture still green (GameState byte-identity; chronicle-only fields)
 
 ---

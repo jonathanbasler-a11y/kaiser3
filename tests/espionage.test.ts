@@ -68,6 +68,7 @@ describe('resolveStrike', () => {
     const outcome = resolveStrike(attacker, defender, 10, 'sabotage', new SeededRng(1))
     expect(outcome.succeeded).toBe(true)
     expect(outcome.buildingsDestroyed).toBe(1)
+    expect(outcome.buildingDestroyedKind === 'market' || outcome.buildingDestroyedKind === 'mill').toBe(true)
     expect(defender.buildings.markets + defender.buildings.mills).toBe(buildingsBefore - 1)
     expect(attacker.grainStock).toBeGreaterThan(0)
     // Per the original, sabotage takes currency as well as grain.

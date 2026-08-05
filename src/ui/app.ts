@@ -6,7 +6,7 @@
 import buildingsData from '../../data/buildings.json'
 import economyData from '../../data/economy.json'
 import { GameState, Decision, Chronicle, PlayerState, EspionageMode, PlayerChronicle, GrainDecision } from '../engine/state.ts'
-import { eventLossMagnitudeText, calculateEventProbability, getEventCatalog } from '../engine/events/events.ts'
+import { eventLossMagnitudeText, calculateEventProbability, getEventCatalog, formatBuildingsDestroyed } from '../engine/events/events.ts'
 import { createStarterState, applyStartingMultiplier } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
 import { getRankName, isFeatureUnlocked, getNextRank, groupProgressDetail, getAllRanks, getTopRank, RankRequirement, requirementGroupStatus } from '../engine/ranks.ts'
@@ -1828,18 +1828,29 @@ function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement
 
   for (const strike of chronicle.strikes) {
     const verb = strike.mode === 'raid' ? 'raid' : 'sabotage'
+    const lootBits: string[] = []
+    if (strike.succeeded) {
+      if (strike.talerStolen > 0) lootBits.push(`${strike.talerStolen.toFixed(0)} Taler`)
+      if (strike.grainStolen > 0) lootBits.push(`${strike.grainStolen.toFixed(0)} grain`)
+      if (strike.buildingDestroyedKind === 'market') lootBits.push(formatBuildingsDestroyed(1, 0))
+      else if (strike.buildingDestroyedKind === 'mill') lootBits.push(formatBuildingsDestroyed(0, 1))
+      else if (strike.buildingsDestroyed > 0) {
+        lootBits.push(`${strike.buildingsDestroyed} building${strike.buildingsDestroyed === 1 ? '' : 's'} destroyed`)
+      }
+    }
+    const lootText = lootBits.length > 0 ? lootBits.join(', ') : 'nothing taken'
     if (strike.defenderId === HUMAN_ID) {
       const attackerName = state.players[strike.attackerId]?.name ?? strike.attackerId
       entries.push(el('div', { class: `log-entry ${strike.succeeded ? 'bad' : 'good'}` },
         strike.succeeded
-          ? `${attackerName}'s ${verb} succeeded. ${strike.talerStolen.toFixed(0)} Taler taken before your guards arrived.`
+          ? `${attackerName}'s ${verb} succeeded. ${lootText} before your guards arrived.`
           : `${attackerName} tried a ${verb}; your guards drove them off without loss.`
       ))
     } else if (strike.attackerId === HUMAN_ID) {
       const defenderName = state.players[strike.defenderId]?.name ?? strike.defenderId
       entries.push(el('div', { class: `log-entry ${strike.succeeded ? 'good' : 'bad'}` },
         strike.succeeded
-          ? `Your ${verb} against ${defenderName} succeeded. ${strike.talerStolen.toFixed(0)} Taler taken.`
+          ? `Your ${verb} against ${defenderName} succeeded. ${lootText}.`
           : `Your ${verb} against ${defenderName} failed — ${strike.saboteursLost} saboteur${strike.saboteursLost === 1 ? '' : 's'} lost.`
       ))
     }

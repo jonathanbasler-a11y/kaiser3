@@ -184,15 +184,27 @@ async function main() {
         const verb = strike.mode === 'raid' ? 'raid' : 'sabotage'
         if (strike.defenderId === 'human') {
           const attacker = state.players[strike.attackerId]?.name ?? strike.attackerId
+          const burned = strike.buildingDestroyedKind
+            ? `, ${strike.buildingDestroyedKind} burned`
+            : strike.buildingsDestroyed > 0
+              ? `, ${strike.buildingsDestroyed} building burned`
+              : ''
           console.log(strike.succeeded
             ? `\n  ! ${attacker} launched a ${verb} against you — ${strike.talerStolen.toFixed(0)} Taler` +
               `${strike.grainStolen > 0 ? `, ${strike.grainStolen.toFixed(0)} grain` : ''}` +
-              `${strike.buildingsDestroyed > 0 ? `, and ${strike.buildingsDestroyed} building burned` : ''}`
+              burned
             : `\n  . ${attacker} attempted a ${verb} against you — your guards drove them off`)
         } else if (strike.attackerId === 'human') {
           const defender = state.players[strike.defenderId]?.name ?? strike.defenderId
+          const burned = strike.buildingDestroyedKind
+            ? `, ${strike.buildingDestroyedKind} burned`
+            : strike.buildingsDestroyed > 0
+              ? `, ${strike.buildingsDestroyed} building burned`
+              : ''
           console.log(strike.succeeded
-            ? `\n  > Your ${verb} against ${defender} succeeded — ${strike.talerStolen.toFixed(0)} Taler taken`
+            ? `\n  > Your ${verb} against ${defender} succeeded — ${strike.talerStolen.toFixed(0)} Taler` +
+              `${strike.grainStolen > 0 ? `, ${strike.grainStolen.toFixed(0)} grain` : ''}` +
+              burned
             : `\n  > Your ${verb} against ${defender} failed — ${strike.saboteursLost} saboteurs lost`)
         }
       }

@@ -112,6 +112,8 @@ export interface StrikeRecord {
   talerStolen: number
   grainStolen: number
   buildingsDestroyed: number
+  /** Which production building burned, when sabotage destroys one. */
+  buildingDestroyedKind?: 'market' | 'mill'
 }
 
 export interface PlayerChronicle {
@@ -194,6 +196,9 @@ export interface PlayerEvent {
   loss: number                     // Magnitude, in the units given by lossType
   lossType: EventLossType          // What the loss was denominated in (so the UI can format it)
   telegraphText: string            // Why it happened — always explains the cause
+  /** Set when lossType is 'buildings' — named split for chronicle text (issue #48). */
+  marketsDestroyed?: number
+  millsDestroyed?: number
 }
 
 export interface GameEvent {

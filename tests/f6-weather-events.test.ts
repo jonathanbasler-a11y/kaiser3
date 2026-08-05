@@ -198,5 +198,8 @@ describe('eventLossMagnitudeText is exhaustive over EventLossType', () => {
     expect(new Set(texts).size).toBe(ALL_LOSS_TYPES.length) // all distinct — none silently collapsed to the same string
     expect(eventLossMagnitudeText({ ...base, lossType: 'grain' })).toContain('grain')
     expect(eventLossMagnitudeText({ ...base, lossType: 'farmland' })).toContain('farmland')
+    expect(eventLossMagnitudeText({
+      ...base, lossType: 'buildings', loss: 2, marketsDestroyed: 1, millsDestroyed: 1
+    })).toBe('1 market, 1 mill destroyed')
   })
 })
