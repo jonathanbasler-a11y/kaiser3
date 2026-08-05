@@ -41,6 +41,8 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **20.6** | Sonnet | Medium | Art QA pass — verify, regenerate, delete dead entries | Committed in `2a77644` (#43) |
 | **20.7** | Sonnet | Medium | GPU seed sweep for remaining crests | Committed in `0c7592b` (#44); baron/duke recovered |
 | **21.0** | Sonnet | Low | Reducer golden fixture (baseline ratchet for the 21.x bug-log workstream) | Multi-player/multi-year cross-process fixture; proven to fail on a stray RNG draw; zero `src/` change |
+| **21.1** | Sonnet | Medium | Scroll-jump fix (#45) — stop `renderGame()` on slider/stepper | Tax/land/spy/war mutate draft or tab-only; `.screen` scroll preserved |
+| **21.2** | Sonnet | Medium | Name destroyed buildings + sabotage grain (#48) | Event/sabotage loss text names markets/mills; strike log shows grain |
 
 ## Phase 0: Scaffold & Ground Rules ✓
 
@@ -1141,7 +1143,7 @@ machinery), then D1 (requires new data file, RNG stream extension, 19A interacti
 
 ---
 
-**Last updated:** Phase 21.0 complete (reducer golden fixture). 20.6/20.7 were art passes; 21.0 opens the 21.x bug-log workstream (GitHub issues #45–#51), which includes D2 guild implementation at 21.6–21.11. Deferred still: F2, F7; D1 trade routes.
+**Last updated:** Phase 21.1 in progress (scroll jump #45). 21.0 golden fixture merged (#52). Cursor lane: 21.1→21.2; Claude: 21.3+. Deferred still: F2, F7; D1 trade routes.
 
 ---
 
@@ -1249,3 +1251,20 @@ checkpoint even under provably zero behaviour change. When 21.6 lands, the guild
 optional-and-unset (`JSON.stringify` drops `undefined`) for the fixture to stay byte-identical —
 and if `clonePlayerState` materialises them to `[]` instead, a reviewed regeneration is required.
 Decide that deliberately in 21.6 rather than discovering it from a red test.
+
+---
+
+## Phase 21.1: Scroll Jump Fix (#45) ✓
+
+Tax sliders / land steppers / spy / war controls no longer call `renderGame()` (which
+recreated `.screen` and reset `scrollTop`). Draft mutations drive the debounced preview;
+structural changes use tab-body-only `rerenderActiveTab()`. Tax projected tiles update
+from the same preview refresh.
+
+### Acceptance Criteria
+- ✓ Dragging Tax VAT (etc.) does not jump scroll to top
+- ✓ Tax "Projected this year" still updates live
+- ✓ Land buy caps still net each other (tab refresh, not full screen)
+- ✓ `advanceYear-noguild-golden.json` untouched / still green
+
+---
