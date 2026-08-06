@@ -24,6 +24,7 @@ import economyData from '../../../data/economy.json'
 import { SeededRng } from '../rng.ts'
 import { PlayerState, PlayerEvent, EventId, EventLossType } from '../state.ts'
 import { calculateExposure, ExposureSpec, ExposureContext } from '../scarcity.ts'
+import { pruneGuildsToFit } from '../guilds.ts'
 
 export interface EventMitigation {
   building: string              // Key into data/buildings.json `mitigation`
@@ -175,6 +176,13 @@ function destroyProductionBuildings(player: PlayerState, count: number): Product
       break
     }
     remaining -= 1
+  }
+
+  // Phase 21.7 (D2): keep player.guilds from silently drifting out of sync
+  // with what actually still stands. No-op whenever player.guilds is
+  // absent/empty, which is every real game before 21.8 makes petitions fire.
+  if (player.guilds && player.guilds.length > 0) {
+    player.guilds = pruneGuildsToFit(player)
   }
 
   return { markets, mills, total: markets + mills }

@@ -310,11 +310,12 @@ export function advanceYear(
     report.extinct = checkExtinction(player)
 
     // 8. Building income (markets/mills/trading houses, from buildings as of this year's construction)
-    const income = calculateBuildingIncome(player.buildings, player.tradingHouses)
-    player.taler += income.marketIncome + income.millIncome + income.tradingHouseIncome
+    const income = calculateBuildingIncome(player.buildings, player.tradingHouses, player.guilds)
+    player.taler += income.marketIncome + income.millIncome + income.tradingHouseIncome + income.guildBonusIncome
     report.marketIncome = income.marketIncome
     report.millIncome = income.millIncome
     report.tradingHouseIncome = income.tradingHouseIncome
+    report.guildBonusIncome = income.guildBonusIncome
 
     // 9. Taxation (revenue from the population's economic output; burden feeds unrest)
     const taxDecision = findDecision<TaxDecision>(playerDecisions, 'tax') ?? DEFAULT_TAX_DECISION
@@ -330,12 +331,12 @@ export function advanceYear(
     // Reign score: cumulative productive income this reign (F5) — resets on
     // succession below, independent of the real material state (land/rank/
     // buildings), which never resets.
-    player.score += income.marketIncome + income.millIncome + income.tradingHouseIncome + taxResult.totalRevenue
+    player.score += income.marketIncome + income.millIncome + income.tradingHouseIncome + income.guildBonusIncome + taxResult.totalRevenue
 
     // 10. Upkeep (buildings, trading-house tribute, the standing secret service,
     //    and the standing army's training/equipment — all scale with holdings or
     //    ambition, the anti-snowball lever)
-    const buildingUpkeep = calculateUpkeepBreakdown(player.buildings, player.tradingHouses, player.taler)
+    const buildingUpkeep = calculateUpkeepBreakdown(player.buildings, player.tradingHouses, player.taler, player.guilds)
     const secretService = espionageUpkeep(player)
     const army = militaryUpkeep(player)
     const upkeep = buildingUpkeep.total + secretService + army

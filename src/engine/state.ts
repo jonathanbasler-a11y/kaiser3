@@ -215,6 +215,13 @@ export interface PlayerChronicle {
   marketIncome: number
   millIncome: number
   tradingHouseIncome: number
+  // Phase 21.7 (D2). Gross bonus from specialized markets/mills, ON TOP of
+  // their base income already counted in marketIncome/millIncome above — see
+  // BuildingIncomeResult.guildBonusIncome in buildings.ts. Optional so every
+  // pre-21.7 PlayerChronicle literal across tests keeps compiling; year.ts
+  // always populates it (0 when the player holds no guilds, i.e. every real
+  // game before 21.8).
+  guildBonusIncome?: number
   tributeIncome: number
   taxIncome: number
   tariffIncome: number

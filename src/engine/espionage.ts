@@ -16,6 +16,7 @@ import economyData from '../../data/economy.json'
 import { SeededRng } from './rng.ts'
 import { PlayerState, EspionageMode } from './state.ts'
 import { finiteOr } from './sanitize.ts'
+import { pruneGuildsToFit } from './guilds.ts'
 
 const ESPIONAGE = economyData.espionage
 
@@ -44,15 +45,22 @@ export interface StrikeOutcome {
 }
 
 function removeOneProductionBuilding(player: PlayerState): 'market' | 'mill' | null {
+  let destroyed: 'market' | 'mill' | null = null
   if (player.buildings.markets >= player.buildings.mills && player.buildings.markets > 0) {
     player.buildings.markets -= 1
-    return 'market'
-  }
-  if (player.buildings.mills > 0) {
+    destroyed = 'market'
+  } else if (player.buildings.mills > 0) {
     player.buildings.mills -= 1
-    return 'mill'
+    destroyed = 'mill'
   }
-  return null
+
+  // Phase 21.7 (D2), same reasoning as events.ts's destroyProductionBuildings:
+  // keep player.guilds from drifting out of sync with what still stands.
+  if (destroyed && player.guilds && player.guilds.length > 0) {
+    player.guilds = pruneGuildsToFit(player)
+  }
+
+  return destroyed
 }
 
 // Resolves one strike, mutating both rulers.

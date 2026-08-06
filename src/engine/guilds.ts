@@ -1,12 +1,14 @@
 // Guild petitions and building specialization (D2, GitHub issues #49/#51).
 //
-// PHASE 21.6 — PURE LOGIC, ZERO CALLERS. Nothing in year.ts, decisions.ts's
-// runtime path, planner.ts, or app.ts invokes anything in this file yet. That
-// lands in 21.7 (economics wiring) and 21.8 (reducer wiring — petitions start
-// firing). Until then this module is exercised only by its own tests. See
-// state.ts's comment on GuildDecision for why that is not the same anti-pattern
-// BACKLOG.md B4 warns against for the abandoned TradeDecision: this is
-// scaffolding on a locked sequencing table, not a permanently dead feature.
+// PHASE 21.6 added the pure petition/resolution logic with ZERO callers.
+// PHASE 21.7 (this pass) wires the income/upkeep math and destruction pruning
+// into buildings.ts, events.ts, and espionage.ts — but STILL byte-identical in
+// every real game, because no player can hold a guild until 21.8 makes
+// petitions actually fire (nextGuildPetition/resolveGuildPetition still have no
+// caller in year.ts). See state.ts's comment on GuildDecision for why two
+// tranches of "wired but unreachable" is not the TradeDecision/BACKLOG-B4
+// anti-pattern: this is scaffolding on a locked sequencing table, not a
+// permanently dead feature.
 //
 // THE ONE INVARIANT THAT MATTERS MOST: nextGuildPetition is a pure function of
 // (player, year) with ZERO RNG draws. The design doc this implements
@@ -206,16 +208,107 @@ export function resolveGuildPetition(player: PlayerState, decision: GuildDecisio
   }
 }
 
+/** Gross extra income one specialized building of `type` earns per year, on
+ *  top of the base `incomePerYear` it already earns via the ordinary
+ *  markets/mills count (specialized buildings are NOT removed from
+ *  `BuildingState.markets`/`mills` — see the comment on `SpecializedBuilding`
+ *  in state.ts). Itemized separately from `guildUpkeepSurcharge` below rather
+ *  than netted together, matching this codebase's established "explain every
+ *  number" convention (`calculateUpkeepBreakdown`'s own comment) — the 21.10 UI
+ *  can then show "guild bonus +X" and "guild surcharge -Y" as two lines instead
+ *  of one number a player cannot audit. */
+export function guildGrossBonusIncome(type: GuildType, baseIncomePerYear: number): number {
+  return baseIncomePerYear * (guildDefinition(type).incomeMultiplier - 1)
+}
+
+/** The upkeep cost of running a guild — the flip side of the bonus above. */
+export function guildUpkeepSurcharge(type: GuildType, baseIncomePerYear: number): number {
+  return baseIncomePerYear * guildDefinition(type).upkeepSurchargeFraction
+}
+
 /** Net annual gain from specializing one building of `type`, relative to
  *  leaving it unspecialized — the quantity that must be positive for every
  *  guild type, at every buildings.json income figure, for the D2 promise "no
  *  guild is ever worse" to hold. `baseIncomePerYear` is the building's own
  *  incomePerYear (market 500 or mill 600 today), passed in rather than looked
- *  up here, because 21.7's economics wiring is the only caller with the actual
- *  BuildingState-derived income figure in hand. */
+ *  up here so this stays pure and callable from a static data-integrity test
+ *  without constructing a BuildingState at all. */
 export function netGuildBonus(type: GuildType, baseIncomePerYear: number): number {
-  const def = GUILDS[type]
-  const bonus = baseIncomePerYear * (def.incomeMultiplier - 1)
-  const surcharge = baseIncomePerYear * def.upkeepSurchargeFraction
-  return bonus - surcharge
+  return guildGrossBonusIncome(type, baseIncomePerYear) - guildUpkeepSurcharge(type, baseIncomePerYear)
+}
+
+const PRODUCTION = buildingsData.production
+
+function baseIncomePerYearForKind(kind: BuildingKind): number {
+  return kind === 'market' ? PRODUCTION.market.incomePerYear : PRODUCTION.mill.incomePerYear
+}
+
+/** Total gross guild bonus income across every specialized building a player
+ *  holds. Reads each building's OWN incomePerYear from data/buildings.json
+ *  rather than requiring the caller to pass it in, since by 21.7 there is a
+ *  real BuildingState-independent call site (year.ts's income step) that only
+ *  has `player.guilds` in hand, not a per-building income figure. Zero when
+ *  `guilds` is absent or empty — the exact case that keeps every real game
+ *  byte-identical until 21.8 makes petitions fire. */
+export function totalGuildBonusIncome(guilds: SpecializedBuilding[] | undefined): number {
+  return (guilds ?? []).reduce((sum, g) => sum + guildGrossBonusIncome(g.specialization, baseIncomePerYearForKind(g.kind)), 0)
+}
+
+/** Total upkeep surcharge across every specialized building a player holds —
+ *  the itemized upkeep line `calculateUpkeepBreakdown` (buildings.ts) adds. */
+export function totalGuildUpkeepSurcharge(guilds: SpecializedBuilding[] | undefined): number {
+  return (guilds ?? []).reduce((sum, g) => sum + guildUpkeepSurcharge(g.specialization, baseIncomePerYearForKind(g.kind)), 0)
+}
+
+// PHASE 21.7 — prune-on-destruction.
+//
+// Buildings are fungible counts, not tracked identities (see the comment on
+// GuildDecision in state.ts), so when fire or sabotage destroys a market or
+// mill there is no way to know whether the specific building that burned was
+// a specialized one. Rather than an extra RNG draw to decide, this is
+// deterministic: whenever the number of guilds recorded for a kind exceeds the
+// number of buildings of that kind actually standing, the LOWEST-NET-VALUE
+// guild(s) of that kind are pruned first — an unlucky fire costs a player
+// their weakest specialization, not their best investment. Ties broken by
+// GUILD_TYPES order for full determinism.
+//
+// Ranked by (incomeMultiplier - upkeepSurchargeFraction) — the actual net
+// benefit — not by incomeMultiplier alone. With today's data/buildings.json
+// the two orderings happen to coincide (iron < cloth < salt < wine either
+// way), but nothing enforces that going forward: a future guild type with a
+// high multiplier and a disproportionately higher surcharge would rank
+// "richest-looking" by raw multiplier while actually being the weakest
+// investment, and this must keep pruning the weakest one, not the flashiest.
+//
+// Called from events.ts's destroyProductionBuildings and espionage.ts's
+// removeOneProductionBuilding, right after they decrement the building count,
+// so player.guilds can never silently drift out of sync with what a player
+// actually owns. Currently a no-op in every real ENGINE-GENERATED game,
+// because no player has any guilds until 21.8 makes petitions fire.
+// persist.ts's save-file loader has tolerated a hand-crafted guilds[] array
+// since 21.6, and this tranche is what makes it stop being inert if loaded —
+// not reachable through any normal gameplay path, but worth naming precisely.
+export function pruneGuildsToFit(player: PlayerState): SpecializedBuilding[] {
+  const guilds = player.guilds
+  if (!guilds || guilds.length === 0) return guilds ?? []
+
+  const netValue = (g: SpecializedBuilding) =>
+    g.incomeMultiplier - guildDefinition(g.specialization).upkeepSurchargeFraction
+
+  let result = guilds
+  for (const kind of BUILDING_KINDS) {
+    const total = totalOfKind(player, kind)
+    const ofKind = result.filter((g) => g.kind === kind)
+    const excess = ofKind.length - total
+    if (excess <= 0) continue
+
+    const weakestFirst = [...ofKind].sort((a, b) => {
+      const diff = netValue(a) - netValue(b)
+      if (diff !== 0) return diff
+      return GUILD_TYPES.indexOf(a.specialization) - GUILD_TYPES.indexOf(b.specialization)
+    })
+    const toRemove = new Set(weakestFirst.slice(0, excess))
+    result = result.filter((g) => !(g.kind === kind && toRemove.has(g)))
+  }
+  return result
 }

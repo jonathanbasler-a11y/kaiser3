@@ -47,8 +47,7 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **21.4** | Opus | High | Feed dial re-based on demand (#50a) + immigration legibility (#47) | Modes name an adequacy; `max`→`growth`; overfeed lever kept alive; balance gate re-passes |
 | **21.5** | Cursor | — | Standing orders (#50b) | `standingOrders` on PlayerState; UI applies into Decision sheet; year-report "fired" line |
 | **21.6** | Sonnet | Medium | Guild types + plumbing (D2, #49/#51) | Pure `engine/guilds.ts`, zero callers; fraction-based surcharge + charterFee deviations; all fixtures byte-identical |
-| **21.1** | Sonnet | Medium | Scroll-jump fix (#45) — stop `renderGame()` on slider/stepper | Tax/land/spy/war mutate draft or tab-only; `.screen` scroll preserved |
-| **21.2** | Sonnet | Medium | Name destroyed buildings + sabotage grain (#48) | Event/sabotage loss text names markets/mills; strike log shows grain |
+| **21.7a** | Sonnet | Medium | Economics wiring — income/upkeep/prune (D2, #49/#51) | buildings.ts guild income+surcharge; fire/sabotage prune; scarcity.ts verified unaffected; still byte-identical |
 
 ## Phase 0: Scaffold & Ground Rules ✓
 
@@ -1155,7 +1154,13 @@ machinery), then D1 (requires new data file, RNG stream extension, 19A interacti
 
 ---
 
-**Last updated:** Phase 21.6 (guild types + plumbing). 21.0–21.5 merged; #45, #48, #46, #47, #50a/#50b addressed. D2 guild workstream underway: 21.6 lands pure types with zero callers; next is 21.7 (economics wiring — buildings.ts/scarcity.ts/events.ts/espionage.ts, Sonnet, except the evaluator.ts production-equivalents capitalisation term which needs Opus/high), then 21.8 (reducer wiring — petitions start firing, Opus/max), 21.9–21.11. Deferred still: F2, F7; D1 trade routes.
+**Last updated:** Phase 21.7a (economics wiring — income/upkeep/prune only; evaluator.ts's
+capitalisation term still pending). 21.0–21.6 merged; #45, #48, #46, #47, #50a/#50b addressed.
+D2 guild workstream underway: income/upkeep/prune are wired but every fixture still holds zero
+guilds, so nothing is player-visible yet. Next: finish 21.7 with the evaluator.ts production-
+equivalents term (**Opus/high** — the subtle capitalisation-ratio piece, deliberately deferred past
+a model switch), then 21.8 (reducer wiring — petitions start firing, Opus/max), 21.9–21.11.
+Deferred still: F2, F7; D1 trade routes.
 
 ---
 
@@ -1605,3 +1610,66 @@ fields — TypeScript's structural typing does not flag an object literal that o
 property, and this was already true for `standingOrders`/`dike`/`trainingLevel` before 21.6 touched
 anything. Not a regression, but worth naming: the real safety net for these fields is
 `tests/guilds.test.ts`'s explicit clone-round-trip assertions, not the compiler.
+
+---
+
+## Phase 21.7a: Economics Wiring — Income, Upkeep, Prune-on-Destruction (D2, #49/#51) ✓ (partial)
+
+**Scoped deliberately to the Sonnet-appropriate half of 21.7.** The session plan's own effort table
+splits this tranche: "the income/upkeep/prune wiring is routine; the [evaluator.ts production-
+equivalents] capitalisation ratio is the subtle part" that needs Opus/high. This phase lands the
+routine half only. `evaluator.ts`'s production term — making the AI's forward-looking valuation price
+a guild the player already holds — is **not done** and is the next work item, requiring a model
+switch before it starts.
+
+**What's wired**, still byte-identical in every ENGINE-GENERATED game (no player can hold a guild
+until 21.8 makes petitions fire) — the one precise caveat: `persist.ts`'s tolerant save-file parser
+has accepted a hand-crafted `guilds[]` array since 21.6, and this tranche is what makes that stop
+being inert if such a save is ever loaded. Not reachable through any normal gameplay path (nothing
+in the UI or AI serializes a non-empty `guilds` array), but worth stating precisely rather than
+claiming a guarantee that only holds for the engine's own output:
+- `calculateBuildingIncome`/`calculateUpkeepBreakdown`/`calculateUpkeep` (buildings.ts) gain an
+  optional `guilds?: SpecializedBuilding[]` parameter. A specialized building's BASE income still
+  counts via the ordinary `buildings.markets`/`mills` plain count (specialization does not remove it
+  from that count — see `SpecializedBuilding`'s comment in state.ts); the guild bonus/surcharge are
+  itemized as separate `guildBonusIncome`/`guildSurcharge` fields, matching this codebase's
+  established "explain every number" convention rather than netting them into one opaque delta.
+- `year.ts`'s steps 8 (income) and 10 (upkeep) now pass `player.guilds` through, and step 8's income
+  is added to both `player.taler` and `player.score` (the reign-cumulative figure) — the same
+  treatment every other income source gets.
+- `destroyProductionBuildings` (events.ts, fire) and `removeOneProductionBuilding` (espionage.ts,
+  sabotage) now call the new `pruneGuildsToFit` right after decrementing a building count, so
+  `player.guilds` can never silently record more specialized buildings than actually stand. Pruning
+  removes the LOWEST-NET-VALUE guild(s) of the affected kind first — ranked by
+  `incomeMultiplier - upkeepSurchargeFraction`, not raw `incomeMultiplier` alone (an earlier draft
+  used the raw multiplier; the two orderings coincide for today's four types but would not
+  necessarily for a future rebalance, so the audit's catch here is a real fix, not just a rename) —
+  an unlucky fire costs the weakest specialization, not the best investment. Deterministic, no new
+  RNG draw.
+- `scarcity.ts` needed **no code change**: `countBuildings()` already sums `buildings.markets + mills
+  + ...`, and specialization is an overlay on those counts, not a subtraction from them. Verified
+  with a test (`fire/event exposure is identical whether or not a market is specialized`) rather than
+  left as an assumption resting on a comment.
+
+### Acceptance Criteria
+- ✓ `calculateBuildingIncome`/`calculateUpkeepBreakdown`/`calculateUpkeep` byte-identical to the
+  pre-21.7 call when `guilds` is omitted, `undefined`, or `[]`
+- ✓ A specialized building's net gain (income bonus minus upkeep surcharge, together) is strictly
+  positive relative to an identical unspecialized one
+- ✓ `pruneGuildsToFit` prunes exactly the excess, cheapest-first, and never touches guilds of a kind
+  that wasn't destroyed; is a true no-op when `guilds` is absent/empty
+- ✓ Fire (`resolveEvents`, 300 seeds) never leaves more guilds recorded for a kind than buildings of
+  that kind standing
+- ✓ Sabotage (`resolveStrike`) prunes the defender's guilds on a successful hit exactly the same way
+- ✓ `advanceYear-noguild-golden`, `planner-golden`, and `determinism` all byte-identical — the actual
+  proof, since no fixture currently gives any player a guild
+- ✓ Suite: 38 files, 425 tests, `tsc --noEmit` clean
+
+### What's left before 21.7 can be marked done
+`evaluator.ts`'s production term does not yet price a guild a player already holds when valuing
+candidate states — the AI's one-year-forward valuation is currently blind to guild income entirely.
+This is the tranche's genuinely subtle piece (per the session plan: "the capitalisation ratio is the
+subtle part") and is deferred to a fresh pass at Opus/high effort, matching the same
+market-equivalents technique `riskHorizonYears` already uses elsewhere in the same file. Until then,
+21.8's reducer wiring can safely proceed — the evaluator gap only affects how well the AI *values* a
+guild it already has, not whether the reducer computes that value correctly, which this phase proves.
