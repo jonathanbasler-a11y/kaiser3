@@ -14,6 +14,17 @@
       "upkeepPerYear": 150
     }
   },
+  "_guildsNote": "Phase 21.6 (D2, docs/superpowers/specs/2026-08-03-phase19d-economy-depth-design.md), deviating from that spec in three ways. (1) upkeepSurchargeFraction replaces a flat upkeepSurcharge: the doc's own numbers were broken against THIS file's incomePerYear (cloth 1.40/200 nets exactly zero on a market; iron 1.35/180 is strictly worse) because a flat surcharge silently changes ratio the moment incomePerYear is retuned. A fraction reduces the 'no guild ever worse' rule to one static check per type — incomeMultiplier - 1 > upkeepSurchargeFraction — that cannot rot. (2) charterFee (new field, not in the doc) makes 'grant' cost something: without it, granting with an empty treasury is a free way to dodge the refusal unrest spike, which BACKLOG/PLAN.md flags as an exploit. resolveGuildPetition() downgrades an unaffordable grant to a refusal. (3) guildPetitionBaseChance and guildRefusalRepetitionWeight are dropped entirely — nextGuildPetition() is a pure function of state with ZERO new RNG draws (the single most valuable property in the design: it keeps the shared seeded stream byte-identical with every other change in this phase), so there is no roll to weight. petitionMinRank is 0-indexed against data/ranks.json (Baron=0): cloth/iron unlock at Baron so specialization is visible from turn one (bug report #51's 'monotonous, specialization not visible'); salt at Duke(1), wine at Prince(2) per the plan's explicit deviation from the doc's flat Count/Prince gating, chosen because those are the ranks a 60-year game actually reaches — see data/ranks.json's own _populationNote on why Count and above are rarely reached inside 60 years. guildRefusalCooldownYears keeps a refused type from being re-offered next turn without an RNG-weighted roll.",
+  "guilds": {
+    "types": {
+      "cloth": { "incomeMultiplier": 1.40, "upkeepSurchargeFraction": 0.28, "petitionMinRank": 0, "petitionMinBuildingCount": 2, "charterFee": 1500 },
+      "iron":  { "incomeMultiplier": 1.35, "upkeepSurchargeFraction": 0.25, "petitionMinRank": 0, "petitionMinBuildingCount": 1, "charterFee": 1200 },
+      "salt":  { "incomeMultiplier": 1.45, "upkeepSurchargeFraction": 0.30, "petitionMinRank": 1, "petitionMinBuildingCount": 2, "charterFee": 2000 },
+      "wine":  { "incomeMultiplier": 1.50, "upkeepSurchargeFraction": 0.32, "petitionMinRank": 2, "petitionMinBuildingCount": 3, "charterFee": 2500 }
+    },
+    "guildRefusalUnrestSpike": 8,
+    "guildRefusalCooldownYears": 3
+  },
   "commerce": {
     "tradingHouse": {
       "cost": 8000,

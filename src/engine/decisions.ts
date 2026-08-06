@@ -125,6 +125,16 @@ export function validateDecisions(decisions: Decision[]): ValidationResult {
         }
         break
       }
+
+      case 'guild': {
+        // 21.6: shape-only. Whether a 'guild' decision actually does anything
+        // depends on player.pendingGuild at resolution time (21.8's concern), not
+        // on anything checkable from the sheet alone.
+        if (decision.action !== 'grant' && decision.action !== 'refuse') {
+          errors.push(`guild.action must be "grant" or "refuse" (got ${decision.action})`)
+        }
+        break
+      }
     }
   }
 

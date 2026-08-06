@@ -2,7 +2,7 @@
 // determinism tests; this module owns the reverse path + shape validation so a
 // corrupted localStorage blob cannot poison a live session with NaNs.
 
-import { GameState, PlayerState, BuildingState, cloneGameState } from './state.ts'
+import { GameState, PlayerState, BuildingState, GuildType, cloneGameState } from './state.ts'
 
 export const SAVE_FORMAT_VERSION = 1 as const
 
@@ -108,6 +108,38 @@ function normalizePlayer(raw: unknown, expectedId: string): PlayerState {
     if (so.autoSellGrainPercent !== undefined || so.autoFeedMode !== undefined) {
       player.standingOrders = so
     }
+  }
+  // Phase 21.6 (D2). Tolerate-and-skip, same pattern as standingOrders above —
+  // do NOT bump SAVE_FORMAT_VERSION. A malformed entry is dropped individually
+  // rather than rejecting the whole array or the whole save: a corrupted
+  // pendingGuild should not cost the player their granted guilds too.
+  const GUILD_TYPES: readonly GuildType[] = ['cloth', 'iron', 'salt', 'wine']
+  const isGuildType = (v: unknown): v is GuildType => (GUILD_TYPES as readonly string[]).includes(v as string)
+  const isKind = (v: unknown): v is 'market' | 'mill' => v === 'market' || v === 'mill'
+
+  if (Array.isArray(raw.guilds)) {
+    const guilds = raw.guilds.filter(isRecord).flatMap((g) => {
+      if (!isKind(g.kind) || !isGuildType(g.specialization)) return []
+      if (typeof g.incomeMultiplier !== 'number' || !Number.isFinite(g.incomeMultiplier)) return []
+      return [{ kind: g.kind, specialization: g.specialization, incomeMultiplier: g.incomeMultiplier }]
+    })
+    if (guilds.length > 0) player.guilds = guilds
+  }
+  if (isRecord(raw.pendingGuild) && isKind(raw.pendingGuild.kind) && isGuildType(raw.pendingGuild.specialization)) {
+    const queuedYear = raw.pendingGuild.queuedYear
+    player.pendingGuild = {
+      kind: raw.pendingGuild.kind,
+      specialization: raw.pendingGuild.specialization,
+      queuedYear: typeof queuedYear === 'number' && Number.isFinite(queuedYear) ? queuedYear : 0
+    }
+  }
+  if (isRecord(raw.guildCooldowns)) {
+    const cooldowns: PlayerState['guildCooldowns'] = {}
+    for (const type of GUILD_TYPES) {
+      const until = raw.guildCooldowns[type]
+      if (typeof until === 'number' && Number.isFinite(until)) cooldowns[type] = until
+    }
+    if (Object.keys(cooldowns).length > 0) player.guildCooldowns = cooldowns
   }
   return player
 }

@@ -46,6 +46,7 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **21.3** | Opus | High | Harvest becomes a forecast, not a spoiler (#46) | Per-player `weatherOverrides`; draw still consumed; 3-band preview; goldens byte-identical |
 | **21.4** | Opus | High | Feed dial re-based on demand (#50a) + immigration legibility (#47) | Modes name an adequacy; `max`→`growth`; overfeed lever kept alive; balance gate re-passes |
 | **21.5** | Cursor | — | Standing orders (#50b) | `standingOrders` on PlayerState; UI applies into Decision sheet; year-report "fired" line |
+| **21.6** | Sonnet | Medium | Guild types + plumbing (D2, #49/#51) | Pure `engine/guilds.ts`, zero callers; fraction-based surcharge + charterFee deviations; all fixtures byte-identical |
 | **21.1** | Sonnet | Medium | Scroll-jump fix (#45) — stop `renderGame()` on slider/stepper | Tax/land/spy/war mutate draft or tab-only; `.screen` scroll preserved |
 | **21.2** | Sonnet | Medium | Name destroyed buildings + sabotage grain (#48) | Event/sabotage loss text names markets/mills; strike log shows grain |
 
@@ -1154,7 +1155,7 @@ machinery), then D1 (requires new data file, RNG stream extension, 19A interacti
 
 ---
 
-**Last updated:** Phase 21.5 (standing orders #50b). 21.0–21.4 merged; #45, #48, #46, #47, #50a/#50b addressed. Next Claude: D2 guilds at 21.6–21.11 (#49, #51). Deferred still: F2, F7; D1 trade routes.
+**Last updated:** Phase 21.6 (guild types + plumbing). 21.0–21.5 merged; #45, #48, #46, #47, #50a/#50b addressed. D2 guild workstream underway: 21.6 lands pure types with zero callers; next is 21.7 (economics wiring — buildings.ts/scarcity.ts/events.ts/espionage.ts, Sonnet, except the evaluator.ts production-equivalents capitalisation term which needs Opus/high), then 21.8 (reducer wiring — petitions start firing, Opus/max), 21.9–21.11. Deferred still: F2, F7; D1 trade routes.
 
 ---
 
@@ -1504,3 +1505,103 @@ AI never sets standing orders (parity is the shared `Decision[]` shape).
 - ✓ Persisted via existing save path (`clonePlayerState` + `normalizePlayer`)
 - ✓ Reducer / golden fixtures untouched
 
+
+---
+
+## Phase 21.6: Guild Types + Plumbing (D2, #49/#51) ✓
+
+Opens the D2 guild workstream (issues #49 "events at rank promotion" and #51 "monotonous;
+specialization not visible"). Design authority is
+`docs/superpowers/specs/2026-08-03-phase19d-economy-depth-design.md` § D2 — itself explicit that its
+shapes are "NOT final schema, illustrative only" — with three deliberate deviations below.
+
+**Contract for this tranche, per the locked 21.6–21.11 sequencing table**: types, a pure
+`engine/guilds.ts` with **zero callers** anywhere in `src/`, and tolerate-and-default persistence.
+Nothing in `year.ts`, `planner.ts`, or `app.ts` invokes any of it yet — that starts in 21.7
+(economics wiring) and 21.8 (reducer wiring, where petitions first fire). Every fixture must stay
+byte-identical, and does: `advanceYear-noguild-golden`, `planner-golden`, and `determinism` all pass
+unchanged, and a repo-wide grep confirms zero non-test imports of `engine/guilds.ts`.
+
+**`GuildDecision` looks like the abandoned `TradeDecision` anti-pattern (BACKLOG B4: "a
+validated-but-inert no-op is worse than a missing feature") for the two tranches before 21.8 wires
+it up.** It is not the same thing, and `state.ts`'s comment on the `Decision` union says so
+explicitly: `TradeDecision` was a permanently abandoned feature (F2 deferred with no committed
+follow-up); `GuildDecision` is scaffolding on a locked, committed sequencing table. If 21.8 were ever
+abandoned, `GuildDecision` must be removed the same way `TradeDecision` was — this is not licence for
+permanent scaffolding.
+
+### Three deliberate deviations from the design doc
+1. **`GuildDecision` carries no `buildingRef`.** The doc sketched one, but buildings are fungible
+   counts on `BuildingState`, not tracked identities — there is nothing else for the player to
+   choose. The petition itself (`nextGuildPetition`) already fixed kind + specialization when it
+   was queued; the player only answers grant/refuse.
+2. **`upkeepSurchargeFraction` (a fraction of the specialized building's own `incomePerYear`)
+   replaces the doc's flat `upkeepSurcharge`.** Verified directly against `data/buildings.json`:
+   the doc's own numbers (cloth 1.40/200, iron 1.35/180) net to exactly zero or **negative** on a
+   market (`incomePerYear` 500) — iron is strictly worse, the one outcome the doc explicitly
+   forbids. A fraction reduces "no guild is ever worse" to one static check per type
+   (`incomeMultiplier - 1 > upkeepSurchargeFraction`) that is independent of `incomePerYear` and
+   therefore survives future rebalancing — confirmed to hold at 1.3× today's income too.
+3. **`guildPetitionBaseChance` / `guildRefusalRepetitionWeight` are dropped entirely.**
+   `nextGuildPetition(player, year)` is a pure function with **zero RNG draws** — the single most
+   valuable property in this design, since a draw here would shift the shared seeded stream for
+   every player and every later step of the year. Petitions are deterministically eligible instead
+   of a Poisson roll, which also directly serves #51 (a probabilistic petition could hand one ruler
+   four by year 15 and another zero by year 40 — specialization would be luck, not strategy).
+   Replaces the weighted re-roll with a `guildCooldowns` map (the year a refused type becomes
+   offerable again).
+
+One more addition **not** in the doc at all: **`charterFee`** — granting now costs Taler, and an
+unaffordable grant resolves as a refusal (same unrest spike). Without a cost, "grant" would be a free
+way to dodge the refusal's unrest spike, which is a real exploit the session plan flagged explicitly.
+
+`petitionMinRank`: cloth/iron unlock at **Baron (0)** — deliberately, since #51 is specifically about
+specialization not being *visible*, and gating it to Count+ would make it invisible for a typical
+60-year game (see `data/ranks.json`'s own `_populationNote` on why Count and above are rarely
+reached). Salt at Duke(1), wine at Prince(2).
+
+`guildCharterSlots` per rank (`data/ranks.json`) does double duty as both promotion's reward (#49)
+and the design doc's open question #4 (max guild count): Baron 1, Duke 2, Prince 4, Count 5, held
+flat at 5 through Kaiser since the plan does not specify further escalation.
+
+### A structural bug the spec audit caught before it could compound
+The first draft of `nextGuildPetition` picked among eligible types by "readiness"
+(`unspecializedCount - petitionMinBuildingCount`). That quantity is mechanically larger for
+**lower-threshold types** — iron's is 1, versus 2–3 for the others — so iron won essentially every
+multi-way comparison, not just genuine ties. A ruler who always grants could fill their entire
+charter allotment with iron before cloth/salt/wine were ever offered, which is close to the opposite
+of #51's actual goal. Fixed by replacing the readiness ranking with a **year-based rotation** over
+the eligible set — still pure and RNG-free (same `(player, year)` → same pick), but gives every
+eligible type a fair turn. `tests/guilds.test.ts` now asserts the rotation surfaces more than one
+type across 8 years at full eligibility — a test that would have failed under the old algorithm
+(traced by hand: readiness 9/8/8/7 for iron/cloth/salt/wine at rank Prince with 10 markets, so the
+old code always returned iron regardless of year).
+
+### Acceptance Criteria
+- ✓ `PlayerState` carries `guilds`/`pendingGuild`/`guildCooldowns`, all optional; survives
+  `clonePlayerState` and a save/load round trip byte-identically; a malformed save entry is dropped
+  individually (`persist.ts`'s existing `standingOrders` tolerate-and-skip precedent), never
+  rejecting the whole save; **no `SAVE_FORMAT_VERSION` bump** (same precedent as `dike`)
+- ✓ `incomeMultiplier - 1 > upkeepSurchargeFraction` for all 4 types, verified against the actual
+  data file and at 1.3× today's `incomePerYear` (rebalance headroom), not just on paper
+- ✓ Every guild type's `petitionMinRank` lands on Baron/Duke/Prince — the ranks a 60-year game
+  reaches
+- ✓ `charterSlotsForRank` matches the plan's Baron 1 / Duke 2 / Prince 4 / Count 5, and is
+  monotonically non-decreasing across every rank
+- ✓ `nextGuildPetition` is pure and idempotent (same `(player, year)` → same answer); returns null
+  when the charter cap is full, when a petition is already pending, or when no type is eligible;
+  respects `petitionMinRank` and the cooldown map; does **not** structurally favor iron (fixed above)
+- ✓ `resolveGuildPetition` grants only when affordable; an explicit refusal, an unanswered
+  (lapsed) petition, and an unaffordable grant all resolve identically (same unrest spike, same
+  cooldown) — "never respond" cannot dominate answering
+- ✓ Zero callers: confirmed by repo-wide grep, not just by omission
+- ✓ Suite: 37 files, 409 tests, `tsc --noEmit` clean; `advanceYear-noguild-golden`, `planner-golden`,
+  `determinism` all byte-identical
+
+### Known gap, deferred to 21.7
+`clonePlayerState`'s own header comment claims it "fails loudly at compile time if a new field is
+ever added ... without also being copied here." That guarantee has never actually held for *optional*
+fields — TypeScript's structural typing does not flag an object literal that omits an optional
+property, and this was already true for `standingOrders`/`dike`/`trainingLevel` before 21.6 touched
+anything. Not a regression, but worth naming: the real safety net for these fields is
+`tests/guilds.test.ts`'s explicit clone-round-trip assertions, not the compiler.

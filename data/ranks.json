@@ -7,7 +7,8 @@
       "description": "The lowest rung of the noble ladder — but a rung, which is more than most will ever hold.",
       "requirements": [
         { "wealthMin": 15000, "populationMin": 1000, "palaceStages": 0 }
-      ]
+      ],
+      "guildCharterSlots": 1
     },
     {
       "id": 1,
@@ -16,7 +17,8 @@
       "requirements": [
         { "wealthMin": 20000, "populationMin": 1300, "palaceStages": 4 },
         { "wealthMin": 28000, "populationMin": 1900 }
-      ]
+      ],
+      "guildCharterSlots": 2
     },
     {
       "id": 2,
@@ -25,7 +27,8 @@
       "requirements": [
         { "wealthMin": 30000, "populationMin": 1700, "palaceStages": 8 },
         { "wealthMin": 42000, "populationMin": 2300 }
-      ]
+      ],
+      "guildCharterSlots": 4
     },
     {
       "id": 3,
@@ -35,7 +38,8 @@
         { "wealthMin": 50000, "populationMin": 2100, "palaceStages": 12 },
         { "wealthMin": 65000, "populationMin": 2700 }
       ],
-      "unlockedFeature": "tradingHouses"
+      "unlockedFeature": "tradingHouses",
+      "guildCharterSlots": 5
     },
     {
       "id": 4,
@@ -45,7 +49,8 @@
         { "wealthMin": 75000, "populationMin": 2400, "palaceStages": 14 },
         { "wealthMin": 95000, "populationMin": 2900 },
         { "wealthMin": 120000, "populationMin": 1800, "tradingHousesMin": 1 }
-      ]
+      ],
+      "guildCharterSlots": 5
     },
     {
       "id": 5,
@@ -54,7 +59,8 @@
       "requirements": [
         { "wealthMin": 100000, "populationMin": 2600, "cathedral": true },
         { "wealthMin": 160000, "populationMin": 1800, "tradingHousesMin": 2 }
-      ]
+      ],
+      "guildCharterSlots": 5
     },
     {
       "id": 6,
@@ -63,7 +69,8 @@
       "requirements": [
         { "wealthMin": 150000, "populationMin": 2800, "palaceStages": 15 },
         { "wealthMin": 240000, "populationMin": 2000, "tradingHousesMin": 3 }
-      ]
+      ],
+      "guildCharterSlots": 5
     },
     {
       "id": 7,
@@ -72,8 +79,10 @@
         { "wealthMin": 200000, "populationMin": 3200, "palaceStages": 16, "cathedral": true },
         { "wealthMin": 320000, "populationMin": 2200, "tradingHousesMin": 3 }
       ],
-      "description": "Emperor of the Holy Roman Empire — Victory!"
+      "description": "Emperor of the Holy Roman Empire — Victory!",
+      "guildCharterSlots": 5
     }
   ],
+  "_guildCharterSlotsNote": "Phase 21.6. Cumulative total slots available AT that rank (not a per-promotion delta) — PLAN.md's guild design fixes Baron 1 / Duke 2 / Prince 4 / Count 5 explicitly; Margrave through Kaiser hold flat at 5 because the plan does not specify further escalation and those ranks are rarely reached inside a 60-year game (see _populationNote) — flat-and-documented beats an invented curve nobody has reviewed. One mechanism answers both 'what does promotion grant' (#49) and the design doc's open question #4 (max guild count): the cap IS the slot count.",
   "_populationNote": "Calibrated against what the simulation actually sustains. Phase 8 raised per-peasant consumption from 0.5 to 9.0, which made food a genuine constraint and LOWERED the sustainable population: realms now grow toward the land they can work (~2,400-2,600 peasants on the land an AI typically buys) and are knocked back hard by drought sequences. Earlier figures ran to 20,000 (Phase 0, before the population model existed) and then 4,200 (Phase 6, before food mattered); both made the senior ranks unreachable."
 }
