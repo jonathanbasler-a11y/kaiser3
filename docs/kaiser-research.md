@@ -33,6 +33,17 @@ Kaiser predates and inspired the entire German "Wirtschaftssimulation" (economic
 ### Core Gameplay Loop (per game-year turn)
 1. **Harvest & grain calculation** — yield from farmland, spoilage %, weather effects.
 2. **Grain distribution decision** — feed population at Max (80%)/Min (20%)/Required/Custom; under-feeding causes unrest & emigration, over-feeding causes disease/mortality. Storage must stay ≥20% above population need.
+   > ⚠️ **Superseded in Phase 21.4 — this line describes the 1984 original, not the rebuild.** The
+   > percentages above are shares of *barn stock*, which is faithful but means one setting delivers a
+   > different share of demand every year; bug report #50a is a player hitting exactly that. The
+   > rebuild's modes name a share of **demand** instead (Min 75% / Required 100% / Growth 115% /
+   > Custom 60–150%), and `Max` no longer exists. Departing from the original's input conventions is
+   > licensed by *Where the Original Falls Short* below; the outcome half of this line
+   > (under-feed → unrest, over-feed → disease) is unchanged and still load-bearing. See PLAN.md §21.4.
+   >
+   > **"Storage must stay ≥20% above population need" was never implemented** and has no analogue in
+   > the code — the `0.2` that superficially echoed it was `minStockFraction`, an unrelated dial
+   > constant, now removed. Recorded in BACKLOG rather than left reading as a live requirement.
 3. **Land trading** — buy/sell farmland (production) and building land (construction), price varies (~16–70 Taler/hectare); farmland productivity is gated by available peasant labor.
 4. **Trade partner / market screen** — buy/sell corn and land vs. the Kaiser (NPC) or other players; price comparison shopping. In multiplayer, players set their own buy/sell prices for others (min. 10% of goods must be offered per in-fiction imperial decree — a nice period-flavor rule).
 5. **State income / taxation** — set VAT, income tax, import tariffs, and judicial "greed" (fair ↔ corrupt); population has a tolerance ceiling.

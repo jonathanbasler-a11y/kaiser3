@@ -5,6 +5,7 @@ import { LandHolding, PopulationState, GrainDecision } from '../src/engine/state
 import economyData from '../data/economy.json'
 
 const SPOILAGE_RATE = economyData.storage.spoilagePercentage
+const FEEDING = economyData.feeding
 
 describe('laborGatedFarmland', () => {
   it('caps productive farmland at labor capacity when land exceeds available peasants', () => {
@@ -158,21 +159,38 @@ describe('resolveFeeding', () => {
     expect(result.isOverfed).toBe(false)
   })
 
-  it('feeding at min (20% of stock) underfeeds when the barn holds barely a year', () => {
+  // 21.4 (#50a): modes name a share of DEMAND, not of barn stock. The key
+  // property is that the same mode means the same thing regardless of barn size
+  // — which is exactly what the old dial could not promise.
+  it('min underfeeds regardless of how full the barn is', () => {
     const decision: GrainDecision = { type: 'grain', feedLevel: 'min' }
-    const result = resolveFeeding(decision, population, required * 1.4)
-    expect(result.isUnderfed).toBe(true)
+    for (const stock of [required * 1.4, required * 10, required * 100]) {
+      const result = resolveFeeding(decision, population, stock)
+      expect(result.isUnderfed).toBe(true)
+      expect(result.isOverfed).toBe(false)
+      expect(result.feedAdequacy).toBeCloseTo(FEEDING.minAdequacy, 6)
+    }
+  })
+
+  it('growth feeds a surplus without tipping into disease', () => {
+    const decision: GrainDecision = { type: 'grain', feedLevel: 'growth' }
+    const result = resolveFeeding(decision, population, required * 10)
+    expect(result.feedAdequacy).toBeCloseTo(FEEDING.growthAdequacy, 6)
+    expect(result.isUnderfed).toBe(false)
     expect(result.isOverfed).toBe(false)
   })
 
-  it('feeding at max (80% of a full barn) overfeeds the population', () => {
-    const decision: GrainDecision = { type: 'grain', feedLevel: 'max' }
-    const result = resolveFeeding(decision, population, required * 2) // 80% of 2x = 1.6x the requirement
+  // The overfeed-to-disease lever must stay REACHABLE. economy.ts's own header
+  // and CLAUDE.md both call it a real scarcity lever, and if no mode could cross
+  // overfedAdequacy the mechanic would be dead code.
+  it('custom can still be pushed past the overfeeding threshold', () => {
+    const decision: GrainDecision = { type: 'grain', feedLevel: 'custom', customPercentage: FEEDING.customMaxAdequacy * 100 }
+    const result = resolveFeeding(decision, population, required * 10)
     expect(result.isOverfed).toBe(true)
   })
 
   it('cannot consume more grain than is in stock', () => {
-    const decision: GrainDecision = { type: 'grain', feedLevel: 'max' }
+    const decision: GrainDecision = { type: 'grain', feedLevel: 'growth' }
     const result = resolveFeeding(decision, population, 100)
     expect(result.grainConsumed).toBeLessThanOrEqual(100)
     expect(result.grainStockAfter).toBeGreaterThanOrEqual(0)

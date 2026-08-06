@@ -300,6 +300,9 @@ export function advanceYear(
     report.deaths = popResult.deaths
     report.emigration = popResult.emigration
     report.immigration = popResult.immigration
+    report.immigrationGate = popResult.immigrationGate
+    report.feedTargetAdequacy = feeding.targetAdequacy
+    report.feedAdequacy = feeding.feedAdequacy
     report.unrestFromFeeding = player.population.unrest - unrestAtYearStart
 
     // Extinction: population collapsed to nothing. No heir is possible — this is

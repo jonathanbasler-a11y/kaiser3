@@ -5,6 +5,7 @@
 import * as readline from 'node:readline/promises'
 import { readFileSync } from 'node:fs'
 import { stdin, stdout } from 'node:process'
+import economyData from '../data/economy.json'
 import { GameState, Decision, GrainDecision, TaxDecision, EspionageDecision } from '../src/engine/state.ts'
 import { runGame } from '../src/engine/gameLoop.ts'
 import { getRankName } from '../src/engine/ranks.ts'
@@ -20,6 +21,7 @@ import { planningSeed } from '../src/ai/planningSeed.ts'
 // near-instantly for a file redirect, silently orphaning any .question() calls
 // made after that point. Buffering avoids that trap while behaving identically
 // from the caller's perspective either way.
+const FEEDING = economyData.feeding
 const isInteractive = stdin.isTTY === true
 const rl = isInteractive ? readline.createInterface({ input: stdin, output: stdout }) : undefined
 const bufferedLines = isInteractive ? [] : readFileSync(0, 'utf-8').split('\n').map((l) => l.replace(/\r$/, ''))
@@ -68,15 +70,20 @@ async function getHumanDecisions(state: GameState, humanId: string): Promise<Dec
 
   // Validate rather than casting the raw string: an unrecognised value used to
   // sail straight into the engine and produce NaN losses.
-  const FEED_LEVELS: Array<GrainDecision['feedLevel']> = ['min', 'max', 'required', 'custom']
-  const feedInput = await ask('Feed level (min/max/required/custom)', 'required')
+  const FEED_LEVELS: Array<GrainDecision['feedLevel']> = ['min', 'required', 'growth', 'custom']
+  const feedInput = await ask('Feed level (min/required/growth/custom)', 'required')
   const feedLevel = (FEED_LEVELS as string[]).includes(feedInput)
     ? (feedInput as GrainDecision['feedLevel'])
     : 'required'
   if (feedLevel !== feedInput) {
     console.log(`  (unrecognised feed level "${feedInput}" — using "required")`)
   }
-  const customPercentage = feedLevel === 'custom' ? await askNumber('Custom feed % (20-80)', 50) : undefined
+  const customPercentage = feedLevel === 'custom'
+    ? await askNumber(
+        `Custom feed % of demand (${FEEDING.customMinAdequacy * 100}-${FEEDING.customMaxAdequacy * 100})`,
+        FEEDING.customDefaultAdequacy * 100
+      )
+    : undefined
 
   const sellGrain = await askNumber('Grain to sell to the Kaiser', 0)
   const buyGrain = await askNumber('Grain to buy from the Kaiser', 0)

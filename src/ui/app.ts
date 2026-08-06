@@ -75,6 +75,7 @@ const PRODUCTION = buildingsData.production
 const MITIGATION = buildingsData.mitigation
 const COMMERCE = buildingsData.commerce
 const HARVEST = economyData.harvest
+const FEEDING = economyData.feeding
 const ESPIONAGE = economyData.espionage
 const WARFARE = economyData.warfare
 
@@ -1019,6 +1020,36 @@ function populationProjectionText(player: GameState['players'][string], draft: D
   return `Projected population next year at this feed level: ${after} (currently ${before}; ${deltaText}${breakdown ? ` — ${breakdown}` : ''}). Same full-year estimate as the footer — includes harvest, feeding, and events.${spread}`
 }
 
+// Issue #47 — "Immigration: is it driven by food prestige tax?"
+//
+// It is driven by neither prestige nor tax, and most of the time it is simply
+// switched off: it needs low unrest AND an adequacy inside a band. A bare
+// "Immigration: 0" cannot convey that, and the player reasonably assumed the
+// number meant something it did not. Naming the failing gate and the player's
+// own readings answers the question far better than any number would.
+//
+// The verdict comes from the engine's own gate evaluation (population.ts), not
+// from re-testing the thresholds here — a second copy of the rule is exactly
+// what uiCoherence.test.ts exists to prevent.
+function immigrationGateText(preview: YearPreview): string | null {
+  const gate = preview.immigrationGate
+  if (!gate) return null
+  if (gate.unrestOk && gate.adequacyOk) {
+    return `Newcomers are arriving: unrest ${gate.unrest.toFixed(0)} is under ${gate.maxUnrest}, `
+      + `and feeding ${Math.round(gate.adequacy * 100)}% sits in the ${Math.round(gate.minAdequacy * 100)}–${Math.round(gate.maxAdequacy * 100)}% window that draws them.`
+  }
+  const blockers: string[] = []
+  if (!gate.unrestOk) blockers.push(`unrest must be under ${gate.maxUnrest} (yours: ${gate.unrest.toFixed(0)})`)
+  if (!gate.adequacyOk) {
+    const where = gate.adequacy < gate.minAdequacy ? 'too little' : 'too much'
+    blockers.push(
+      `feeding must be ${Math.round(gate.minAdequacy * 100)}–${Math.round(gate.maxAdequacy * 100)}% of demand `
+      + `(yours: ${Math.round(gate.adequacy * 100)}% — ${where})`
+    )
+  }
+  return `No immigration: ${blockers.join(', and ')}. It is not affected by prestige, taxes, or land.`
+}
+
 // Bug report #28 ("Population growth — unclear where growth and shrinking is
 // coming from — should be seen at end turn stats and during turn in
 // forecast"): births/deaths/migration were already computed every year
@@ -1134,35 +1165,62 @@ function renderGrainTab(player: GameState['players'][string], state: GameState):
 
   const barnLine = `Barn now: ${player.grainStock.toFixed(0)} of ${storageCapacity(player.population, player.buildings.granary).toFixed(0)} capacity.`
   const helpText = preview
-    ? `${barnLine} "At feeding" is stock after spoilage, harvest and the storage cap — what Custom/Min/Max percentages apply to. The true harvest is revealed in the year report.`
-    : `${barnLine} Year preview unavailable — "At feeding" shows barn stock only; feed percentages apply to this figure until preview loads.`
+    ? `${barnLine} "At feeding" is stock after spoilage, harvest and the storage cap — the ceiling on what you can actually hand out. Feed levels are shares of Demand, not of this figure. The true harvest is revealed in the year report.`
+    : `${barnLine} Year preview unavailable — "At feeding" shows barn stock only until it loads. Feed levels are shares of Demand either way.`
   container.appendChild(el('p', { class: 'help-text' }, helpText))
   const projectionLine = el('p', { class: 'help-text' }, populationProjectionText(player, draft))
   container.appendChild(projectionLine)
 
+  // Issue #47 — answer the question that was actually asked, on the tab where
+  // the feed dial that controls it lives.
+  const gateLine = el('p', { class: 'help-text' }, preview ? (immigrationGateText(preview) ?? '') : '')
+  if (gateLine.textContent) container.appendChild(gateLine)
+
+  // Issue #50a — when the barn cannot cover the dial, say so rather than letting
+  // the player conclude the dial does not work.
+  if (preview && preview.feedTargetAdequacy - preview.feedAdequacy > 0.005) {
+    container.appendChild(el('p', { class: 'help-text warn' },
+      `Barn short: you asked for ${Math.round(preview.feedTargetAdequacy * 100)}% of demand but only `
+      + `${Math.round(preview.feedAdequacy * 100)}% is in store. Feeding is always capped by what you actually hold.`
+    ))
+  }
+
+  // Issue #50a: every mode now names a share of DEMAND, so the label can state
+  // the number outright. Under the old stock-fraction dial it could not — "Min"
+  // meant a different adequacy every year, which is exactly what the player
+  // reported as the relationship shifting under them.
+  const pct = (fraction: number) => `${Math.round(fraction * 100)}%`
   container.appendChild(segmented<DecisionDraft['feedLevel']>({
     options: [
-      { value: 'min', label: 'Min' },
-      { value: 'required', label: 'Required' },
-      { value: 'max', label: 'Max' },
+      { value: 'min', label: `Min ${pct(FEEDING.minAdequacy)}` },
+      { value: 'required', label: `Required ${pct(FEEDING.requiredAdequacy)}` },
+      { value: 'growth', label: `Growth ${pct(FEEDING.growthAdequacy)}` },
       { value: 'custom', label: 'Custom' }
     ],
     value: draft.feedLevel,
     // Feed mode toggles whether the Custom % slider exists — tab body only, not full screen.
     onChange: (v) => { draft.feedLevel = v; rerenderActiveTab?.() },
     title: 'Feed level',
-    tooltip: 'How much grain to give your people this year. Min / Max / Custom are fractions of your stock at feeding time (after harvest; Kaiser’s original dial: 20% / 80% / 20–80%). Required is exactly Demand.'
+    tooltip: `How much grain to hand out, as a share of Demand — so the same setting means the same thing every year. `
+      + `Min ${pct(FEEDING.minAdequacy)} is austerity: cheap, but unrest rises and births slow. `
+      + `Required ${pct(FEEDING.requiredAdequacy)} is exactly enough. `
+      + `Growth ${pct(FEEDING.growthAdequacy)} feeds a surplus, which is what attracts newcomers. `
+      + `All of them are still capped by what is actually in the barn.`
   }))
 
   if (draft.feedLevel === 'custom') {
     container.appendChild(sliderField({
-      label: 'Feed percentage of stock', value: draft.customPercentage, min: economyData.feeding.customMinPercentage, max: economyData.feeding.customMaxPercentage,
+      label: 'Feed % of demand',
+      value: draft.customPercentage,
+      min: Math.round(FEEDING.customMinAdequacy * 100),
+      max: Math.round(FEEDING.customMaxAdequacy * 100),
       onChange: (v) => {
         draft.customPercentage = v
         projectionLine.textContent = populationProjectionText(player, draft)
         refreshPreviewNow()
       },
-      tooltip: 'Share of stock at feeding time (after this year’s harvest) to hand out — not a percentage of Demand. Kaiser’s original dial.'
+      tooltip: `Share of Demand to hand out. Below ${pct(FEEDING.underfedAdequacy)} counts as underfed and drives unrest; `
+        + `above ${pct(FEEDING.overfedAdequacy)} counts as overfed and invites disease.`
     }))
   }
 

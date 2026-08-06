@@ -129,7 +129,7 @@
   "coverage": {
     "strikesResolved": 8,
     "warsResolved": 7,
-    "eventsFired": 64,
+    "eventsFired": 55,
     "positiveEventsFired": 13,
     "promotions": 1,
     "shortfallsNoted": 338
@@ -176,15 +176,15 @@
         "brigitta": {
           "id": "brigitta",
           "name": "Brigitta",
-          "taler": 11404.342637952384,
+          "taler": 11424.938732952385,
           "land": {
             "farmland": 10804,
             "buildingLand": 0
           },
-          "grainStock": 16000,
+          "grainStock": 14000,
           "population": {
-            "peasants": 873.8099391522252,
-            "unrest": 28.6
+            "peasants": 882.3483260275385,
+            "unrest": 13.600000000000001
           },
           "buildings": {
             "markets": 0,
@@ -201,7 +201,7 @@
           "guards": 0,
           "saboteurs": 0,
           "tradingHouses": 0,
-          "score": 1961.4506399999998,
+          "score": 1982.046735,
           "reignYears": 1,
           "dead": false,
           "trainingLevel": 1,
@@ -304,9 +304,9 @@
             "farmland": 9834.778606516127,
             "buildingLand": 0
           },
-          "grainStock": 4554.962348682136,
+          "grainStock": 7086.784064954234,
           "population": {
-            "peasants": 247.75277272379685,
+            "peasants": 479.49687182342115,
             "unrest": 100
           },
           "buildings": {
@@ -324,7 +324,7 @@
           "guards": 0,
           "saboteurs": 0,
           "tradingHouses": 0,
-          "score": 12017.268601819029,
+          "score": 15821.959378879588,
           "reignYears": 10,
           "dead": false,
           "trainingLevel": 5,
@@ -428,9 +428,9 @@
             "farmland": 10242.764097987347,
             "buildingLand": 0
           },
-          "grainStock": 771.7398543796556,
+          "grainStock": 1253.0257058005093,
           "population": {
-            "peasants": 42.04344696226632,
+            "peasants": 78.40839583355779,
             "unrest": 100
           },
           "buildings": {
@@ -448,7 +448,7 @@
           "guards": 0,
           "saboteurs": 0,
           "tradingHouses": 0,
-          "score": 16093.082650660124,
+          "score": 23711.571780395177,
           "reignYears": 25,
           "dead": false,
           "trainingLevel": 5,
@@ -458,14 +458,14 @@
         "conrad": {
           "id": "conrad",
           "name": "Conrad",
-          "taler": 762.0068853530163,
+          "taler": 764.6745235453163,
           "land": {
-            "farmland": 7162.641680956665,
+            "farmland": 7162.890504309452,
             "buildingLand": 0
           },
-          "grainStock": 3230.470759254125,
+          "grainStock": 3242.247723546044,
           "population": {
-            "peasants": 839.6620211166495,
+            "peasants": 843.1152744400155,
             "unrest": 0
           },
           "buildings": {
@@ -550,12 +550,12 @@
           "name": "Brigitta",
           "taler": 0,
           "land": {
-            "farmland": 9173.706222872024,
+            "farmland": 9173.731080876487,
             "buildingLand": 0
           },
-          "grainStock": 296.8664023279635,
+          "grainStock": 488.63160143897335,
           "population": {
-            "peasants": 17.4872865121316,
+            "peasants": 33.061163175933395,
             "unrest": 100
           },
           "buildings": {
@@ -573,7 +573,7 @@
           "guards": 0,
           "saboteurs": 0,
           "tradingHouses": 0,
-          "score": 74.23484461172572,
+          "score": 133.34423086712889,
           "reignYears": 2,
           "dead": false,
           "heir": "brigitta",
@@ -584,14 +584,14 @@
         "conrad": {
           "id": "conrad",
           "name": "Conrad",
-          "taler": 924.7143149544521,
+          "taler": 929.2135950120086,
           "land": {
-            "farmland": 7029.536772981234,
+            "farmland": 7030.801515549043,
             "buildingLand": 0
           },
-          "grainStock": 9482.459182508039,
+          "grainStock": 9535.233168752267,
           "population": {
-            "peasants": 1054.549841232789,
+            "peasants": 1060.3741519869075,
             "unrest": 0
           },
           "buildings": {
@@ -609,7 +609,7 @@
           "guards": 0,
           "saboteurs": 0,
           "tradingHouses": 0,
-          "score": 7204.189593463421,
+          "score": 7239.254808857635,
           "reignYears": 10,
           "dead": false,
           "heir": "conrad",

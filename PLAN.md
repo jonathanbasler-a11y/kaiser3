@@ -44,6 +44,7 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **21.1** | Cursor | — | Scroll jump on tax/land controls (#45) | Merged in `66c1919` (#53) |
 | **21.2** | Cursor | — | Name destroyed markets/mills, sabotage grain (#48) | Merged in `32ff597` |
 | **21.3** | Opus | High | Harvest becomes a forecast, not a spoiler (#46) | Per-player `weatherOverrides`; draw still consumed; 3-band preview; goldens byte-identical |
+| **21.4** | Opus | High | Feed dial re-based on demand (#50a) + immigration legibility (#47) | Modes name an adequacy; `max`→`growth`; overfeed lever kept alive; balance gate re-passes |
 | **21.1** | Sonnet | Medium | Scroll-jump fix (#45) — stop `renderGame()` on slider/stepper | Tax/land/spy/war mutate draft or tab-only; `.screen` scroll preserved |
 | **21.2** | Sonnet | Medium | Name destroyed buildings + sabotage grain (#48) | Event/sabotage loss text names markets/mills; strike log shows grain |
 
@@ -1152,7 +1153,7 @@ machinery), then D1 (requires new data file, RNG stream extension, 19A interacti
 
 ---
 
-**Last updated:** Phase 21.3 (harvest forecast #46). 21.0–21.2 merged; #45, #48, #46 cleared. Next Claude: 21.4 (feed-dial semantics #50a + population legibility #47). Next Cursor: 21.5 standing orders (needs 21.4's `FeedMode`). Then D2 guilds at 21.6–21.11. Deferred still: F2, F7; D1 trade routes.
+**Last updated:** Phase 21.4 (feed dial #50a + immigration legibility #47). 21.0–21.3 merged; #45, #48, #46 cleared and #47/#50a addressed. Next Cursor: 21.5 standing orders — `FeedMode` now exists in `state.ts`. Then Claude: D2 guilds at 21.6–21.11 (#49, #51). Deferred still: F2, F7; D1 trade routes.
 
 ---
 
@@ -1364,3 +1365,122 @@ refusal still stands as the default; `CLAUDE.md`'s invariant has been amended to
 record that the bar is a feature unbuildable any other way without breaking a *different* invariant.
 21.3 cleared it because the alternative — a client-side harvest estimator — would have broken the
 one-oracle rule, which is the worse failure. Perf work does not clear it.
+
+## Phase 21.4: The Feed Dial Means One Thing (#50a) + Why Immigration Is Off (#47) ✓
+
+### #50a — the dial
+
+`resolveFeeding` computed `grainOffered` as a fraction of **barn stock** (`min` 0.2, `max` 0.8, custom
+20–80%), then derived adequacy from it. So one setting delivered a different share of demand every
+year depending on how full the barn happened to be. The report — *"strange, relationship seems to
+change, why?"* — was an accurate reading of the mechanic, not a misreading of the UI. Re-based onto
+**demand**:
+
+| Mode | Adequacy | Effect |
+|---|---|---|
+| Min | 0.75 | Austerity — under `underfedAdequacy`, so unrest rises and births damp |
+| Required | 1.00 | Exactly demand; unchanged from before |
+| Growth | 1.15 | Inside the immigration window `[0.95, 1.30]`, below `overfedAdequacy` |
+| Custom | 0.60–1.50 | Replaces the 20–80%-of-stock slider |
+
+Everything stays clamped by actual stock, so a starving realm still just eats what it has —
+`targetAdequacy` is reported alongside the realised figure so the Grain tab can say *"you asked for
+115% but only 62% is in store"* rather than looking broken. Mode buttons now read `Min 75%` /
+`Required 100%` / `Growth 115%`, which the old dial could not have stated at all.
+
+`'max'` was **removed**, not redefined: at 0.8 of stock it meant a different adequacy every year and
+overfed into disease whenever the barn was full. `validateDecisions` rejects it outright rather than
+letting `resolveFeeding`'s default branch silently degrade it to `required`.
+
+**Deviation from the sketch, deliberately.** The plan specified a custom range of 0.60–**1.35**. But
+`overfedAdequacy` is 1.4 and Growth is 1.15, so at 1.35 **no mode could reach overfeeding at all** —
+which would have made `population.diseaseOverfeedMortality` dead code and quietly deleted the
+over-feed→disease lever that `CLAUDE.md` and `economy.ts`'s own header both call a real scarcity
+lever. `customMaxAdequacy` is 1.5 instead. Overfeeding is now reachable only by deliberately dragging
+Custom past the warning; no preset can do it by accident. `feedingBands.test.ts` asserts both halves.
+
+### #47 — immigration
+
+The question was *"is it driven by food prestige tax?"* It is driven by none of those, and most of the
+time it is simply **off**: it needs `unrest < 15` **and** adequacy in `[0.95, 1.30]`. A bare
+"Immigration: 0" cannot say that. `applyPopulationDynamics` now returns an `ImmigrationGate` — the
+verdict, the player's own readings, and the thresholds applied — which `year.ts` records and the Grain
+tab renders:
+
+> No immigration: feeding must be 95–130% of demand (yours: 75% — too little). It is not affected by
+> prestige, taxes, or land.
+
+The UI renders the engine's verdict and never re-tests the condition; a second copy of the rule is
+what `uiCoherence.test.ts` exists to prevent. The RNG draw stays unconditional (`population.ts`),
+so a gated year does not shift any later roll.
+
+### Acceptance Criteria
+- ✓ Every preset mode delivers its stated adequacy at barn sizes 2×, 10×, and 200× demand — the
+  property the old dial could not hold, and the actual content of the bug report
+- ✓ Barn still caps the dial; `targetAdequacy` and `feedAdequacy` diverge exactly when it bites
+- ✓ Growth inside the immigration window and below the disease threshold; Min below the underfed line
+- ✓ Overfeeding still reachable via Custom, and still increases deaths — the lever is not dead code
+- ✓ No preset mode can overfeed by accident
+- ✓ Validation bounds read from data, so retuning cannot leave the validator rejecting legal settings
+- ✓ Immigration gate reports the blocking condition; draw stays unconditional
+- ✓ AI can reach `growth` (decision parity), gated on affordability so the candidate sweep does not
+  grow in positions where overfeeding is not an option
+- ✓ Verified in-browser: dial reads `Min 75% / Required 100% / Growth 115%`, slider 60–150, and
+  switching to Min flips the immigration line to the blocked explanation with the real readings
+- ✓ `scripts/play.ts` (the CLI) prompts the real range and defaults to a **legal** value. It was
+  offering "Custom feed % (20-80)" defaulting to 50 — below the new 60 minimum — and `play.ts` never
+  calls `validateDecisions`, so pressing Enter submitted an out-of-range sheet that `resolveFeeding`
+  silently clamped. Nothing in the suite covers the CLI, which is exactly why it was missed.
+- ✓ Suite: 35 files, 351 tests, `tsc --noEmit` clean
+
+### Fixture regeneration — deliberate, reviewed
+`advanceYear-noguild-golden.json` **moved**, and had to: the fixture's `brigitta` sheet feeds `'min'`,
+whose meaning genuinely changed. 25 lines, reviewed rather than re-baselined: unrest 28.6 → 13.6 and
+peasants up for the min-feeder (0.75 of demand is kinder than 0.2 of a thin barn), grain/score
+knock-on, and sub-0.4% drift for the other rulers via the shared corn market. No structural change, no
+new or removed keys. `eventsFired` 64 → 55; every other coverage counter held.
+
+`planner-golden.json` did **not** move, and the reason is worth stating precisely, because the short
+version ("the planner emits `'required'`, whose meaning is unchanged") is misleading. At starter
+conditions the affordability gate *passes* — 11,000 grain > 8,000 × 1.15 — so `'growth'` **is**
+generated and evaluated; it simply loses the argmax. The fixture is stable for the stronger reason
+that `'growth'` is appended **after** the four `required` options and `min`, so every pre-existing
+candidate keeps its index and first-best tie-breaking is untouched. A future change that inserts a
+candidate earlier in that list would move the fixture even with identical scoring.
+
+Worth noting that the chronicle additions (`immigrationGate`, `feedAdequacy`) do not appear in the
+fixture at all — 21.0's decision to snapshot state and exclude the chronicle is what keeps a
+reporting change from forcing a determinism regeneration.
+
+### Balance
+`npm run balance` at its default configuration — **200 seeded matches × 60 years × 5 personality
+rulers** — **PASSED all five verdicts** with no retuning: margin flatness slope −1.074e-2 (one-sided
+limit 0.002), loss persistence 77.8% late / 1.01 ratio, late lead volatility 52.5%, no early runaway
+(yr-20 leader wins 51.0%), no death spiral (holdings growth 1.35, population retention 2.20, late
+non-leader −1.41%, extinction 0.0%). Configuration recorded because the bare numbers are not
+comparable to the 21.3 baseline without it. `docs/balance-report.md` is left for 21.11, which owns
+the single deliberate end-of-workstream update.
+
+**What the gate could not exercise.** `scripts/balance.ts` runs personality planners, and
+`src/ai/planner.ts` never emits `feedLevel: 'custom'` — so no balance match ever overfeeds. Combined
+with every preset capping at 1.15, overfeeding is now reachable **only by a human deliberately
+dragging Custom past the warning**. Before 21.4, `'max'` (0.8 of a barn holding up to 2.5 years of
+demand) reached adequacy ~2.0 and fired routinely, which is part of why the fixture's `eventsFired`
+dropped 64 → 55. So "the disease lever is not dead code" is true but narrower than it sounds: the
+lever is alive and tested, but it is now a player-only failure mode rather than a pressure the
+simulation applies on its own. Recorded as BACKLOG S9 rather than silently widened here, because
+teaching the AI to price a deliberate overfeed is a 21.9-shaped question.
+
+Also worth naming: custom 131–140% is a dead zone — above `immigrationMaxAdequacy` (1.30) so it
+attracts nobody, below `overfedAdequacy` (1.40) so it harms nobody. Legible (the gate text says "too
+much") but with no upside at any point in the band.
+
+### Doc-hierarchy note
+`docs/kaiser-research.md:35` is **source of truth #1** and described the Max(80%)/Min(20%) dial, so
+21.4 could not supersede it from PLAN.md alone. It now carries a ⚠️ annotation marking the
+percentages as the 1984 original's, pointing here, and confirming the outcome half (under-feed →
+unrest, over-feed → disease) is unchanged. Departing from the original's *input conventions* is
+licensed by that doc's own "Where the Original Falls Short" section; nothing licensed departing
+silently. The same line's "Storage must stay ≥20% above population need" turns out never to have been
+implemented — filed as BACKLOG S8 rather than invented on the spot, since whether it was a hard rule
+or player advice changes the design substantially.
