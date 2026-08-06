@@ -1,10 +1,13 @@
-// Phase 21.6 — guild types & pure logic, ZERO reducer callers.
+// Phase 21.6 — guild types & pure logic.
 //
-// This test file is the entire proof of correctness for this tranche: nothing
-// in year.ts calls engine/guilds.ts yet, so nothing here can be caught by the
-// golden fixtures. The `byte-identity` describe block below IS the fixture
-// equivalent for a no-callers tranche — it proves the new types are inert by
-// construction, not just by omission.
+// As of 21.6, nothing in year.ts called engine/guilds.ts at all, so this file
+// was the entire proof of correctness. Phase 21.7 (see tests/guildEconomics.test.ts)
+// wired calculateBuildingIncome/Upkeep and prune-on-destruction into
+// year.ts/events.ts/espionage.ts — reachable now, but still a no-op in every
+// real game until 21.8 makes petitions fire and player.guilds stops being
+// empty. The `byte-identity` describe block below still holds and is still
+// worth keeping: it proves the pure logic itself is inert by construction,
+// independent of whether anything calls it.
 
 import { describe, it, expect } from 'vitest'
 import buildingsData from '../data/buildings.json'

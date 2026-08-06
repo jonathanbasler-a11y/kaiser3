@@ -7,9 +7,10 @@
 
 import buildingsData from '../../data/buildings.json'
 import economyData from '../../data/economy.json'
-import { BuildingState, ConstructionDecision, LandHolding, PopulationState } from './state.ts'
+import { BuildingState, ConstructionDecision, LandHolding, PopulationState, SpecializedBuilding } from './state.ts'
 import { finiteOr } from './sanitize.ts'
 import { totalLand } from './land.ts'
+import { totalGuildBonusIncome, totalGuildUpkeepSurcharge } from './guilds.ts'
 
 const PRODUCTION = buildingsData.production
 const PRESTIGE = buildingsData.prestige
@@ -129,13 +130,28 @@ export interface BuildingIncomeResult {
   marketIncome: number
   millIncome: number
   tradingHouseIncome: number
+  // Phase 21.7 (D2). Gross bonus from specialized markets/mills, itemized
+  // separately rather than folded into marketIncome/millIncome above — same
+  // "explain every number" convention BuildingUpkeepBreakdown already follows.
+  // A specialized building's BASE incomePerYear is still counted in
+  // marketIncome/millIncome above (specialization does not remove it from
+  // BuildingState's plain counts — see SpecializedBuilding in state.ts); this
+  // is only the EXTRA on top. Zero whenever `guilds` is absent/empty, which is
+  // every real game until 21.8 makes petitions fire — the property that keeps
+  // this tranche byte-identical.
+  guildBonusIncome: number
 }
 
-export function calculateBuildingIncome(buildings: BuildingState, tradingHouses: number): BuildingIncomeResult {
+export function calculateBuildingIncome(
+  buildings: BuildingState,
+  tradingHouses: number,
+  guilds?: SpecializedBuilding[]
+): BuildingIncomeResult {
   return {
     marketIncome: buildings.markets * PRODUCTION.market.incomePerYear,
     millIncome: buildings.mills * PRODUCTION.mill.incomePerYear,
-    tradingHouseIncome: tradingHouses * COMMERCE.tradingHouse.incomePerYear
+    tradingHouseIncome: tradingHouses * COMMERCE.tradingHouse.incomePerYear,
+    guildBonusIncome: totalGuildBonusIncome(guilds)
   }
 }
 
@@ -150,6 +166,10 @@ export interface BuildingUpkeepBreakdown {
   garrison: number
   dike: number
   tradingHouseTribute: number
+  // Phase 21.7 (D2). The upkeep cost of running any specialized markets/mills —
+  // the flip side of BuildingIncomeResult.guildBonusIncome. Zero whenever
+  // `guilds` is absent/empty (every real game before 21.8).
+  guildSurcharge: number
   total: number
 }
 
@@ -159,7 +179,8 @@ export interface BuildingUpkeepBreakdown {
 export function calculateUpkeepBreakdown(
   buildings: BuildingState,
   tradingHouses: number,
-  taler: number
+  taler: number,
+  guilds?: SpecializedBuilding[]
 ): BuildingUpkeepBreakdown {
   const markets = buildings.markets * PRODUCTION.market.upkeepPerYear
   const mills = buildings.mills * PRODUCTION.mill.upkeepPerYear
@@ -171,15 +192,21 @@ export function calculateUpkeepBreakdown(
   const garrison = buildings.garrison * MITIGATION.garrison.upkeepPerYear
   const dike = (buildings.dike ?? 0) * MITIGATION.dike.upkeepPerYear
   const tradingHouseTribute = tradingHouses > 0 ? taler * UPKEEP.tradingHouseTributePercentage : 0
+  const guildSurcharge = totalGuildUpkeepSurcharge(guilds)
   return {
-    markets, mills, palace, cathedral, hospital, well, garrison, granary, dike, tradingHouseTribute,
-    total: markets + mills + palace + cathedral + hospital + well + granary + garrison + dike + tradingHouseTribute
+    markets, mills, palace, cathedral, hospital, well, garrison, granary, dike, tradingHouseTribute, guildSurcharge,
+    total: markets + mills + palace + cathedral + hospital + well + granary + garrison + dike + tradingHouseTribute + guildSurcharge
   }
 }
 
 // Total annual upkeep across all buildings plus trading-house tribute to the Kaiser
 // (a percentage of wealth — the anti-snowball lever from Hanse/Kaiser research:
 // bigger treasuries pay bigger tribute, not a flat fee).
-export function calculateUpkeep(buildings: BuildingState, tradingHouses: number, taler: number): number {
-  return calculateUpkeepBreakdown(buildings, tradingHouses, taler).total
+export function calculateUpkeep(
+  buildings: BuildingState,
+  tradingHouses: number,
+  taler: number,
+  guilds?: SpecializedBuilding[]
+): number {
+  return calculateUpkeepBreakdown(buildings, tradingHouses, taler, guilds).total
 }
