@@ -48,6 +48,7 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **21.5** | Cursor | — | Standing orders (#50b) | `standingOrders` on PlayerState; UI applies into Decision sheet; year-report "fired" line |
 | **21.6** | Sonnet | Medium | Guild types + plumbing (D2, #49/#51) | Pure `engine/guilds.ts`, zero callers; fraction-based surcharge + charterFee deviations; all fixtures byte-identical |
 | **21.7a** | Sonnet | Medium | Economics wiring — income/upkeep/prune (D2, #49/#51) | buildings.ts guild income+surcharge; fire/sabotage prune; scarcity.ts verified unaffected; still byte-identical |
+| **21.7b** | Opus | High | Evaluator production term — capitalising a charter (D2, #49/#51) | Market-equivalents inherit `production`'s horizon; guild loss priced via real pruning; `planner-golden` year20 unmoved |
 
 ## Phase 0: Scaffold & Ground Rules ✓
 
@@ -1154,13 +1155,14 @@ machinery), then D1 (requires new data file, RNG stream extension, 19A interacti
 
 ---
 
-**Last updated:** Phase 21.7a (economics wiring — income/upkeep/prune only; evaluator.ts's
-capitalisation term still pending). 21.0–21.6 merged; #45, #48, #46, #47, #50a/#50b addressed.
-D2 guild workstream underway: income/upkeep/prune are wired but every fixture still holds zero
-guilds, so nothing is player-visible yet. Next: finish 21.7 with the evaluator.ts production-
-equivalents term (**Opus/high** — the subtle capitalisation-ratio piece, deliberately deferred past
-a model switch), then 21.8 (reducer wiring — petitions start firing, Opus/max), 21.9–21.11.
-Deferred still: F2, F7; D1 trade routes.
+**Last updated:** Phase 21.7b — 21.7 is now COMPLETE (economics wiring + evaluator term).
+21.0–21.7 merged; #45, #48, #46, #47, #50a/#50b addressed. D2 guild workstream: types, economics,
+and AI valuation are all in, every fixture still byte-identical, and nothing is player-visible yet
+because petitions cannot fire until 21.8. Next: **21.8 reducer wiring** (Opus/max — the
+highest-risk commit in this workstream; petitions start firing, `golden.test.ts` year20 is EXPECTED
+to move and must NOT be regenerated until 21.11), then 21.9 AI parity + calibration (see BACKLOG S10
+— the plan's predicted archetype split is already falsified on paper), 21.10 Cursor UI, 21.11 single
+deliberate fixture regen + balance gate. Deferred still: F2, F7; D1 trade routes.
 
 ---
 
@@ -1613,7 +1615,12 @@ anything. Not a regression, but worth naming: the real safety net for these fiel
 
 ---
 
-## Phase 21.7a: Economics Wiring — Income, Upkeep, Prune-on-Destruction (D2, #49/#51) ✓ (partial)
+## Phase 21.7a: Economics Wiring — Income, Upkeep, Prune-on-Destruction (D2, #49/#51) ✓
+
+> **Superseded note:** this section was written while 21.7 was deliberately half-done. The
+> "What's left" subsection at the end is now DISCHARGED by §21.7b below, which landed the
+> evaluator term. Left in place rather than rewritten because the split — and why it was made —
+> is the useful record.
 
 **Scoped deliberately to the Sonnet-appropriate half of 21.7.** The session plan's own effort table
 splits this tranche: "the income/upkeep/prune wiring is routine; the [evaluator.ts production-
@@ -1665,7 +1672,7 @@ claiming a guarantee that only holds for the engine's own output:
   proof, since no fixture currently gives any player a guild
 - ✓ Suite: 38 files, 425 tests, `tsc --noEmit` clean
 
-### What's left before 21.7 can be marked done
+### ~~What's left before 21.7 can be marked done~~ — DONE in §21.7b
 `evaluator.ts`'s production term does not yet price a guild a player already holds when valuing
 candidate states — the AI's one-year-forward valuation is currently blind to guild income entirely.
 This is the tranche's genuinely subtle piece (per the session plan: "the capitalisation ratio is the
@@ -1673,3 +1680,109 @@ subtle part") and is deferred to a fresh pass at Opus/high effort, matching the 
 market-equivalents technique `riskHorizonYears` already uses elsewhere in the same file. Until then,
 21.8's reducer wiring can safely proceed — the evaluator gap only affects how well the AI *values* a
 guild it already has, not whether the reducer computes that value correctly, which this phase proves.
+
+---
+
+## Phase 21.7b: Evaluator Production Term — Capitalising a Charter (D2, #49/#51) ✓
+
+Completes 21.7. The plan's effort table singled this out as the tranche's subtle piece, deferred past
+a model switch to Opus/high — 21.7a shipped the routine income/upkeep/prune wiring; this is the rest.
+
+**The problem it solves.** A charter's payoff is a perpetual income stream, but `planYear` looks
+exactly **one year** ahead. Priced at a single year of income a charter is worth 50–108 Taler against
+a `charterFee` of 1,200–2,500, so an unprojected planner refuses every petition forever and the whole
+D2 feature is dead on arrival. Same shape of problem `riskHorizonYears` already exists to solve for
+the risk term, and solved the same way.
+
+**Market-equivalents, not a new weight.** `production` is a COUNT (markets + mills + tradingHouses,
+each worth 1) carrying a weight of 2,400–4,200 against `wealth` = 1/Taler. A market nets
+`incomePerYear - upkeepPerYear` = 400/yr, so that weight *already* embeds a capitalisation of a
+market's income stream at roughly a 7.5-year horizon. Expressing a charter as
+`netGain(charter) / netGain(market)` therefore **inherits that horizon automatically**, and keeps
+inheriting it if the weight is ever retuned. A standalone guild weight would have to re-derive the
+horizon by hand and would drift the first time `production` moved — the parallel-approximation
+failure `evaluator.ts`'s own header rules out for risk. No new evaluator dimension, no
+`personalities.json` edit, as the plan required.
+
+**Guild loss is NOT currently priced by the risk term — and an earlier draft of this section claimed
+it was.** `guildProductionEquivalents` runs held guilds through the real `pruneGuildsToFit` rather
+than counting `player.guilds` directly, which is defensive and correct-by-construction (it cannot
+disagree with `events.ts` about which guild burns, the way a hand-written copy could). But with
+today's constants it can never fire on the damaged state `applyExpectedLosses` builds: fire is the
+only `buildings` loss (`fraction 0.2`, `maxProbability 0.40`), so expected loss is at most **8%** of
+a kind's count, pruning one guild needs a full building's worth of excess (**>= 12.5** fully
+specialized buildings of one kind), and `guildCharterSlots` caps total guilds at **5**.
+`5 x 0.08 = 0.4 < 1`.
+
+Consequence, recorded rather than left to be rediscovered: after 21.8 a real fire *does* prune a
+guild in the engine, but the evaluator does not see it, so a guild-holding AI under-prices fire and
+is fractionally under-motivated to buy a well. Bounded by one guild's value (max ~0.27x the
+production weight) times an <=8% share, so small — but it is the same shape as the hospital failure
+`evaluator.ts`'s header exists to prevent. The call stays because it becomes correct for free the
+moment either the charter cap or fire's parameters move. Tracked in BACKLOG S10.
+
+### Acceptance Criteria
+- ✓ Exactly inert without guilds — absent / `undefined` / `[]` all value identically, in both
+  `intrinsicUtility` and `evaluateState`
+- ✓ **`planner-golden`'s `year20` did not move.** This is the specific canary the sequencing table
+  named ("if `year20` moves here, something reads state it shouldn't"); `advanceYear-noguild-golden`
+  and `determinism` are byte-identical too
+- ✓ A held guild is worth exactly `(netGain / marketNetGain) × production` utility, and strictly
+  less than a whole additional market — a charter is an upgrade, not a building
+- ✓ Doubling the `production` weight doubles the guild contribution (inheritance verified, not
+  assumed); the equivalents ratio itself is weight-independent
+- ✓ A guild with no surviving backing building contributes nothing — a DEFENSIVE property.
+  The state it tests (guilds recorded, zero backing buildings) is reachable only transiently
+  inside `destroyProductionBuildings` before pruning runs, or from a hand-edited save via
+  `persist.ts`'s tolerant loader; `applyExpectedLosses` cannot produce it (see above)
+- ✓ Suite: 39 files, 436 tests, `tsc --noEmit` clean
+
+### Measured predictions for 21.9 — one of them falsifies the plan
+The **session implementation plan** (the working plan file for this workstream — *not* this
+document, which never contained the claim; an earlier draft of this section mis-cited it as PLAN.md's
+own D2 section) predicts the archetype split "falls out of existing weights (Merchant grants,
+Expansionist refuses)", and flags it explicitly as "a **prediction to verify** with
+`scripts/ai-bench.ts`, not a result." Computed against the shipped data, **the prediction is wrong** —
+though not in the way an earlier draft of this section said either:
+
+| | |
+|---|---|
+| Charter payback | **20.0–27.8 years** (on a market 24.0–27.8; on a mill 20.0–23.1) |
+| A market's payback | **5.0 years** |
+| Grant, on its own merits | **Negative for every archetype x type x kind** — best case anywhere is Builder/iron-on-mill at −750, worst is Merchant/wine-on-market at −3,055. The production term never covers the fee. |
+| Predicted split | **Does not appear in the predicted form — and at the likelier bound it exists but runs backwards** |
+
+Grant wins, where it wins at all, only because refusing is *more* negative — so the decision is
+driven by unrest-avoidance rather than by specialization value.
+
+**The margin is bound-dependent, and the two bounds disagree qualitatively.** A +8 refusal spike
+decays 5/yr (`economy.json unrestDecayPerYear`, applied in-year when fed), so a well-fed realm's
+year-end delta is ~+3, not +8 — and 21.8's not-yet-written step ordering decides which the evaluator
+actually sees. Across all 8 type x kind combinations:
+
+| Archetype | grants at +8 | grants at +3 |
+|---|---|---|
+| Builder | 8/8 | 4/8 |
+| Expansionist | 8/8 | 6/8 |
+| Schemer | 8/8 | 4/8 |
+| Merchant | 6/8 | **0/8** |
+| Raider | 8/8 | **0/8** |
+
+So at the +3 bound a rich archetype split **already exists** — the two wealth-weighted archetypes
+(Merchant `wealth` 1.6, Raider 1.3) refuse everything while Expansionist grants most — but it is
+inverted from the prediction, which had Merchant granting and Expansionist refusing. **This matters
+for 21.9's brief**: an earlier draft of this section claimed "all five grant at either bound", which
+would have pointed calibration at manufacturing a split that is already there.
+
+One methodological caveat on all of the above: these are closed-form margins
+(`w_prod x equivalents − fee x w_wealth + spike x w_unrest`). The real planner decides by simulating
+a year through `advanceYear`, so the refusal spike also propagates through birth damping, the
+emigration threshold, revolt exposure, and — via perturbation onto `rankProgress`, where population
+is often binding against a `rank` weight of 10^6 — potentially much larger second-order effects, all
+of which push toward granting. Treat this as a first-order screen that says *the tuning needs
+looking at*, not as the measurement. `scripts/ai-bench.ts` is the measurement.
+
+**Deliberately not retuned here.** 21.9 owns calibration against `ai-bench`, and adjusting
+`charterFee`/`incomeMultiplier` now — without the measurement tool the plan designates — would be
+exactly the eyeball-it antipattern that phase exists to avoid. Recorded as BACKLOG S10 so 21.9 starts
+from the measured position rather than the falsified prediction.

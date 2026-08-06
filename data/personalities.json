@@ -4,7 +4,7 @@
     "wealth": "Utility per Taler. The unit all other weights are calibrated against.",
     "population": "Utility per peasant. Peasants are labor (harvest capacity) and tax base.",
     "land": "Utility per hectare held.",
-    "production": "Utility per market/mill — steady income, and they are what fires destroys.",
+    "production": "Utility per PRODUCTION UNIT — steady income, and what fires destroy. A market or mill is 1 unit; a trading house is also 1 (D2 commerce calibration); and from phase 21.7b a held guild charter is a FRACTION of a unit, valued as its net annual gain over an unspecialized building divided by a market's (netGain(charter)/netGain(market), i.e. 0.125-0.27 today). Guilds are folded in here rather than given their own weight so they inherit this weight's already-calibrated capitalisation horizon (~5.2-7.5 years depending on archetype) instead of re-deriving one that could drift — see src/ai/evaluator.ts guildProductionEquivalents.",
     "prestige": "Utility per palace stage (a cathedral counts as 16 stages). The rank path.",
     "rank": "Utility per rank level, INCLUDING fractional progress toward the next one. This must dominate the other terms by roughly the same margin that rank dominates the actual victory condition (see standingScore in src/ai/sim.ts), or the AI optimises a different game than the one it is scored on — an early benchmark had cash outweighing a whole rank by 17x, and the AI duly hoarded 431k Taler and never left rank 0.",
     "unrest": "Penalty per unrest point. Unrest drives emigration and revolt.",

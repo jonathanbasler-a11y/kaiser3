@@ -886,3 +886,80 @@ Related dead zone worth naming: custom 131–140% buys nothing. It is above
 `immigrationMaxAdequacy` (1.30) so it attracts no newcomers, and below `overfedAdequacy`
 (1.40) so it causes no disease — purely wasted grain. The Grain tab's gate text does say
 "too much", so it is legible, but it is a band with no upside at all.
+
+## S10 — Guild charter economics: 20-28 year payback, and the archetype split runs backwards
+
+Surfaced by phase 21.7b while wiring the evaluator's production term. Both findings are arithmetic
+against shipped data, not simulation results — but the first needs no simulation to be worrying, and
+the second contradicts a prediction the phase plan makes explicitly.
+
+**1. A charter pays back in 24-28 years; a market pays back in 5.**
+
+| type | net/yr on a market | charterFee | payback |
+|---|---|---|---|
+| iron | 50 | 1,200 | 24.0y |
+| cloth | 60 | 1,500 | 25.0y |
+| salt | 75 | 2,000 | 26.7y |
+| wine | 90 | 2,500 | 27.8y |
+| *(a market)* | *400* | *2,000* | *5.0y* |
+
+In a 60-year game a charter granted at year 30 never pays for itself. There is a real argument that
+this is fine — markets are ratio-gated by land (1 per 1,000 ha) while charters are not, so late-game
+a charter is income you cannot otherwise buy — but 5x worse payback than the alternative is a wide
+margin to justify on that alone.
+
+(Payback on a mill is better than on a market — iron 20.0, cloth 20.8, salt 22.2, wine 23.1 — since
+a mill's larger base income scales the bonus. Still 4x worse than a market's 5.0.)
+
+**2. The predicted archetype split runs backwards.** The *session implementation plan* (not this
+repo's PLAN.md, which never carried the claim) predicts the split "falls out of existing weights
+(Merchant grants, Expansionist refuses)" and correctly flags it as a prediction to verify.
+
+Verified — and the answer depends on a bound 21.8 has not yet fixed. A +8 refusal spike decays 5/yr
+when fed (`economy.json unrestDecayPerYear`), so the year-end delta the evaluator sees is ~+3 unless
+21.8 orders the steps otherwise. Across all 8 type x kind combinations:
+
+| Archetype | grants at +8 | grants at +3 |
+|---|---|---|
+| Builder | 8/8 | 4/8 |
+| Expansionist | 8/8 | 6/8 |
+| Schemer | 8/8 | 4/8 |
+| Merchant | 6/8 | **0/8** |
+| Raider | 8/8 | **0/8** |
+
+At the likelier +3 bound a split **already exists** — the two wealth-weighted archetypes (Merchant
+1.6, Raider 1.3) refuse everything, Expansionist grants most — but it is the *reverse* of the
+prediction. **21.9 should not try to manufacture a split; it should decide whether it wants this
+one.**
+
+The underlying cause is structural, not a tuning near-miss: granting is *negative* utility on its own
+merits for every archetype x type x kind (best case Builder/iron-on-mill −750, worst
+Merchant/wine-on-market −3,055), because the production term never covers `charterFee`. Grant only
+wins where refusing costs more. So the mechanic currently reads as "pay a fee to avoid an unrest
+hit," not "invest in specialization" — and #51 ("specialization is not visible") is not served by a
+choice made on unrest grounds.
+
+**Caveat on method:** these are closed-form margins. The planner actually decides by simulating a
+year through `advanceYear`, so the spike also propagates through birth damping, emigration, revolt
+exposure, and perturbation onto `rankProgress` (population is often binding against a `rank` weight
+of 10^6) — all pushing toward granting, all unquantified here. This is a first-order screen saying
+the tuning needs looking at, not the measurement. `scripts/ai-bench.ts` is the measurement.
+
+**3. The evaluator does not price guild loss to fire.** `guildProductionEquivalents` calls the real
+`pruneGuildsToFit`, but with `guildCharterSlots <= 5` and fire's <=8% expected loss it can never
+fire on the evaluator's damaged state (pruning needs >= 12.5 fully specialized buildings of one
+kind). After 21.8 a real fire prunes a guild in the engine while the AI's risk term stays blind to
+it, so a guild-holding AI under-prices fire and under-buys wells. Small (bounded by ~0.27x the
+production weight, times an <=8% share) and self-correcting the moment the charter cap or fire's
+parameters move — but it is the hospital failure mode in miniature, so it should be re-checked
+whenever either constant changes.
+
+**Not fixed in 21.7b deliberately.** 21.9 owns calibration against `scripts/ai-bench.ts`, and
+retuning `charterFee`/`incomeMultiplier` without that measurement would be guessing. Lever order when
+21.9 picks this up, cheapest-risk first: `charterFee` down (payback is the cleanest lever and does
+not touch the balance gate's income side), then `incomeMultiplier` up (moves income — needs a balance
+re-run), then `guildRefusalUnrestSpike` down (shrinks the unrest-avoidance motive so the production
+value has to carry the decision on its own, which is what would actually produce an archetype split).
+
+Note `upkeepSurchargeFraction` must stay strictly below `incomeMultiplier - 1` whatever else moves —
+`tests/guilds.test.ts` enforces it, and it is the "no guild is ever worse" promise from the D2 spec.
