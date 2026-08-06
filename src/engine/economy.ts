@@ -24,12 +24,37 @@ export interface WeatherBand {
 const WEATHER_BANDS = HARVEST.weatherBands as WeatherBand[]
 const TOTAL_WEATHER_WEIGHT = WEATHER_BANDS.reduce((sum, band) => sum + band.weight, 0)
 
+/** A weather band's `id` from data/economy.json — not a closed union, because the
+ *  band list is data and a hardcoded union here would go stale the moment one is
+ *  added. Unknown ids fall back to the real roll rather than throwing. */
+export type WeatherBandId = string
+
+export function getWeatherBands(): readonly WeatherBand[] {
+  return WEATHER_BANDS
+}
+
 // Draws a named weather band. Bands rather than a narrow bell curve: a drought
 // should be an event a player remembers and plans around, not a 15% dip lost in
 // the noise. The long-run mean is close to 1, so the variance is drama rather
 // than a hidden tax.
-export function rollWeather(rng: SeededRng): WeatherBand {
+//
+// `override` powers forecast mode (issue #46). THE DRAW STILL HAPPENS when it is
+// set, and that is the whole point rather than an oversight: the rng is shared
+// across every player and every later step of the year, so returning early
+// without drawing would shift the stream and make a forecast run diverge from
+// the real one for reasons that have nothing to do with the weather. Consume,
+// discard, return the named band.
+export function rollWeather(rng: SeededRng, override?: WeatherBandId): WeatherBand {
   let roll = rng.next() * TOTAL_WEATHER_WEIGHT
+
+  if (override !== undefined) {
+    const named = WEATHER_BANDS.find((band) => band.id === override)
+    if (named) return named
+    // Unrecognised id degrades to the real roll — same principle as the
+    // feedLevel default branch below: malformed input takes the safe path
+    // instead of poisoning the simulation.
+  }
+
   for (const band of WEATHER_BANDS) {
     roll -= band.weight
     if (roll <= 0) return band
@@ -77,11 +102,12 @@ export function calculateHarvest(
   population: PopulationState,
   previousGrainStock: number,
   granaries: number,
-  rng: SeededRng
+  rng: SeededRng,
+  weatherOverride?: WeatherBandId
 ): HarvestResult {
   const productiveFarmland = laborGatedFarmland(land, population)
 
-  const weather = rollWeather(rng)
+  const weather = rollWeather(rng, weatherOverride)
   // A little variation inside the band, so two "lean years" are not identical,
   // without letting bands blur into one another.
   const jitter = 1 + (rng.next() - 0.5) * HARVEST.withinBandJitter

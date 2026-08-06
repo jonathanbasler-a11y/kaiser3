@@ -20,10 +20,10 @@ import { getDifficultyPresets, getDifficultyPreset, DEFAULT_DIFFICULTY_ID, Diffi
 import { planYear } from '../ai/planner.ts'
 import { planningSeed } from '../ai/planningSeed.ts'
 import { compareStanding } from '../ai/sim.ts'
-import { annualGrainRequirement, storageCapacity, grainBuybackPrice, laborGatedFarmland, resolveFeeding } from '../engine/economy.ts'
+import { annualGrainRequirement, storageCapacity, grainBuybackPrice, laborGatedFarmland, resolveFeeding, getWeatherBands } from '../engine/economy.ts'
 import { el, clear, stepper, sliderField, segmented, statTile, tooltip } from './dom.ts'
 import { DecisionDraft, defaultDraft, draftToDecisions, rivalOptions, maxSellableGrain, maxAffordableGrainBuy, yearsOfFoodLabel, maxNewHires } from './decisions.ts'
-import { previewYear, warSnapshotDraft, YearPreview } from './preview.ts'
+import { previewYear, warSnapshotDraft, YearPreview, downsideTailProbability } from './preview.ts'
 import {
   feedStockFromChronicle,
   roundedDelta,
@@ -693,14 +693,41 @@ function updatePreviewPanel(panel: HTMLElement, preview: YearPreview | null): vo
   )
   const popTip = popParts || 'No population movement this year.'
 
+  // Issue #46 / phase 21.3. These figures are now a FORECAST, not a prediction:
+  // both taler (grain-trade income) and population (feed adequacy) move with the
+  // harvest. The Grain tab hedges its own numbers, but this footer renders on
+  // every tab and is the most-read line in the game — leaving it in the
+  // indicative would have moved the lie rather than fixed it.
+  const { low, high } = preview.outlook
+  const talerLow = roundedDelta(preview.talerBefore, low.talerAfter).delta
+  const talerHigh = roundedDelta(preview.talerBefore, high.talerAfter).delta
+  const popLow = roundedDelta(preview.populationBefore, low.populationAfter).delta
+  const popHigh = roundedDelta(preview.populationBefore, high.populationAfter).delta
+
+  const signed = (n: number) => `${n >= 0 ? '+' : ''}${n}`
+  // Only show a spread when the weather actually moves the figure — a barn with
+  // a year of slack absorbs the whole band, and "+461 to +461" is noise.
+  const spread = (lo: number, hi: number) => (lo !== hi ? ` (${signed(lo)} to ${signed(hi)})` : '')
+
+  // checkPromotion reads taler and population, so a lean year can revoke a
+  // promotion a good year grants. Promising one outright would be the same class
+  // of bug as spoiling the harvest, in the opposite direction.
+  const promotionNote = preview.outlook.expected.rankPromoted && low.rankPromoted && high.rankPromoted
+    ? ' · Promotion!'
+    : (low.rankPromoted || preview.outlook.expected.rankPromoted || high.rankPromoted)
+      ? ' · Promotion possible'
+      : ''
+
   panel.appendChild(el('p', { class: 'help-text preview-line' },
-    'If you end the year now: ',
-    el('span', { class: taler.delta >= 0 ? 'good' : 'bad' }, `Taler ${taler.delta >= 0 ? '+' : ''}${taler.delta}`),
+    'Likely if you end the year now: ',
+    el('span', { class: taler.delta >= 0 ? 'good' : 'bad' }, `Taler ${signed(taler.delta)}`),
+    el('span', { class: 'muted' }, spread(talerLow, talerHigh)),
     tooltip(talerTip),
     ' · ',
-    el('span', { class: pop.delta >= 0 ? 'good' : 'bad' }, `Population ${pop.delta >= 0 ? '+' : ''}${pop.delta}`),
+    el('span', { class: pop.delta >= 0 ? 'good' : 'bad' }, `Population ${signed(pop.delta)}`),
+    el('span', { class: 'muted' }, spread(popLow, popHigh)),
     tooltip(popTip),
-    preview.rankPromoted ? ' · Promotion!' : ''
+    promotionNote
   ))
   for (const shortfall of preview.shortfalls) {
     panel.appendChild(el('p', { class: 'help-text bad preview-line' }, shortfall))
@@ -983,7 +1010,13 @@ function populationProjectionText(player: GameState['players'][string], draft: D
   const breakdown = populationBreakdownText(
     preview.births, preview.deaths, preview.immigration, preview.emigration, preview.eventPopulationLoss
   )
-  return `Projected population next year at this feed level: ${after} (currently ${before}; ${deltaText}${breakdown ? ` — ${breakdown}` : ''}). Same full-year estimate as the footer — includes harvest, feeding, and events.`
+  // Issue #46: population follows feed adequacy, which follows the harvest, so a
+  // single figure here would re-leak the roll the Grain tab now hides. The
+  // headline is the likely case; the spread is what the weather can do to it.
+  const lowPop = Math.round(preview.outlook.low.populationAfter)
+  const highPop = Math.round(preview.outlook.high.populationAfter)
+  const spread = lowPop !== highPop ? ` Across likely harvests: ${lowPop}–${highPop}.` : ''
+  return `Projected population next year at this feed level: ${after} (currently ${before}; ${deltaText}${breakdown ? ` — ${breakdown}` : ''}). Same full-year estimate as the footer — includes harvest, feeding, and events.${spread}`
 }
 
 // Bug report #28 ("Population growth — unclear where growth and shrinking is
@@ -1051,20 +1084,57 @@ function renderGrainTab(player: GameState['players'][string], state: GameState):
   const demand = annualGrainRequirement(player.population)
   // Prefer the same harvest oracle as the footer (previewYear / advanceYear).
   const preview = previewYear(session!.state, HUMAN_ID, draft, session!.rivals, session!.difficulty)
-  const available = preview
-    ? feedStockFromChronicle(player.grainStock, preview.spoilage, preview.harvestYield, preview.grainOverflowLost)
-    : player.grainStock
+  // Issue #46: the harvest is a FORECAST, not a readout. `preview` resolves three
+  // named weather bands and never the true roll, so every figure here is the
+  // "likely" case and the actual yield stays unknown until the year report.
+  const stockAtFeeding = (branch: { spoilage: number; harvestYield: number; grainOverflowLost: number }) =>
+    feedStockFromChronicle(player.grainStock, branch.spoilage, branch.harvestYield, branch.grainOverflowLost)
+
+  const available = preview ? stockAtFeeding(preview.outlook.expected) : player.grainStock
   const { demand: demandShown, available: availableShown, surplus: surplusShown } = roundedSurplus(demand, available)
   container.appendChild(el('div', { class: 'stat-grid' },
     statTile('Demand this year', `${demandShown}`),
-    statTile(preview ? 'At feeding (after harvest)' : 'Barn stock (preview unavailable)', `${availableShown}`),
+    statTile(preview ? 'At feeding (likely)' : 'Barn stock (preview unavailable)', `${availableShown}`),
     statTile(surplusShown >= 0 ? 'Surplus vs demand' : 'Deficit vs demand', `${Math.abs(surplusShown)}`, surplusShown >= 0 ? 'good' : 'bad')
   ))
+
+  if (preview) {
+    const { low, expected, high, tailsExcluded } = preview.outlook
+    const spreads = high.harvestYield - low.harvestYield >= 1
+    const feedLow = stockAtFeeding(low)
+    const feedHigh = stockAtFeeding(high)
+
+    const outlook = spreads
+      ? `Harvest outlook: ${low.harvestYield.toFixed(0)}–${high.harvestYield.toFixed(0)}, likely about ${expected.harvestYield.toFixed(0)}.` +
+        // The storage cap can flatten this even when the harvest itself varies —
+        // worth not printing "19369–19369" as though it were a range.
+        (feedHigh - feedLow >= 1 ? ` At feeding that is ${feedLow.toFixed(0)}–${feedHigh.toFixed(0)}.` : ` At feeding: ${feedHigh.toFixed(0)} (your barn caps it).`)
+      : `Harvest outlook: about ${expected.harvestYield.toFixed(0)}.`
+
+    // Saying "worse is possible" out loud matters more than the range does: a
+    // stated floor the simulation can break through reads as the game lying.
+    //
+    // Quantified rather than hedged, and asymmetric on purpose. The downside
+    // tail is what a player sizing a grain reserve actually needs — CLAUDE.md
+    // calls "a reserve carried through a bad year" a load-bearing decision — and
+    // it is not the mirror of the upside: the worst band yields a fraction of
+    // the stated floor, so "worse and better are both possible" would flatten a
+    // famine and a bumper crop into the same sentence. Probability and the worst
+    // band both come from the band table, so retuning the data cannot leave a
+    // stale number here.
+    const tail = downsideTailProbability()
+    const worstBand = [...getWeatherBands()].sort((a, b) => a.multiplier - b.multiplier)[0]
+    const caveat = tailsExcluded && spreads
+      ? ` Most years fall between “${low.bandName}” and “${high.bandName}”, but roughly 1 year in ` +
+        `${Math.max(2, Math.round(1 / tail))} comes in below that — as far down as “${worstBand.name}”.`
+      : ''
+
+    container.appendChild(el('p', { class: 'help-text' }, outlook + caveat))
+  }
+
   const barnLine = `Barn now: ${player.grainStock.toFixed(0)} of ${storageCapacity(player.population, player.buildings.granary).toFixed(0)} capacity.`
   const helpText = preview
-    ? `${barnLine} Harvest this preview: ${preview.harvestYield.toFixed(0)} (−${preview.spoilage.toFixed(0)} spoilage` +
-      (preview.grainOverflowLost > 0 ? `, −${preview.grainOverflowLost.toFixed(0)} overflow` : '') +
-      `). "At feeding" is stock after spoilage/harvest/cap — what Custom/Min/Max percentages apply to.`
+    ? `${barnLine} "At feeding" is stock after spoilage, harvest and the storage cap — what Custom/Min/Max percentages apply to. The true harvest is revealed in the year report.`
     : `${barnLine} Year preview unavailable — "At feeding" shows barn stock only; feed percentages apply to this figure until preview loads.`
   container.appendChild(el('p', { class: 'help-text' }, helpText))
   const projectionLine = el('p', { class: 'help-text' }, populationProjectionText(player, draft))
