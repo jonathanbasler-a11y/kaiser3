@@ -122,6 +122,22 @@ export interface PlayerChronicle {
   deaths: number
   emigration: number
   immigration: number
+  /** Issue #47 — why immigration was or was not open this year. Optional so
+   *  every existing PlayerChronicle literal in tests keeps compiling; year.ts
+   *  always populates it. Typed structurally rather than importing from
+   *  population.ts, which imports this module. */
+  immigrationGate?: {
+    unrest: number
+    adequacy: number
+    unrestOk: boolean
+    adequacyOk: boolean
+    maxUnrest: number
+    minAdequacy: number
+    maxAdequacy: number
+  }
+  /** What the feed dial asked for vs what the barn could actually cover (#50a). */
+  feedTargetAdequacy?: number
+  feedAdequacy?: number
   harvestYield: number
   spoilage: number
   grainOverflowLost: number        // Surplus that exceeded storage and rotted
@@ -245,10 +261,22 @@ export type Decision =
   | EspionageDecision
   | WarDecision
 
+/** How much to feed, named as a target ADEQUACY (share of demand), not a share
+ *  of barn stock — see the `_feedingNote` in data/economy.json for why 21.4
+ *  changed that. `growth` replaced the old `max`: at 0.8 of stock, "Max" meant a
+ *  different adequacy every year, and in a full barn it meant overfeeding into
+ *  disease. Exported as its own name because phase 21.5's standing orders store
+ *  one on PlayerState. */
+export type FeedMode = 'min' | 'required' | 'growth' | 'custom'
+
 export interface GrainDecision {
   type: 'grain'
-  feedLevel: 'min' | 'max' | 'required' | 'custom'
-  customPercentage?: number        // 20–80 if 'custom'
+  feedLevel: FeedMode
+  /** Target adequacy as a PERCENT of demand, when feedLevel is 'custom'.
+   *  Bounds live in data/economy.json (`feeding.customMin/MaxAdequacy`) — do not
+   *  restate them here, that is how this comment went stale the first time. Was a
+   *  percent of barn STOCK before 21.4. */
+  customPercentage?: number
   // Trade with the Kaiser's granary, resolved AFTER the population is fed — you
   // sell what is left over, not what your peasants still need. Selling a reserve
   // is a bet that next year's weather holds.

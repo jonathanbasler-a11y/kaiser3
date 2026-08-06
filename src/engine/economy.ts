@@ -132,9 +132,12 @@ export function calculateHarvest(
 export interface FeedingResult {
   grainConsumed: number
   grainStockAfter: number
+  /** What the dial ASKED for. Differs from feedAdequacy exactly when the barn
+   *  could not cover it, which is the case worth showing the player. */
+  targetAdequacy: number
   feedAdequacy: number   // fraction of required grain actually delivered (0 = starving, 1 = fully met, >1 = overfed)
   isUnderfed: boolean    // below the 'required' threshold — triggers unrest/emigration
-  isOverfed: boolean     // above the 'max' (80%) threshold — triggers disease risk
+  isOverfed: boolean     // above overfedAdequacy (share of demand) — triggers disease risk
 }
 
 export function resolveFeeding(
@@ -144,8 +147,15 @@ export function resolveFeeding(
 ): FeedingResult {
   const requiredGrain = population.peasants * POP_ECONOMY.populationGrainRequirement
 
-  // The original's dial (C64-Wiki): Maximum (80% of stock), Minimum (20% of stock),
-  // Required amount (exactly what the population needs), or Custom (20-80% of stock).
+  // PHASE 21.4 (issue #50a) — the dial names an ADEQUACY, not a share of stock.
+  //
+  // The original C64 dial was Maximum (80% of stock) / Minimum (20% of stock) /
+  // Required / Custom (20-80% of stock). Faithful, but it meant one setting fed a
+  // different share of your people every year depending on how full the barn was.
+  // The bug report described it as the "relationship seems to change", and that
+  // was an accurate reading of the mechanic rather than a misreading: with a full
+  // barn, "Max" overfed into disease; with an empty one it starved. Targeting
+  // demand makes Min always mean 75% fed.
   //
   // The default branch is load-bearing, not defensive padding. Without it an
   // unrecognised feedLevel left grainOffered undefined and NaN propagated silently
@@ -153,31 +163,33 @@ export function resolveFeeding(
   // peasants lost" and collapsing in two years. Malformed input should degrade to
   // the safe choice, never poison the simulation. (validateDecisions() rejects such
   // a sheet up front; this is the second line of defence for callers that skip it.)
-  let grainOffered: number
+  let targetAdequacy: number
   switch (decision.feedLevel) {
     case 'min':
-      grainOffered = grainStockBeforeFeeding * FEEDING.minStockFraction
+      targetAdequacy = FEEDING.minAdequacy
       break
-    case 'max':
-      grainOffered = grainStockBeforeFeeding * FEEDING.maxStockFraction
+    case 'growth':
+      targetAdequacy = FEEDING.growthAdequacy
       break
     case 'custom': {
       // `?? default` alone only catches undefined/null, not NaN (sanitize.ts) — a
       // NaN customPercentage would otherwise clamp to NaN (Math.max/min do
-      // not self-heal it) and poison grainOffered, then feedAdequacy,
-      // population dynamics, and the treasury for the whole year.
-      const pct = Math.min(
-        FEEDING.customMaxPercentage,
-        Math.max(FEEDING.customMinPercentage, finiteOr(decision.customPercentage, FEEDING.customDefaultPercentage))
-      )
-      grainOffered = grainStockBeforeFeeding * (pct / 100)
+      // not self-heal it) and poison the target, then feedAdequacy, population
+      // dynamics, and the treasury for the whole year.
+      const fraction = finiteOr(decision.customPercentage, FEEDING.customDefaultAdequacy * 100) / 100
+      targetAdequacy = Math.min(FEEDING.customMaxAdequacy, Math.max(FEEDING.customMinAdequacy, fraction))
       break
     }
     case 'required':
     default:
-      grainOffered = requiredGrain
+      targetAdequacy = FEEDING.requiredAdequacy
       break
   }
+
+  // Clamped by the barn, always: naming a target does not conjure grain, so a
+  // starving realm still just eats what it has and the realised adequacy below
+  // comes out lower than the dial.
+  const grainOffered = requiredGrain * targetAdequacy
 
   const grainConsumed = Math.min(grainOffered, grainStockBeforeFeeding)
   const grainStockAfter = grainStockBeforeFeeding - grainConsumed
@@ -187,6 +199,7 @@ export function resolveFeeding(
   return {
     grainConsumed,
     grainStockAfter,
+    targetAdequacy,
     feedAdequacy,
     isUnderfed: feedAdequacy < FEEDING.underfedAdequacy,
     isOverfed: feedAdequacy > FEEDING.overfedAdequacy

@@ -28,6 +28,9 @@ import { Personality } from './personalities.ts'
 import { planAggression } from './aggression.ts'
 import { planWar, planMilitaryInvestment } from './warAggression.ts'
 import buildingsData from '../../data/buildings.json'
+import economyData from '../../data/economy.json'
+
+const FEEDING = economyData.feeding
 
 const PRESTIGE = buildingsData.prestige
 const MITIGATION = buildingsData.mitigation
@@ -167,6 +170,24 @@ function grainOptions(player: PlayerState): Array<Decision & { type: 'grain' }> 
   }
   // Austerity: stretch the stores when they are thin, and sell nothing.
   options.push({ type: 'grain', feedLevel: 'min' })
+
+  // 21.4: 'growth' (115% of demand) sits inside the immigration window, so it is
+  // a real strategic lever rather than the erratic old 'max' (80% of barn stock,
+  // which meant a different adequacy every year and overfed into disease when the
+  // barn was full). Offered to the AI because CLAUDE.md's decision-parity
+  // invariant forbids the human having a dial the planner cannot reach.
+  //
+  // Gated on being able to afford it rather than offered unconditionally: the
+  // candidate sweep is multiplicative and Phase 12 exists because of its cost, so
+  // a permanent extra grain option would tax every position to serve the few
+  // where a surplus actually makes overfeeding sensible.
+  // Reads PRE-harvest stock (planning happens before year.ts step 4), so a ruler
+  // sitting on one year of food with a big harvest incoming is denied a candidate
+  // the human could still pick. Conservative in the safe direction, and cheaper
+  // than forecasting the harvest here purely to widen a candidate list.
+  if (player.grainStock > yearOfFood * FEEDING.growthAdequacy) {
+    options.push({ type: 'grain', feedLevel: 'growth' })
+  }
 
   // De-duplicate: when the barn is nearly empty several reserve levels collapse
   // onto "sell nothing", and evaluating the same sheet repeatedly is pure cost.

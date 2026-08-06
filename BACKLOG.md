@@ -838,3 +838,51 @@ and the year-end report replaces the old emigration-only line with a full
 `tests/uiCoherence.test.ts` (asserts the components sum to the same delta the
 footer already shows) and browser-verified: the year-end report's breakdown
 matched the footer's net exactly.
+
+---
+
+## S8 — "Storage must stay ≥20% above population need" is unimplemented
+
+`docs/kaiser-research.md:35` (source-of-truth #1) lists this as part of the grain
+distribution mechanic. It has never been implemented and has no analogue in the code.
+The `0.2` constant that superficially resembled it was `feeding.minStockFraction`, an
+unrelated dial parameter, removed in Phase 21.4 when the feed dial was re-based onto
+demand — so the last thing that *looked* like an implementation is now gone.
+
+Surfaced by the 21.4 spec audit. Left unimplemented rather than invented on the spot:
+it is not obvious whether this was a hard constraint in the original (a floor the game
+enforced) or a strategy note for the player, and the two read very differently. A hard
+floor would interact with the storage cap, the sell-to-Kaiser dial, and the balance
+gate's grain-reserve dynamics all at once.
+
+Next step is a reading of the original's behaviour, not a code change. If it turns out
+to be player advice rather than a rule, the doc line should say so and this closes.
+
+## S9 — Overfeeding is reachable only by a human, and only via Custom
+
+Phase 21.4 kept the over-feed→disease lever alive deliberately (`customMaxAdequacy` 1.5
+sits above `overfedAdequacy` 1.4 — see `data/economy.json` `_feedingNote`), but the
+reachability is now narrow:
+
+- every preset mode caps at 1.15 (`growthAdequacy`), well below the threshold
+- `src/ai/planner.ts` never emits `feedLevel: 'custom'` at all, so no AI can overfeed
+- only `randomLegalDecisions` (the fuzzer) explores the band, and it is not used by
+  `scripts/balance.ts`
+
+Before 21.4, `'max'` was 0.8 of a barn holding up to 2.5 years of demand, so adequacy
+could reach ~2.0 and the lever fired routinely in normal play — part of why the golden
+fixture's `eventsFired` dropped 64→55 when the dial was re-based.
+
+So `src/engine/economy.ts`'s header claim that under-feeding and over-feeding are *both*
+"real scarcity levers, not solved-once problems" is now overstated for the over-feeding
+half. Either the AI should be able to choose a `custom` overfeed when the evaluator
+prices it as worthwhile (which is really a 21.9-style AI question), or the header and
+`CLAUDE.md` should be narrowed to say overfeeding is a player-only failure mode.
+
+Not urgent, and not a regression in player-facing behaviour — but the doc and the code
+should agree on which of the two it is.
+
+Related dead zone worth naming: custom 131–140% buys nothing. It is above
+`immigrationMaxAdequacy` (1.30) so it attracts no newcomers, and below `overfedAdequacy`
+(1.40) so it causes no disease — purely wasted grain. The Grain tab's gate text does say
+"too much", so it is legible, but it is a band with no upside at all.

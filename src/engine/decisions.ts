@@ -10,7 +10,10 @@
 // definition of legality rather than two that can drift apart. PLAN.md's Phase 5
 // acceptance criterion — "AI never emits an illegal decision" — is checked with it.
 
-import { Decision } from './state.ts'
+import economyData from '../../data/economy.json'
+import { Decision, FeedMode } from './state.ts'
+
+const FEEDING = economyData.feeding
 
 export interface ValidationResult {
   valid: boolean
@@ -53,16 +56,22 @@ export function validateDecisions(decisions: Decision[]): ValidationResult {
 
     switch (decision.type) {
       case 'grain': {
-        const valid = ['min', 'max', 'required', 'custom']
+        // 21.4: 'max' (80% of barn stock) became 'growth' (115% of demand). Both
+        // the mode list and the custom range come from the same source the engine
+        // reads, so retuning data/economy.json cannot leave this validator
+        // rejecting settings the dial can actually produce.
+        const valid: FeedMode[] = ['min', 'required', 'growth', 'custom']
         if (!valid.includes(decision.feedLevel)) {
           errors.push(`grain.feedLevel must be one of ${valid.join('/')} (got ${decision.feedLevel})`)
         }
         if (decision.feedLevel === 'custom') {
           const pct = decision.customPercentage
+          const lo = FEEDING.customMinAdequacy * 100
+          const hi = FEEDING.customMaxAdequacy * 100
           if (!isFiniteNumber(pct)) {
             errors.push('grain.customPercentage is required when feedLevel is "custom"')
-          } else if (pct < 20 || pct > 80) {
-            errors.push(`grain.customPercentage must be within 20-80 (got ${pct})`)
+          } else if (pct < lo || pct > hi) {
+            errors.push(`grain.customPercentage must be within ${lo}-${hi} (got ${pct})`)
           }
         }
         break

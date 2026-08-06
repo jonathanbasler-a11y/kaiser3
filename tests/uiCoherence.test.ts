@@ -3,6 +3,7 @@
 // agreement; no DOM.
 
 import { describe, it, expect } from 'vitest'
+import economyData from '../data/economy.json'
 import { createStarterState } from '../src/engine/starter.ts'
 import { getDifficultyPreset } from '../src/ai/difficulty.ts'
 import { getPersonality } from '../src/ai/personalities.ts'
@@ -53,8 +54,17 @@ describe('previewYear is the single oracle for year-end population', () => {
     const rivals = new Map<string, Personality>([['rival1', getPersonality('builder')]])
     const difficulty = getDifficultyPreset('standard')
 
+    // 21.4: the sweep must stay inside the LEGAL custom range and be read from
+    // data. It used to be [20, 50, 80] — after the dial was re-based onto demand,
+    // 20 and 50 both fall below customMinAdequacy and clamp to the identical
+    // value, so two of the three cases became the same run and the assertion
+    // below was surviving on one data point while still reading as three.
+    const lo = Math.round(economyData.feeding.customMinAdequacy * 100)
+    const hi = Math.round(economyData.feeding.customMaxAdequacy * 100)
+    const mid = Math.round((lo + hi) / 2)
+
     const pops: number[] = []
-    for (const pct of [20, 50, 80] as const) {
+    for (const pct of [lo, mid, hi]) {
       const draft = defaultDraft(state.players.human)
       draft.feedLevel = 'custom'
       draft.customPercentage = pct
@@ -62,7 +72,9 @@ describe('previewYear is the single oracle for year-end population', () => {
       expect(preview).not.toBeNull()
       pops.push(preview!.populationAfter)
     }
-    expect(new Set(pops.map((p) => Math.round(p))).size).toBeGreaterThan(1)
+    // Every sweep point must be distinct, not merely "more than one" — that
+    // weaker form is what let the clamped duplicates go unnoticed.
+    expect(new Set(pops.map((p) => Math.round(p))).size).toBe(3)
   })
 
   it('Grain feed-stock from chronicle matches surplus identity', () => {
@@ -99,7 +111,7 @@ describe('previewYear is the single oracle for year-end population', () => {
     const rivals = new Map<string, Personality>([['rival1', getPersonality('builder')]])
     const difficulty = getDifficultyPreset('standard')
     const draft = defaultDraft(state.players.human)
-    draft.feedLevel = 'max'
+    draft.feedLevel = 'growth'
     const preview = previewYear(state, 'human', draft, rivals, difficulty)!
     const grain = roundedDelta(preview.populationBefore, preview.populationAfter)
     const footer = roundedDelta(preview.populationBefore, preview.populationAfter)

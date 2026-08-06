@@ -12,10 +12,12 @@ import { rankProgress, getTopRank } from '../engine/ranks.ts'
 import { totalLand } from '../engine/land.ts'
 import { Personality, getPersonality } from './personalities.ts'
 import { planYear } from './planner.ts'
+
 import { planningSeed } from './planningSeed.ts'
 import economyData from '../../data/economy.json'
 
 const PRICES = economyData.prices
+const FEEDING = economyData.feeding
 
 // A ruler under some controller: either a tuned personality or a benchmark bot.
 export type Controller =
@@ -34,14 +36,26 @@ export interface Competitor {
 // building counts) so that any win margin reflects better judgement rather than
 // the bot disqualifying itself on malformed input.
 export function randomLegalDecisions(player: PlayerState, rng: SeededRng): Decision[] {
-  const feedLevels = ['min', 'max', 'required', 'custom'] as const
+  const feedLevels = ['min', 'growth', 'required', 'custom'] as const
   const feedLevel = feedLevels[rng.nextInt(0, feedLevels.length - 1)]
 
   const landBudget = player.taler * (rng.next() * 0.5)
 
   return [
     feedLevel === 'custom'
-      ? { type: 'grain', feedLevel, customPercentage: rng.nextInt(20, 80) }
+      // 21.4: customPercentage is now a target adequacy (% of demand), not a
+      // share of barn stock, so the fuzzer's range has to move with it or it
+      // starts emitting sheets validateDecisions() rejects. Bounds read from the
+      // data rather than pinned: this bot exists to probe the whole legal space,
+      // and a hardcoded ceiling below customMaxAdequacy would leave the
+      // overfeeding band — the one part of the dial that can kill you — unfuzzed.
+      ? {
+          type: 'grain', feedLevel,
+          customPercentage: rng.nextInt(
+            Math.round(FEEDING.customMinAdequacy * 100),
+            Math.round(FEEDING.customMaxAdequacy * 100)
+          )
+        }
       : { type: 'grain', feedLevel },
     {
       type: 'land_trade',

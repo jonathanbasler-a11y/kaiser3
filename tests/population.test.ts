@@ -50,7 +50,9 @@ describe('applyPopulationDynamics', () => {
     const population: PopulationState = { peasants: 1000, unrest: 0 }
 
     const normalFeeding = resolveFeeding({ type: 'grain', feedLevel: 'required' }, population, 100000)
-    const overFeeding = resolveFeeding({ type: 'grain', feedLevel: 'max' }, population, 100000)
+    // 21.4: 'growth' deliberately stays below the disease threshold, so reaching
+    // overfeeding now requires dragging Custom past it on purpose.
+    const overFeeding = resolveFeeding({ type: 'grain', feedLevel: 'custom', customPercentage: 150 }, population, 100000)
 
     const normalResult = applyPopulationDynamics(population, normalFeeding, new SeededRng(1))
     const overResult = applyPopulationDynamics(population, overFeeding, new SeededRng(1))

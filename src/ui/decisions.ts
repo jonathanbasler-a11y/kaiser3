@@ -4,7 +4,7 @@
 // too, so there is exactly one definition of what a legal turn looks like
 // (engine/decisions.ts validates both).
 
-import { GameState, Decision, EspionageMode, PlayerState } from '../engine/state.ts'
+import { GameState, Decision, EspionageMode, FeedMode, PlayerState } from '../engine/state.ts'
 import { yearsOfFoodHeld } from '../engine/economy.ts'
 import { affordableHectares as engineAffordableHectares } from '../engine/land.ts'
 import economyData from '../../data/economy.json'
@@ -12,7 +12,7 @@ import economyData from '../../data/economy.json'
 const FEEDING = economyData.feeding
 
 export interface DecisionDraft {
-  feedLevel: 'min' | 'max' | 'required' | 'custom'
+  feedLevel: FeedMode
   customPercentage: number
   sellGrain: number
   buyGrain: number
@@ -52,7 +52,7 @@ export interface DecisionDraft {
 export function defaultDraft(player: PlayerState): DecisionDraft {
   return {
     feedLevel: 'required',
-    customPercentage: FEEDING.customDefaultPercentage,
+    customPercentage: FEEDING.customDefaultAdequacy * 100,
     sellGrain: 0,
     buyGrain: 0,
     farmlanbuy: 0,

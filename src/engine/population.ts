@@ -10,11 +10,31 @@ import { FeedingResult } from './economy.ts'
 const POP_ECONOMY = economyData.population
 const FEEDING = economyData.feeding
 
+/** Why immigration did or did not flow (issue #47).
+ *
+ *  The player asked "is it driven by food prestige tax?" and the honest answer
+ *  is that it is driven by neither prestige nor tax, and that most of the time
+ *  it is simply switched off. A bare "Immigration: 0" cannot say that, and a UI
+ *  that re-derived the condition from thresholds would be a second copy of the
+ *  rule — so the engine reports the verdict and the readings behind it. */
+export interface ImmigrationGate {
+  unrest: number
+  adequacy: number
+  unrestOk: boolean
+  adequacyOk: boolean
+  /** Thresholds echoed so the UI can name them without importing the data file
+   *  and drifting out of step with what was actually applied. */
+  maxUnrest: number
+  minAdequacy: number
+  maxAdequacy: number
+}
+
 export interface PopulationDynamicsResult {
   births: number
   deaths: number
   emigration: number
   immigration: number
+  immigrationGate: ImmigrationGate
   newPopulation: PopulationState
 }
 
@@ -61,12 +81,22 @@ export function applyPopulationDynamics(
   // is unconditional so gated immigration does not shift downstream seeded rolls.
   let immigration = 0
   const immigrationRoll = rng.next()
-  if (
-    unrest < POP_ECONOMY.immigrationMaxUnrest
-    && feeding.feedAdequacy >= POP_ECONOMY.immigrationMinAdequacy
+  const unrestOk = unrest < POP_ECONOMY.immigrationMaxUnrest
+  const adequacyOk = feeding.feedAdequacy >= POP_ECONOMY.immigrationMinAdequacy
     && feeding.feedAdequacy <= POP_ECONOMY.immigrationMaxAdequacy
-  ) {
+  if (unrestOk && adequacyOk) {
     immigration = population.peasants * POP_ECONOMY.immigrationRate * immigrationRoll
+  }
+  // Reported whether or not anyone came, so the UI can explain a zero (#47)
+  // instead of leaving the player to guess at prestige or tax.
+  const immigrationGate: ImmigrationGate = {
+    unrest,
+    adequacy: feeding.feedAdequacy,
+    unrestOk,
+    adequacyOk,
+    maxUnrest: POP_ECONOMY.immigrationMaxUnrest,
+    minAdequacy: POP_ECONOMY.immigrationMinAdequacy,
+    maxAdequacy: POP_ECONOMY.immigrationMaxAdequacy
   }
 
   const newPeasants = Math.max(0, population.peasants + births - deaths - emigration + immigration)
@@ -76,6 +106,7 @@ export function applyPopulationDynamics(
     deaths,
     emigration,
     immigration,
+    immigrationGate,
     newPopulation: { peasants: newPeasants, unrest }
   }
 }

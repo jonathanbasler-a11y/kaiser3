@@ -35,7 +35,7 @@
 // no separate "clear on new turn" bookkeeping needed.
 
 import economyData from '../../data/economy.json'
-import { GameState, Decision, cloneGameState } from '../engine/state.ts'
+import { GameState, Decision, PlayerChronicle, cloneGameState } from '../engine/state.ts'
 import { advanceYear } from '../engine/year.ts'
 import { getWeatherBands } from '../engine/economy.ts'
 import { planYear } from '../ai/planner.ts'
@@ -149,6 +149,12 @@ export interface YearPreview {
   grainOverflowLost: number
   /** Issue #46: the pre-commit harvest range. */
   outlook: HarvestOutlook
+  /** Issue #47: why immigration is or is not flowing. Straight from the engine's
+   *  own gate evaluation — the UI must not re-derive the condition. */
+  immigrationGate: PlayerChronicle['immigrationGate']
+  /** Issue #50a: what the feed dial asked for vs what the barn covered. */
+  feedTargetAdequacy: number
+  feedAdequacy: number
 }
 
 /** One forecast branch — the whole year resolved under a named weather band. */
@@ -299,6 +305,9 @@ export function previewYear(
     upkeepCost: report.upkeepCost,
     harvestYield: report.harvestYield,
     spoilage: report.spoilage,
-    grainOverflowLost: report.grainOverflowLost
+    grainOverflowLost: report.grainOverflowLost,
+    immigrationGate: report.immigrationGate,
+    feedTargetAdequacy: report.feedTargetAdequacy ?? 1,
+    feedAdequacy: report.feedAdequacy ?? 1
   }
 }

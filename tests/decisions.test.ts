@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import economyData from '../data/economy.json'
 import { validateDecisions } from '../src/engine/decisions.ts'
 import { Decision } from '../src/engine/state.ts'
 
@@ -45,16 +46,23 @@ describe('validateDecisions', () => {
     expect(fractional.valid).toBe(false)
   })
 
-  it('rejects a custom feed level outside the 20-80 dial, or with no percentage given', () => {
-    expect(validateDecisions([{ type: 'grain', feedLevel: 'custom', customPercentage: 95 }]).valid).toBe(false)
+  // 21.4 (#50a): customPercentage is a share of DEMAND (60-150), not of barn
+  // stock (was 20-80). Bounds read from data so this cannot drift out of step
+  // with the dial the UI actually renders.
+  it('rejects a custom feed level outside the dial, or with no percentage given', () => {
+    const lo = economyData.feeding.customMinAdequacy * 100
+    const hi = economyData.feeding.customMaxAdequacy * 100
+
+    expect(validateDecisions([{ type: 'grain', feedLevel: 'custom', customPercentage: lo - 1 }]).valid).toBe(false)
+    expect(validateDecisions([{ type: 'grain', feedLevel: 'custom', customPercentage: hi + 1 }]).valid).toBe(false)
     expect(validateDecisions([{ type: 'grain', feedLevel: 'custom' }]).valid).toBe(false)
-    expect(validateDecisions([{ type: 'grain', feedLevel: 'custom', customPercentage: 50 }]).valid).toBe(true)
+    expect(validateDecisions([{ type: 'grain', feedLevel: 'custom', customPercentage: 100 }]).valid).toBe(true)
   })
 
   it('rejects two decisions of the same type in one sheet', () => {
     const result = validateDecisions([
       { type: 'grain', feedLevel: 'min' },
-      { type: 'grain', feedLevel: 'max' }
+      { type: 'grain', feedLevel: 'growth' }
     ])
     expect(result.valid).toBe(false)
     expect(result.errors.some((e) => e.includes('duplicate'))).toBe(true)
