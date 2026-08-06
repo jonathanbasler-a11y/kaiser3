@@ -237,6 +237,14 @@ export function netGuildBonus(type: GuildType, baseIncomePerYear: number): numbe
   return guildGrossBonusIncome(type, baseIncomePerYear) - guildUpkeepSurcharge(type, baseIncomePerYear)
 }
 
+/** Net annual Taler a specific held guild adds, over and above what the same
+ *  building would earn unspecialized. The per-instance form of netGuildBonus,
+ *  resolving the building's own incomePerYear from its kind — this is what the
+ *  AI evaluator capitalises into market-equivalents (see evaluator.ts). */
+export function guildNetAnnualGain(guild: SpecializedBuilding): number {
+  return netGuildBonus(guild.specialization, baseIncomePerYearForKind(guild.kind))
+}
+
 const PRODUCTION = buildingsData.production
 
 function baseIncomePerYearForKind(kind: BuildingKind): number {
@@ -300,7 +308,13 @@ export function pruneGuildsToFit(player: PlayerState): SpecializedBuilding[] {
     const total = totalOfKind(player, kind)
     const ofKind = result.filter((g) => g.kind === kind)
     const excess = ofKind.length - total
-    if (excess <= 0) continue
+    // `< 1`, not `<= 0`: `total` can be FRACTIONAL when the caller is the AI
+    // evaluator's hypothetical damaged state (applyExpectedLosses reduces
+    // building counts by an expected-loss share). A partial excess prunes
+    // nothing — slice() truncates a fractional count to 0 — so returning early
+    // states that step rule outright instead of falling through to a sort and
+    // an empty slice that allocate for no result.
+    if (excess < 1) continue
 
     const weakestFirst = [...ofKind].sort((a, b) => {
       const diff = netValue(a) - netValue(b)

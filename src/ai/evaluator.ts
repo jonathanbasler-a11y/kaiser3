@@ -28,10 +28,12 @@ import { ExposureContext } from '../engine/scarcity.ts'
 import { rankProgress, getNextRank, groupProgress } from '../engine/ranks.ts'
 import { totalLand } from '../engine/land.ts'
 import { yearsOfFoodHeld } from '../engine/economy.ts'
+import { guildNetAnnualGain, pruneGuildsToFit } from '../engine/guilds.ts'
 
 const HARVEST = economyData.harvest
 const PRESTIGE = buildingsData.prestige
 const PALACE = PRESTIGE.palace
+const PRODUCTION = buildingsData.production
 
 // Share of a rank's value credited for holding the land the palace requires.
 //
@@ -145,9 +147,79 @@ function usableLand(player: PlayerState): number {
   return Math.min(landHeld, workforceCapacity * LAND_HEADROOM_FACTOR)
 }
 
+// D2 GUILDS (phase 21.7b) — capitalising a charter into the existing `production`
+// term, as MARKET-EQUIVALENTS. No new evaluator dimension, no personalities.json
+// edit; the archetype split has to fall out of the weights already there.
+//
+// Why a fraction of a market rather than a weight of its own. `production` is a
+// COUNT (markets + mills + tradingHouses, each worth 1), and its weight is
+// 2,400-4,200 utility against `wealth` = 1/Taler. A market nets
+// incomePerYear - upkeepPerYear = 400 Taler/yr, so that weight already embeds a
+// capitalisation of a market's income stream over a 5.2-7.5 year horizon
+// (production / wealth / 400, per archetype: Raider 5.19, Expansionist 6.00,
+// Schemer 6.50, Merchant 6.56, Builder 7.50 — it is a band, not one number).
+// Expressing a charter as a fraction of a market therefore INHERITS whichever
+// horizon that archetype has, and keeps inheriting it if the weight is retuned.
+// A standalone guild weight would have to re-derive the horizon by hand and
+// would silently drift out of step the first time `production` moved — the same
+// class of parallel-approximation bug this file's header rules out for risk.
+//
+// Why it must be capitalised at all: a guild's payoff is a perpetual income
+// stream, but planYear looks exactly ONE year ahead. Priced at one year of
+// income a charter is worth ~50-108 Taler against a charterFee of 1,200-2,500,
+// so every archetype would refuse every petition forever and the whole D2
+// feature would be dead on arrival. Same problem `riskHorizonYears` exists to
+// solve for the risk term, solved the same way.
+//
+// The denominator is a MARKET specifically, and that is a choice inside a
+// ~12.5% band rather than a uniquely determined constant: a mill nets 450/yr
+// yet also counts as 1 production unit (a pre-existing flatness in this term),
+// so a mill charter divided by 400 is modestly generous. Market is the
+// defensible pick — it is the modal production building and the unit
+// personalities.json's own _weightGuide names — but the slack is real and
+// belongs in 21.9's calibration, not hidden behind a confident constant.
+const MARKET_NET_ANNUAL_GAIN = PRODUCTION.market.incomePerYear - PRODUCTION.market.upkeepPerYear
+
+// Guild holdings expressed in market-equivalents, for the `production` term.
+//
+// Runs the held guilds through the REAL pruneGuildsToFit rather than counting
+// player.guilds directly. This is defensive and correct-by-construction — it
+// cannot disagree with events.ts about which guild burns, the way a second
+// hand-written copy of the rule could — but be precise about what it currently
+// buys, because an earlier draft of this comment overclaimed:
+//
+//   * On a live state it is the identity (a real player's guilds always fit
+//     their buildings), so it costs nothing.
+//   * On the hypothetical damaged state applyExpectedLosses() builds, it CANNOT
+//     CURRENTLY FIRE, so the risk term prices guild loss at exactly zero. Fire
+//     is the only 'buildings' loss (data/events.json: fraction 0.2,
+//     maxProbability 0.40), so expected loss is at most 8% of a kind's count;
+//     pruning one guild needs a full building's worth of excess, i.e. >= 12.5
+//     fully-specialized buildings of that kind, and guildCharterSlots caps
+//     total guilds at 5. 5 x 0.08 = 0.4 < 1.
+//
+// Consequence worth naming: after 21.8, a real fire DOES prune a guild in the
+// engine, but this term does not see it, so a guild-holding AI under-prices
+// fire and is fractionally under-motivated to buy a well. Bounded by one
+// guild's value (max ~0.27 x production weight) times an <=8% share, so small —
+// but it is the same shape as the hospital failure this file's header exists to
+// prevent, and it is recorded in BACKLOG S10 rather than left to be rediscovered.
+// The call stays because it becomes correct for free the moment either the
+// charter cap or fire's parameters move.
+function guildProductionEquivalents(player: PlayerState): number {
+  // Fast path AND the byte-identity guarantee for 21.6/21.7: no guilds means
+  // this contributes exactly 0 and never touches the rest of the valuation.
+  if (!player.guilds || player.guilds.length === 0) return 0
+
+  const surviving = pruneGuildsToFit(player)
+  const netGain = surviving.reduce((sum, guild) => sum + guildNetAnnualGain(guild), 0)
+  return netGain / MARKET_NET_ANNUAL_GAIN
+}
+
 // Everything the ruler is worth right now, ignoring future risk.
 export function intrinsicUtility(player: PlayerState, weights: PersonalityWeights): number {
-  const productionBuildings = player.buildings.markets + player.buildings.mills + player.tradingHouses
+  const productionBuildings =
+    player.buildings.markets + player.buildings.mills + player.tradingHouses + guildProductionEquivalents(player)
   // A cathedral represents a comparable investment to a completed palace, so it is
   // valued as a full palace's worth of prestige rather than as a single stage.
   // Trading houses count as production (D2 commerce calibration): Merchant's
