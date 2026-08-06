@@ -54,6 +54,16 @@ describe('persist / save-load', () => {
     expect(restored.game.players.human.buildings.dike).toBe(0)
   })
 
+  it('round-trips standingOrders on PlayerState (phase 21.5)', () => {
+    const state = createStarterState([{ id: 'human', name: 'You' }])
+    state.players.human.standingOrders = { autoFeedMode: 'growth', autoSellGrainPercent: 40 }
+    const restored = deserializeGameState(serializeGameState(state))
+    expect(restored.players.human.standingOrders).toEqual({
+      autoFeedMode: 'growth',
+      autoSellGrainPercent: 40
+    })
+  })
+
   it('accepts unnamed legacy payloads (no name field)', () => {
     const state = createStarterState([{ id: 'human', name: 'You' }])
     const payload = buildSavePayload({

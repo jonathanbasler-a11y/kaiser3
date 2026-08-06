@@ -4,8 +4,8 @@
 // too, so there is exactly one definition of what a legal turn looks like
 // (engine/decisions.ts validates both).
 
-import { GameState, Decision, EspionageMode, FeedMode, PlayerState } from '../engine/state.ts'
-import { yearsOfFoodHeld } from '../engine/economy.ts'
+import { GameState, Decision, EspionageMode, FeedMode, PlayerState, PopulationState, StandingOrders } from '../engine/state.ts'
+import { annualGrainRequirement, resolveFeeding, yearsOfFoodHeld } from '../engine/economy.ts'
 import { affordableHectares as engineAffordableHectares } from '../engine/land.ts'
 import economyData from '../../data/economy.json'
 
@@ -82,6 +82,89 @@ export function defaultDraft(player: PlayerState): DecisionDraft {
     trainingInvest: 0,
     equipmentInvest: 0
   }
+}
+
+/** What a standing order wrote into the draft this year — for the year-report line. */
+export interface StandingOrderFire {
+  autoFeedMode?: FeedMode
+  autoSellGrainPercent?: number
+  soldGrain?: number
+}
+
+/**
+ * Surplus auto-sell may touch: grain left AFTER feeding, minus a 1-year demand
+ * reserve so the order can never empty the barn into starvation. Stock is already
+ * storage-capped at harvest (economy.ts), so this is "above reserve within the
+ * barn", not capacity+reserve as a sum.
+ */
+export function standingOrderSellAmount(
+  stockAfterFeeding: number,
+  population: PopulationState,
+  percent: number
+): number {
+  const reserve = annualGrainRequirement(population)
+  const surplus = Math.max(0, Math.floor(stockAfterFeeding) - Math.ceil(reserve))
+  const pct = Math.min(100, Math.max(0, percent))
+  const sell = Math.floor((surplus * pct) / 100)
+  return Math.min(maxSellableGrain(stockAfterFeeding), Math.max(0, sell))
+}
+
+/**
+ * Apply PlayerState.standingOrders onto a draft. Pure UI convenience — emits the
+ * same Decision fields a manual player would set. Returns what fired, or null.
+ */
+export function applyStandingOrders(
+  draft: DecisionDraft,
+  orders: StandingOrders | undefined,
+  stockAtFeeding: number,
+  population: PopulationState
+): StandingOrderFire | null {
+  if (!orders) return null
+  const fire: StandingOrderFire = {}
+  let fired = false
+
+  if (orders.autoFeedMode !== undefined) {
+    draft.feedLevel = orders.autoFeedMode
+    fire.autoFeedMode = orders.autoFeedMode
+    fired = true
+  }
+
+  if (orders.autoSellGrainPercent !== undefined && orders.autoSellGrainPercent > 0) {
+    const stockAfter = resolveFeeding(
+      {
+        type: 'grain',
+        feedLevel: draft.feedLevel,
+        customPercentage: draft.feedLevel === 'custom' ? draft.customPercentage : undefined
+      },
+      population,
+      stockAtFeeding
+    ).grainStockAfter
+    const sold = standingOrderSellAmount(stockAfter, population, orders.autoSellGrainPercent)
+    draft.sellGrain = sold
+    fire.autoSellGrainPercent = orders.autoSellGrainPercent
+    fire.soldGrain = sold
+    fired = true
+  }
+
+  return fired ? fire : null
+}
+
+export function formatStandingOrderFire(fire: StandingOrderFire): string {
+  const bits: string[] = []
+  if (fire.autoFeedMode !== undefined) {
+    const label =
+      fire.autoFeedMode === 'min' ? 'Min'
+        : fire.autoFeedMode === 'required' ? 'Required'
+          : fire.autoFeedMode === 'growth' ? 'Growth'
+            : 'Custom'
+    bits.push(`feed set to ${label}`)
+  }
+  if (fire.autoSellGrainPercent !== undefined) {
+    bits.push(
+      `sold ${fire.soldGrain ?? 0} grain (${fire.autoSellGrainPercent}% of surplus above reserve)`
+    )
+  }
+  return `Standing order: ${bits.join('; ')}.`
 }
 
 export function draftToDecisions(draft: DecisionDraft): Decision[] {

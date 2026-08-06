@@ -45,6 +45,7 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **21.2** | Cursor | — | Name destroyed markets/mills, sabotage grain (#48) | Merged in `32ff597` |
 | **21.3** | Opus | High | Harvest becomes a forecast, not a spoiler (#46) | Per-player `weatherOverrides`; draw still consumed; 3-band preview; goldens byte-identical |
 | **21.4** | Opus | High | Feed dial re-based on demand (#50a) + immigration legibility (#47) | Modes name an adequacy; `max`→`growth`; overfeed lever kept alive; balance gate re-passes |
+| **21.5** | Cursor | — | Standing orders (#50b) | `standingOrders` on PlayerState; UI applies into Decision sheet; year-report "fired" line |
 | **21.1** | Sonnet | Medium | Scroll-jump fix (#45) — stop `renderGame()` on slider/stepper | Tax/land/spy/war mutate draft or tab-only; `.screen` scroll preserved |
 | **21.2** | Sonnet | Medium | Name destroyed buildings + sabotage grain (#48) | Event/sabotage loss text names markets/mills; strike log shows grain |
 
@@ -1153,7 +1154,7 @@ machinery), then D1 (requires new data file, RNG stream extension, 19A interacti
 
 ---
 
-**Last updated:** Phase 21.4 (feed dial #50a + immigration legibility #47). 21.0–21.3 merged; #45, #48, #46 cleared and #47/#50a addressed. Next Cursor: 21.5 standing orders — `FeedMode` now exists in `state.ts`. Then Claude: D2 guilds at 21.6–21.11 (#49, #51). Deferred still: F2, F7; D1 trade routes.
+**Last updated:** Phase 21.5 (standing orders #50b). 21.0–21.4 merged; #45, #48, #46, #47, #50a/#50b addressed. Next Claude: D2 guilds at 21.6–21.11 (#49, #51). Deferred still: F2, F7; D1 trade routes.
 
 ---
 
@@ -1484,3 +1485,22 @@ licensed by that doc's own "Where the Original Falls Short" section; nothing lic
 silently. The same line's "Storage must stay ≥20% above population need" turns out never to have been
 implemented — filed as BACKLOG S8 rather than invented on the spot, since whether it was a hard rule
 or player advice changes the design substantially.
+
+
+---
+
+## Phase 21.5: Standing Orders (#50b) ✓
+
+UI convenience for auto-feed and auto-sell. `PlayerState.standingOrders` holds
+`autoFeedMode` / `autoSellGrainPercent`; applied in `src/ui/decisions.ts` when building
+the human Decision sheet — **not** inside the reducer. Auto-sell takes only a percentage of
+surplus above a 1-year demand reserve (stock is already storage-capped at harvest). Grain tab
+sets/clears the orders; the year report shows a "Standing order: …" line when one fired.
+AI never sets standing orders (parity is the shared `Decision[]` shape).
+
+### Acceptance Criteria
+- ✓ Standing order → same `Decision[]` as equivalent manual feed/sell (`tests/standingOrders.test.ts`)
+- ✓ Never sells into the 1-year reserve
+- ✓ Persisted via existing save path (`clonePlayerState` + `normalizePlayer`)
+- ✓ Reducer / golden fixtures untouched
+
