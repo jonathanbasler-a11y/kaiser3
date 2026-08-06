@@ -35,6 +35,17 @@ export interface PlayerState {
   // Phase 19A: accumulates on each war, decays in peacetime; feeds unrest.
   // Optional + ?? to 0 for the same reason as trainingLevel.
   warWeariness?: number
+  // Phase 21.5 (#50b): UI convenience only — applied when building the human
+  // Decision sheet in src/ui/decisions.ts, never inside the reducer. Optional so
+  // AI rivals and pre-21.5 saves omit it; clone/persist copy it when present.
+  standingOrders?: StandingOrders
+}
+
+/** Auto feed/sell defaults the Grain tab writes into the Decision sheet each year. */
+export interface StandingOrders {
+  /** 0–100: sell this % of surplus above the post-feed reserve. */
+  autoSellGrainPercent?: number
+  autoFeedMode?: FeedMode
 }
 
 export interface LandHolding {
@@ -379,7 +390,10 @@ export function clonePlayerState(player: PlayerState): PlayerState {
     heir: player.heir,
     trainingLevel: finiteOrZero(player.trainingLevel),
     equipmentLevel: finiteOrZero(player.equipmentLevel),
-    warWeariness: finiteOrZero(player.warWeariness)
+    warWeariness: finiteOrZero(player.warWeariness),
+    ...(player.standingOrders
+      ? { standingOrders: { ...player.standingOrders } }
+      : {})
   }
 }
 

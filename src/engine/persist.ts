@@ -93,6 +93,22 @@ function normalizePlayer(raw: unknown, expectedId: string): PlayerState {
     warWeariness: typeof raw.warWeariness === 'number' && Number.isFinite(raw.warWeariness) ? raw.warWeariness : 0
   }
   if (typeof raw.heir === 'string') player.heir = raw.heir
+  // Phase 21.5: optional UI standing orders. Tolerate-and-skip invalid fields
+  // rather than rejecting the whole save (same pattern as trainingLevel).
+  if (isRecord(raw.standingOrders)) {
+    const so: PlayerState['standingOrders'] = {}
+    const pct = raw.standingOrders.autoSellGrainPercent
+    if (typeof pct === 'number' && Number.isFinite(pct)) {
+      so.autoSellGrainPercent = Math.min(100, Math.max(0, Math.floor(pct)))
+    }
+    const mode = raw.standingOrders.autoFeedMode
+    if (mode === 'min' || mode === 'required' || mode === 'growth' || mode === 'custom') {
+      so.autoFeedMode = mode
+    }
+    if (so.autoSellGrainPercent !== undefined || so.autoFeedMode !== undefined) {
+      player.standingOrders = so
+    }
+  }
   return player
 }
 

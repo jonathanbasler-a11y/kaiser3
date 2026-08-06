@@ -10,12 +10,15 @@ describe('clonePlayerState', () => {
     p.equipmentLevel = 3
     p.heir = 'a'
     p.buildings.dike = 1
+    p.standingOrders = { autoFeedMode: 'growth', autoSellGrainPercent: 25 }
 
     const clonedPlayer = clonePlayerState(p)
     expect(clonedPlayer.trainingLevel).toBe(2)
     expect(clonedPlayer.equipmentLevel).toBe(3)
     expect(clonedPlayer.heir).toBe('a')
     expect(clonedPlayer.buildings.dike).toBe(1)
+    expect(clonedPlayer.standingOrders).toEqual({ autoFeedMode: 'growth', autoSellGrainPercent: 25 })
+    expect(clonedPlayer.standingOrders).not.toBe(p.standingOrders)
 
     const clonedGame = cloneGameState(state)
     const gp = clonedGame.players.a
@@ -23,6 +26,7 @@ describe('clonePlayerState', () => {
     expect(gp.equipmentLevel).toBe(3)
     expect(gp.heir).toBe('a')
     expect(gp.buildings.dike).toBe(1)
+    expect(gp.standingOrders).toEqual({ autoFeedMode: 'growth', autoSellGrainPercent: 25 })
   })
 
   it('coerces NaN optional military fields to 0', () => {

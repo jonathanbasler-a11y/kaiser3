@@ -5,7 +5,7 @@
 
 import buildingsData from '../../data/buildings.json'
 import economyData from '../../data/economy.json'
-import { GameState, Decision, Chronicle, PlayerState, EspionageMode, PlayerChronicle, GrainDecision } from '../engine/state.ts'
+import { GameState, Decision, Chronicle, PlayerState, EspionageMode, PlayerChronicle, GrainDecision, FeedMode } from '../engine/state.ts'
 import { eventLossMagnitudeText, calculateEventProbability, getEventCatalog, formatBuildingsDestroyed } from '../engine/events/events.ts'
 import { createStarterState, applyStartingMultiplier } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
@@ -22,7 +22,19 @@ import { planningSeed } from '../ai/planningSeed.ts'
 import { compareStanding } from '../ai/sim.ts'
 import { annualGrainRequirement, storageCapacity, grainBuybackPrice, laborGatedFarmland, resolveFeeding, getWeatherBands } from '../engine/economy.ts'
 import { el, clear, stepper, sliderField, segmented, statTile, tooltip } from './dom.ts'
-import { DecisionDraft, defaultDraft, draftToDecisions, rivalOptions, maxSellableGrain, maxAffordableGrainBuy, yearsOfFoodLabel, maxNewHires } from './decisions.ts'
+import {
+  DecisionDraft,
+  defaultDraft,
+  draftToDecisions,
+  rivalOptions,
+  maxSellableGrain,
+  maxAffordableGrainBuy,
+  yearsOfFoodLabel,
+  maxNewHires,
+  applyStandingOrders,
+  formatStandingOrderFire,
+  StandingOrderFire
+} from './decisions.ts'
 import { previewYear, warSnapshotDraft, YearPreview, downsideTailProbability } from './preview.ts'
 import {
   feedStockFromChronicle,
@@ -126,6 +138,9 @@ interface Session {
   // what changed since last turn instead of showing a bare current value.
   // Null before the first year ever resolves.
   lastChronicle: PlayerChronicle | null
+  // Phase 21.5: what standing orders wrote into this year's Decision sheet,
+  // surfaced on the year report so automation is never invisible.
+  standingOrderFire: StandingOrderFire | null
 }
 
 type Outcome =
@@ -183,6 +198,33 @@ function trackDraft(draft: DecisionDraft): DecisionDraft {
       return result
     }
   })
+}
+
+
+/** Forecast stock at feeding time — same oracle the Grain tab uses for sell caps. */
+function stockAtFeedingEstimate(player: PlayerState, draft: DecisionDraft): number {
+  if (!session) return player.grainStock
+  const preview = previewYear(session.state, HUMAN_ID, draft, session.rivals, session.difficulty)
+  if (!preview) return player.grainStock
+  const branch = preview.outlook.expected
+  return feedStockFromChronicle(player.grainStock, branch.spoilage, branch.harvestYield, branch.grainOverflowLost)
+}
+
+/** Write standing orders into the live draft; returns what fired for the year report. */
+function refreshStandingOrdersIntoDraft(): StandingOrderFire | null {
+  if (!session) return null
+  const player = session.state.players[HUMAN_ID]
+  const orders = player.standingOrders
+  if (!orders || (orders.autoFeedMode === undefined && !(orders.autoSellGrainPercent && orders.autoSellGrainPercent > 0))) {
+    session.standingOrderFire = null
+    return null
+  }
+  // Feed mode first so surplus math uses the standing feed level.
+  if (orders.autoFeedMode !== undefined) session.draft.feedLevel = orders.autoFeedMode
+  const stock = stockAtFeedingEstimate(player, session.draft)
+  const fire = applyStandingOrders(session.draft, orders, stock, player.population)
+  session.standingOrderFire = fire
+  return fire
 }
 
 export function mount(container: HTMLElement): void {
@@ -380,8 +422,10 @@ function startGame(opponentCount: number, maxYears: number, difficultyId: string
     draft: trackDraft(defaultDraft(state.players[HUMAN_ID])),
     activeTab: 'overview',
     yearReport: null,
-    lastChronicle: null
+    lastChronicle: null,
+    standingOrderFire: null
   }
+  refreshStandingOrdersIntoDraft()
   renderGame()
 }
 
@@ -408,8 +452,10 @@ function resumeFromSave(payload: SavePayload): void {
     draft: trackDraft(defaultDraft(payload.game.players[HUMAN_ID])),
     activeTab: 'overview',
     yearReport: null,
-    lastChronicle: null
+    lastChronicle: null,
+    standingOrderFire: null
   }
+  refreshStandingOrdersIntoDraft()
   renderGame()
 }
 
@@ -1248,6 +1294,63 @@ function renderGrainTab(player: GameState['players'][string], state: GameState):
     tooltip: 'Buys grain at a markup over the sell price — useful to top up storage ahead of a feared shortfall, but expensive as a habit.'
   }))
 
+  // Phase 21.5 (#50b) — standing orders are a UI convenience that rewrite the
+  // Decision sheet each year; they never enter the reducer.
+  const orders = player.standingOrders ?? {}
+  const autoFeed = orders.autoFeedMode ?? 'off'
+  type AutoFeedChoice = FeedMode | 'off'
+  container.appendChild(el('p', { class: 'help-text' },
+    'Standing orders (optional): applied when you End Year — same Decision sheet a manual choice would produce. AI rivals never set these.'
+  ))
+  container.appendChild(segmented<AutoFeedChoice>({
+    options: [
+      { value: 'off', label: 'Off' },
+      { value: 'min', label: 'Auto Min' },
+      { value: 'required', label: 'Auto Required' },
+      { value: 'growth', label: 'Auto Growth' }
+    ],
+    value: autoFeed === 'custom' ? 'off' : autoFeed,
+    title: 'Auto-feed standing order',
+    tooltip: 'Every End Year, set the feed dial to this mode before the year resolves. Clear with Off.',
+    onChange: (v) => {
+      const next = { ...(player.standingOrders ?? {}) }
+      if (v === 'off') delete next.autoFeedMode
+      else next.autoFeedMode = v
+      if (next.autoFeedMode === undefined && !(next.autoSellGrainPercent && next.autoSellGrainPercent > 0)) {
+        delete player.standingOrders
+      } else {
+        player.standingOrders = next
+      }
+      refreshStandingOrdersIntoDraft()
+      rerenderActiveTab?.()
+    }
+  }))
+  const sellPct = orders.autoSellGrainPercent ?? 0
+  container.appendChild(sliderField({
+    label: 'Auto-sell % of surplus (above 1-year reserve)',
+    value: sellPct,
+    min: 0,
+    max: 100,
+    onChange: (v) => {
+      const next = { ...(player.standingOrders ?? {}) }
+      if (v <= 0) delete next.autoSellGrainPercent
+      else next.autoSellGrainPercent = v
+      if (next.autoFeedMode === undefined && !(next.autoSellGrainPercent && next.autoSellGrainPercent > 0)) {
+        delete player.standingOrders
+      } else {
+        player.standingOrders = next
+      }
+      refreshStandingOrdersIntoDraft()
+      rerenderActiveTab?.()
+    },
+    tooltip: 'Sells this percentage of grain left after feeding and after keeping one year of demand in reserve — never starves the realm to fill the Kaiser\'s coffers. 0 clears the order.'
+  }))
+  if (session?.standingOrderFire) {
+    container.appendChild(el('p', { class: 'help-text' },
+      `This year: ${formatStandingOrderFire(session.standingOrderFire)}`
+    ))
+  }
+
   return container
 }
 
@@ -1802,6 +1905,9 @@ function runYear(): void {
 
 function resolveYear(): void {
   if (!session) return
+  // Standing orders re-fire into the sheet at commit time so the Decision[] matches
+  // what a manual player would have typed for the same feed/sell policy.
+  const standingFire = refreshStandingOrdersIntoDraft()
   const { state, rivals, draft, difficulty } = session
 
   const decisions: Record<string, Decision[]> = {
@@ -1820,7 +1926,7 @@ function resolveYear(): void {
   session.lastChronicle = result.chronicle.playerReports[HUMAN_ID] ?? null
 
   session.yearReport = {
-    entries: buildReportEntries(result.chronicle, result.state),
+    entries: buildReportEntries(result.chronicle, result.state, standingFire),
     outcome: null,
     eventCards: collectEventCards(result.chronicle),
     cardIndex: 0
@@ -1856,6 +1962,7 @@ function resolveYear(): void {
     justiceGraft: session.draft.justiceGraft
   }
   session.draft = trackDraft({ ...defaultDraft(result.state.players[HUMAN_ID]), ...previousTax })
+  refreshStandingOrdersIntoDraft()
   renderYearReport()
 }
 
@@ -1980,8 +2087,15 @@ function positiveEventMagnitudeText(outcome: NonNullable<PlayerChronicle['positi
   }
 }
 
-function buildReportEntries(chronicle: Chronicle, state: GameState): HTMLElement[] {
+function buildReportEntries(
+  chronicle: Chronicle,
+  state: GameState,
+  standingFire: StandingOrderFire | null = null
+): HTMLElement[] {
   const entries: HTMLElement[] = []
+  if (standingFire) {
+    entries.push(el('div', { class: 'log-entry' }, formatStandingOrderFire(standingFire)))
+  }
   const report = chronicle.playerReports[HUMAN_ID]
   if (!report) return entries
 
