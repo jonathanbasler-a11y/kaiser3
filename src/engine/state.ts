@@ -39,6 +39,61 @@ export interface PlayerState {
   // Decision sheet in src/ui/decisions.ts, never inside the reducer. Optional so
   // AI rivals and pre-21.5 saves omit it; clone/persist copy it when present.
   standingOrders?: StandingOrders
+  // Phase 21.6 (D2, #51/#49) — see engine/guilds.ts for the pure logic that reads
+  // and produces these. Optional for the same reason every other Phase-N addition
+  // to PlayerState is: pre-21.6 saves, AI-constructed states, and the ~20
+  // PlayerState literals across tests/scripts all keep compiling, and every read
+  // site defaults absence to "no guilds, no pending petition, no cooldowns".
+  //
+  // Granted specializations. Deliberately a separate array rather than replacing
+  // BuildingState.markets/mills with a typed structure — the existing
+  // calculateBuildingIncome/calculateUpkeep paths keep operating on plain counts
+  // for UNspecialized buildings; guild income is a separate pass over this array.
+  // Unspecialized count for a kind = buildings[kind] - guilds.filter(kind).length.
+  guilds?: SpecializedBuilding[]
+  // At most one at a time — set as advanceYear's last step when a new petition
+  // becomes eligible; read by the UI so the player can answer before End Year;
+  // resolved at the START of the following year (step 3.5, right after
+  // construction) via engine/guilds.ts's resolveGuildPetition. This is the
+  // timing model PLAN.md settled on: the doc's "same-year or next-year" question
+  // is a false dichotomy, because for the player to answer BEFORE pressing End
+  // Year, the petition must already be on the state at turn start — which IS
+  // next-year storage relative to the year that generated it.
+  pendingGuild?: PendingGuildPetition
+  // Deterministic replacement for the design doc's guildRefusalRepetitionWeight
+  // (an RNG-weighted re-roll). nextGuildPetition is a PURE function of state with
+  // zero new RNG draws — the single most valuable property in this design, since
+  // it keeps the shared seeded stream byte-identical — so "don't immediately
+  // re-offer a just-refused type" has to be a deterministic cooldown instead of a
+  // weighted roll. Value = the year this type becomes offerable again.
+  guildCooldowns?: Partial<Record<GuildType, number>>
+}
+
+/** Markets and mills may specialize in a commodity (D2). `kind` + which count on
+ *  BuildingState it draws down; `specialization` indexes data/buildings.json's
+ *  guilds.types. incomeMultiplier is stored on the instance (not re-read from
+ *  data every time) so a future event could alter one guild's multiplier without
+ *  touching the rest — not used by anything yet, but cheap to carry now and
+ *  expensive to retrofit into every read site later. */
+export interface SpecializedBuilding {
+  kind: 'market' | 'mill'
+  specialization: GuildType
+  incomeMultiplier: number
+}
+
+export type GuildType = 'cloth' | 'iron' | 'salt' | 'wine'
+
+/** A petition awaiting the player's grant/refuse answer. Immutable once queued —
+ *  nextGuildPetition decided the kind+specialization when it created this; the
+ *  player only answers yes/no (see GuildDecision below, which deliberately
+ *  carries no buildingRef: buildings are fungible counts, not tracked
+ *  identities, so there is nothing else for the player to choose). */
+export interface PendingGuildPetition {
+  kind: 'market' | 'mill'
+  specialization: GuildType
+  /** The year the petition was queued (chronicle/debugging, not used for logic —
+   *  resolution always happens at the start of the FOLLOWING year). */
+  queuedYear: number
 }
 
 /** Auto feed/sell defaults the Grain tab writes into the Decision sheet each year. */
@@ -264,6 +319,18 @@ export interface GameEvent {
 // member: it was defined and validated but nothing ever executed it — a
 // validated-but-inert no-op is worse than a missing feature (BACKLOG.md B4).
 // Re-add it only alongside the phase that actually implements F2.
+//
+// GuildDecision below looks like the same anti-pattern from 21.6 through 21.7 —
+// validated, but no year.ts step consumes it yet — and it is worth being
+// explicit about why it is not. TradeDecision was a PERMANENTLY abandoned
+// feature: F2 was deferred with no committed follow-up, so the type sat dead
+// indefinitely. GuildDecision is scaffolding on a locked sequencing table
+// (PLAN.md §21.6-21.11): 21.8 wires the reducer to create the pendingGuild a
+// GuildDecision answers, and nothing in 21.6-21.7 constructs one (no AI path, no
+// UI control), so it is inert but not reachable-and-dead — the fixtures for both
+// tranches must stay byte-identical BECAUSE nothing can emit one yet. If 21.8
+// were ever abandoned, GuildDecision must be removed the same way TradeDecision
+// was, not left as permanent scaffolding.
 export type Decision =
   | GrainDecision
   | LandTradeDecision
@@ -271,6 +338,7 @@ export type Decision =
   | ConstructionDecision
   | EspionageDecision
   | WarDecision
+  | GuildDecision
 
 /** How much to feed, named as a target ADEQUACY (share of demand), not a share
  *  of barn stock — see the `_feedingNote` in data/economy.json for why 21.4
@@ -353,6 +421,17 @@ export interface WarDecision {
   equipmentInvest?: number
 }
 
+/** Answer to `player.pendingGuild` (D2, #49/#51). No `buildingRef`: the petition
+ *  already fixed kind+specialization when engine/guilds.ts's nextGuildPetition
+ *  queued it, so the player has nothing else to choose. A 'guild' decision
+ *  submitted when there is no pendingGuild, or after it was already resolved
+ *  this year, is a no-op — year.ts (from 21.8) checks pendingGuild, not this
+ *  decision's mere presence. */
+export interface GuildDecision {
+  type: 'guild'
+  action: 'grant' | 'refuse'
+}
+
 // Hand-written structural clone, replacing JSON.parse(JSON.stringify(state))
 // at the top of advanceYear() — measured at ~20% of planYear's total cost,
 // since the AI planner calls advanceYear roughly 2,000-3,000 times per
@@ -393,7 +472,13 @@ export function clonePlayerState(player: PlayerState): PlayerState {
     warWeariness: finiteOrZero(player.warWeariness),
     ...(player.standingOrders
       ? { standingOrders: { ...player.standingOrders } }
-      : {})
+      : {}),
+    // Phase 21.6. Same optional-and-spread pattern as standingOrders above —
+    // absent stays absent, present is shallow-copied so mutating the clone's
+    // array/record can never reach back into the source state.
+    ...(player.guilds ? { guilds: player.guilds.map((g) => ({ ...g })) } : {}),
+    ...(player.pendingGuild ? { pendingGuild: { ...player.pendingGuild } } : {}),
+    ...(player.guildCooldowns ? { guildCooldowns: { ...player.guildCooldowns } } : {})
   }
 }
 

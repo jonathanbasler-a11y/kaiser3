@@ -22,6 +22,11 @@ export interface RankDef {
   requirements: RankRequirement[]
   unlockedFeature?: string
   description?: string
+  // Phase 21.6 (D2, #49/#51). Cumulative total guild charter slots available AT
+  // this rank, not a per-promotion delta — see data/ranks.json's
+  // _guildCharterSlotsNote. Optional only because every RankDef literal in tests
+  // would otherwise need editing; every real rank in data/ranks.json sets it.
+  guildCharterSlots?: number
 }
 
 const RANKS: RankDef[] = ranksData.ranks as RankDef[]
@@ -176,4 +181,13 @@ export function getTopRank(): number {
 
 export function getAllRanks(): RankDef[] {
   return RANKS
+}
+
+// Phase 21.6. One mechanism answers both "what does promotion grant" (#49) and
+// the D2 design doc's open question #4 (max guild count) — the cap on
+// specialized buildings IS the charter-slot count for the player's current rank.
+// Cumulative, so promoting from Baron to Prince jumps straight to Prince's total
+// rather than requiring the intermediate Duke slot to be "collected" separately.
+export function charterSlotsForRank(rank: number): number {
+  return RANKS.find((r) => r.id === rank)?.guildCharterSlots ?? 0
 }
