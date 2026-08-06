@@ -8,7 +8,7 @@ import {
   GrainDecision, LandTradeDecision, TaxDecision, ConstructionDecision, EspionageDecision, WarDecision,
   cloneGameState
 } from './state.ts'
-import { calculateHarvest, resolveFeeding, applyGrainTrade, storageCapacity, driftCornPrice } from './economy.ts'
+import { calculateHarvest, resolveFeeding, applyGrainTrade, storageCapacity, driftCornPrice, WeatherBandId } from './economy.ts'
 import { applyLandTrade } from './land.ts'
 import { applyPopulationDynamics } from './population.ts'
 import { applyTaxation } from './tax.ts'
@@ -48,10 +48,27 @@ const DEFAULT_CONSTRUCTION_DECISION: ConstructionDecision = {
   wellBuild: 0, hospitalBuild: 0, granaryBuild: 0, garrisonBuild: 0, tradingHouseBuild: 0
 }
 
+// Forecast mode (issue #46). The UI preview used to run the REAL seed through
+// the real reducer, which meant it could not help but know the exact harvest
+// before the player committed — the roll was a spoiler, not a forecast. Naming a
+// band per player lets previewYear ask "what would a lean year look like?"
+// without re-implementing harvest math client-side (the "two calculators"
+// failure uiCoherence.test.ts exists to prevent).
+//
+// Keyed by player id rather than applied globally on purpose: driftCornPrice
+// aggregates weatherMultiplierSum across every ruler, so a global override would
+// move the Kaiser's corn price and therefore the human's own grain-sale income.
+// Overriding just the human asks the question actually being asked — "what if MY
+// harvest is lean" — and leaves rivals rolling true.
+export interface AdvanceYearOptions {
+  weatherOverrides?: Record<string, WeatherBandId>
+}
+
 export function advanceYear(
   state: GameState,
   decisions: Record<string, Decision[]>,
-  seed: number
+  seed: number,
+  options?: AdvanceYearOptions
 ): { state: GameState; chronicle: Chronicle } {
   const rng = new SeededRng(seed)
   const newState = cloneGameState(state)
@@ -244,7 +261,8 @@ export function advanceYear(
 
     // 4. Harvest (labor-gated productivity, weather band, spoilage, storage cap)
     const harvest = calculateHarvest(
-      player.land, player.population, player.grainStock, player.buildings.granary, rng
+      player.land, player.population, player.grainStock, player.buildings.granary, rng,
+      options?.weatherOverrides?.[playerId]
     )
     player.grainStock = harvest.newGrainStock
     report.harvestYield = harvest.grossYield

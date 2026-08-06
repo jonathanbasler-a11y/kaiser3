@@ -26,7 +26,7 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **16** | Sonnet | Medium | Legibility from bug reports #9–12 + crest art pipeline prep | Cost/income/rank hints live; crest schema/prompts/UI ready (PNGs optional) |
 | **17** | Sonnet | Medium | Tap-to-toggle info tooltips on every changeable field | Mobile-first ⓘ tooltips; no hover dependency; tests green |
 | **18A** | Sonnet | Medium | UX transparency — spend shortfalls, tooltip overflow, mitigation/war clarity | Shortfalls reported; tooltips stay on-screen; browser-verified |
-| **18B** | Sonnet | Medium | Live spend/outcome preview panel (real `advanceYear` on a clone) | Preview matches End Year; rival `planYear` cached by state identity |
+| **18B** | Sonnet | Medium | Live spend/outcome preview panel (real `advanceYear` on a clone) | Preview matches End Year on spend order (deltas superseded by 21.3); rival `planYear` cached by state identity |
 | **18C** | Sonnet | High | Warfare depth — training, equipment, defender's advantage | Strength multipliers; upkeep; balance gate re-passes |
 | **18D** | Sonnet | Medium | ~200 small positive random events (flavor, gate-neutral) | 10%/yr flavor hits; balance gate unchanged; golden fixture reviewed |
 | **19A** | Opus | High | War brakes — mutual truces + war weariness | Truce blocks repeats; weariness→unrest; AI prices brakes; gate re-passes |
@@ -41,6 +41,9 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **20.6** | Sonnet | Medium | Art QA pass — verify, regenerate, delete dead entries | Committed in `2a77644` (#43) |
 | **20.7** | Sonnet | Medium | GPU seed sweep for remaining crests | Committed in `0c7592b` (#44); baron/duke recovered |
 | **21.0** | Sonnet | Low | Reducer golden fixture (baseline ratchet for the 21.x bug-log workstream) | Multi-player/multi-year cross-process fixture; proven to fail on a stray RNG draw; zero `src/` change |
+| **21.1** | Cursor | — | Scroll jump on tax/land controls (#45) | Merged in `66c1919` (#53) |
+| **21.2** | Cursor | — | Name destroyed markets/mills, sabotage grain (#48) | Merged in `32ff597` |
+| **21.3** | Opus | High | Harvest becomes a forecast, not a spoiler (#46) | Per-player `weatherOverrides`; draw still consumed; 3-band preview; goldens byte-identical |
 | **21.1** | Sonnet | Medium | Scroll-jump fix (#45) — stop `renderGame()` on slider/stepper | Tax/land/spy/war mutate draft or tab-only; `.screen` scroll preserved |
 | **21.2** | Sonnet | Medium | Name destroyed buildings + sabotage grain (#48) | Event/sabotage loss text names markets/mills; strike log shows grain |
 
@@ -1053,7 +1056,13 @@ Quick playtest follow-ups: `year.ts` reports construction/recruitment shortfalls
 `src/ui/preview.ts` runs the real `advanceYear()` on a throwaway clone using the human's in-progress draft plus rivals' planned decisions — so the sticky footer preview cannot disagree with End Year about spend order. Rival `planYear` is cached by `GameState` object identity (the expensive search); the human-side pass is a single deterministic year. Refresh is **debounced after draft edits** (not a 5Hz idle poll).
 
 ### Acceptance Criteria
-- ✓ Preview taler/population deltas and shortfalls match a real End Year on the same draft
+- ⚠️ ~~Preview taler/population deltas and shortfalls match a real End Year on the same draft~~ —
+  **superseded by Phase 21.3.** Left visible rather than deleted, per the practice above. The
+  *shortfalls* half is still true and still tested: year steps 1–3 run before the harvest at step 4,
+  so spend-order warnings remain exact predictions. The *deltas* half is deliberately no longer true —
+  `previewYear` now resolves named weather bands instead of the true roll, so taler and population
+  match End Year only when the real band happens to be the forecast band (~25% of years). That was the
+  point: matching exactly is what leaked the harvest to the player before they committed (issue #46).
 - ✓ Rival plans are not recomputed on every keystroke
 - ✓ Idle tabs do not keep simulating years in the background
 
@@ -1143,7 +1152,7 @@ machinery), then D1 (requires new data file, RNG stream extension, 19A interacti
 
 ---
 
-**Last updated:** Phase 21.2 (destruction naming #48). 21.0–21.1 merged. Next Cursor: 21.5 (needs 21.4). Claude: 21.3+. Deferred still: F2, F7; D1 trade routes.
+**Last updated:** Phase 21.3 (harvest forecast #46). 21.0–21.2 merged; #45, #48, #46 cleared. Next Claude: 21.4 (feed-dial semantics #50a + population legibility #47). Next Cursor: 21.5 standing orders (needs 21.4's `FeedMode`). Then D2 guilds at 21.6–21.11. Deferred still: F2, F7; D1 trade routes.
 
 ---
 
@@ -1282,3 +1291,76 @@ only markets/mills burn — balance question left for Claude, not changed here.
 - ✓ Year-golden fixture still green (GameState byte-identity; chronicle-only fields)
 
 ---
+
+## Phase 21.3: Harvest Becomes a Forecast (#46) ✓
+
+Bug report #46 asked for "a range between low and high". The leak was structural, not cosmetic:
+`previewYear` ran the REAL `advanceYear` with the REAL seed (`1 + year*1000`), and no human decision
+consumes RNG before the harvest step — so the preview showed the *actual* roll. Hiding the number on
+the Grain tab would not have been enough either: the sticky footer's `Population ±N` derives from feed
+adequacy, which derives from the harvest, so the true figure leaked through that instead.
+
+**Forecast mode on the reducer.** `advanceYear` gains an optional 4th parameter,
+`AdvanceYearOptions { weatherOverrides?: Record<string, WeatherBandId> }`. `rollWeather(rng, override?)`
+**still consumes its draw** when overridden and then returns the named band — the rng is shared across
+every player and every later step, so returning early would shift the stream and make a forecast run
+diverge for reasons unrelated to weather.
+
+Keyed **per player, not globally** (a deviation from the original sketch): `driftCornPrice` aggregates
+`weatherMultiplierSum` across all rulers, so a global override would move the Kaiser's corn price and
+therefore the human's own grain-sale income. Overriding just the human asks the question actually being
+asked — "what if *my* harvest is lean" — and leaves rivals rolling true.
+
+`previewYear` now resolves three bands (`data/economy.json` `harvest.forecastBands` = lean/average/good)
+and never the true roll; headline fields come from the expected branch. All three runs share one seed, so
+within-band jitter and every later draw are identical and the branches differ **only** by weather.
+
+What stays exact: year steps 1–3 (land trading, recruitment, construction) run before the harvest at
+step 4, so A2's construction-shortfall warnings — the reason the preview exists — are unaffected.
+
+### Acceptance Criteria
+- ✓ `advanceYear(s, d, seed)` byte-identical to the 4-arg call with `undefined` / `{}` / `{weatherOverrides:{}}`
+- ✓ `advanceYear-noguild-golden`, `planner-golden`, and `determinism` all still green — the 21.0 ratchet
+  is what proves the new parameter is inert
+- ✓ `rollWeather` advances the stream identically with and without an override
+- ✓ Overriding the human leaves both rivals' `weatherId` and `harvestYield` untouched
+- ✓ `harvestLow ≤ harvestExpected ≤ harvestHigh`, and the range is non-degenerate
+- ✓ Unrecognised band id degrades to the real roll rather than throwing
+- ✓ Verified in-browser: year 2 forecast read "11110–15685, likely about 13071"; the year report then
+  revealed "Lean year: harvest 11110" — the actual value was the low end, not the likely one
+- ✓ **Shortfalls proven band-independent** — identical under all seven weather bands, with the fixture
+  asserted to actually produce a shortfall first. Pinned because 21.8 will reorder reducer steps; if a
+  spend step ever moves after the harvest, this goes red instead of the footer silently lying.
+- ✓ **Every forecast-bearing surface hedges.** The sticky footer (on every tab, the most-read line in
+  the game) reads "Likely if you end the year now", ranges Taler and Population when the band moves
+  them, and downgrades `· Promotion!` to `· Promotion possible` when a promotion holds in some bands
+  but not all — `checkPromotion` reads taler and population, so a lean year can revoke it.
+- ✓ Forecast band ids validated at import (throws), matching `validateEventCatalog()`. A typo would
+  otherwise degrade silently to the true roll — i.e. **silently reintroduce #46** — and drop the caveat.
+- ✓ Perf measured in-browser, not assumed (Phase 9's precedent): Realm→Grain round trip, which includes
+  every `previewYear` call on the tab (~9 multi-player reducer runs), **median 1.3 ms** (min 0.9, max
+  2.5) over 12 iterations at 2 rivals. ~0.15 ms per `advanceYear`; ample headroom for the iOS target.
+- ✓ Suite: 34 files, 333 tests, `tsc --noEmit` clean
+
+### Deliberate design call
+The stated range is lean..good — 68% of the band weight, **not** the full drought..glut span, which at
+0.3×–1.85× would forecast nothing useful. Because the simulation can therefore roll outside the stated
+range, the Grain tab prints an explicit caveat. That caveat is **quantified and asymmetric** rather
+than hedged: "roughly 1 year in 6 comes in below that — as far down as *Drought*". Four bands sit
+outside the range, not two (drought 5 + poor 12 below, bountiful 10 + glut 5 above), and the downside
+is not the mirror of the upside — the worst band yields ~35% of the stated floor, so "worse and better
+are both possible" would flatten a famine and a bumper crop into one sentence. `CLAUDE.md` calls "a
+reserve carried through a bad year" load-bearing, and sizing that reserve needs the tail's probability
+and depth. Both are computed from the band table (`downsideTailProbability()`, `tailsExcluded`), so
+retuning `forecastBands` cannot leave a stale number or a stale caveat.
+
+A stated floor the simulation breaks through would read as the game lying — worse than the original bug.
+
+### Contract note
+This phase widened `advanceYear`'s signature, which `CLAUDE.md` previously described as taking *only*
+three arguments — and which **Phase 12 explicitly declined to widen** for a 5–10% perf win. That
+refusal still stands as the default; `CLAUDE.md`'s invariant has been amended to state the real rule
+(the 3-arg call must stay byte-identical; options must be pure; draw counts stay unconditional) and to
+record that the bar is a feature unbuildable any other way without breaking a *different* invariant.
+21.3 cleared it because the alternative — a client-side harvest estimator — would have broken the
+one-oracle rule, which is the worse failure. Perf work does not clear it.

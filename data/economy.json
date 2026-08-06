@@ -1,10 +1,12 @@
 {
   "_comment": "Economic parameters: harvest yields, spoilage, price curves, upkeep rates. Filled in during Phase 1.",
   "_harvestNote": "Weather is drawn from named BANDS rather than a narrow bell curve, so years are memorable: a drought is a disaster you talk about, not a 15% dip. Weighted mean is ~1.02, so the long run is near-neutral while any single year can ruin or make a reign. withinBandJitter adds texture inside a band without blurring the bands into each other.",
+  "_forecastNote": "forecastBands names which bands the Grain tab's pre-commit outlook runs (issue #46). lean/average/good carry weights 21/25/22 = 68% of the distribution, so the stated range is the USUAL one, not the possible one. FOUR bands sit outside it, not two: drought (5) and poor (12) below, bountiful (10) and glut (5) above — so 17% of years fall UNDER the stated floor, and poor is the larger part of that tail, not drought. The UI names the tail probability rather than implying a floor the simulation does not honour. Widening this to drought..glut would span 0.3x-1.85x and forecast nothing useful. Note 'expected' here means the MODAL band (average, 1.0x), not the distribution mean, which is 1.022.",
   "harvest": {
     "baseYieldPerHectare": 2.5,
     "laborHectaresPerPeasant": 5,
     "withinBandJitter": 0.08,
+    "forecastBands": { "low": "lean", "expected": "average", "high": "good" },
     "weatherBands": [
       {
         "id": "drought",
