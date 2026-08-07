@@ -19,11 +19,10 @@ import {
   GameState, PlayerState, Decision, TaxDecision, ConstructionDecision,
   LandTradeDecision, EspionageDecision, clonePlayerState
 } from '../engine/state.ts'
-import { advanceYear } from '../engine/year.ts'
 import { applyLandTrade, totalLand } from '../engine/land.ts'
 import { applyRecruitment } from '../engine/espionage.ts'
-import { evaluateState, projectedFeedAdequacy, projectedHarvestShortfall, projectedHarvestExcess, PersonalityWeights } from './evaluator.ts'
 import { annualGrainRequirement } from '../engine/economy.ts'
+import { isolate, scoreCandidate } from './candidateScore.ts'
 import { Personality } from './personalities.ts'
 import { planAggression } from './aggression.ts'
 import { planWar, planMilitaryInvestment } from './warAggression.ts'
@@ -227,52 +226,6 @@ export function generateCandidates(player: PlayerState, prices: GameState['kaize
   return candidates
 }
 
-// Builds a single-player game state so a candidate can be simulated in isolation,
-// without other rulers' decisions perturbing the comparison.
-function isolate(state: GameState, playerId: string): GameState {
-  const player = clonePlayerState(state.players[playerId])
-  return {
-    year: state.year,
-    players: { [playerId]: player },
-    activePlayerIds: [playerId],
-    kaizerTradePrices: { ...state.kaizerTradePrices }
-  }
-}
-
-// `isolated` is read-only from here down: advanceYear() takes its own deep
-// copy of the state it's given (year.ts:54) and never mutates the object
-// passed in, so the SAME isolated single-player state can be reused across
-// every candidate and every evaluation seed for one planYear() call instead
-// of being re-cloned per seed. Cloning it once per candidate (the previous
-// shape) or once per seed (the shape before that) was pure waste: isolate()
-// alone was ~14% of planYear's cost, almost none of which was doing useful
-// work — the source player never changes during a single planning pass.
-function scoreCandidate(
-  isolated: GameState,
-  playerId: string,
-  candidate: Decision[],
-  weights: PersonalityWeights,
-  evaluationSeeds: number[]
-): number {
-  let total = 0
-
-  for (const seed of evaluationSeeds) {
-    const result = advanceYear(isolated, { [playerId]: candidate }, seed)
-    const outcome = result.state.players[playerId]
-    total += evaluateState(
-      outcome,
-      {
-        feedAdequacy: projectedFeedAdequacy(outcome),
-        harvestShortfallExpectation: projectedHarvestShortfall(),
-        harvestExcessExpectation: projectedHarvestExcess()
-      },
-      weights
-    )
-  }
-
-  return total / evaluationSeeds.length
-}
-
 function priorSpendBeforeMilitary(
   player: PlayerState,
   state: GameState,
@@ -350,11 +303,31 @@ export function planYear(
     ...planMilitaryInvestment(state, playerId, personality.aggression, priorSpendTalers)
   }
 
-  // 21.8: answer a pending guild petition, if there is one. Appended LAST and
-  // omitted entirely when nothing is pending, so the sheet is unchanged in the
+  // Answer a pending guild petition, if there is one. Appended LAST and omitted
+  // entirely when nothing is pending, so the sheet is unchanged in the
   // overwhelmingly common year — which is what keeps golden-fixture movement
   // attributable to petitions actually firing rather than to sheet shape.
-  const guild = planGuildResponse(player, personality.weights)
+  //
+  // 21.9 replaced 21.8's closed-form screen with real-reducer scoring, so this
+  // now needs the isolated state, the sheet to score on top of, and the same
+  // evaluation seeds the sweep above used — it scores [...sheet, grant] against
+  // [...sheet, refuse] and keeps the winner. Deliberately NOT folded into
+  // generateCandidates: doing so would double a ~1,650-candidate sweep to price
+  // a binary that only exists in the handful of years a petition is pending.
+  // As written it costs two extra scoreCandidate calls in those years (one
+  // advanceYear run per evaluation seed each) and nothing at all in the rest.
+  //
+  // The sheet handed over is the COMPLETE one, espionage and war included, not
+  // just `best`. That matters for affordability and was wrong in 21.9's first
+  // draft: recruitment settles at year.ts step 2 and military investment at
+  // step 2.5, both BEFORE the charter fee is charged at step 3.5. Scoring the
+  // charter against a sheet missing them projects a treasury that is too high
+  // by exactly that spend — and it is largest for the archetypes that recruit
+  // and arm the most, so the error was not evenly distributed either. Building
+  // the emitted sheet first and scoring on top of it also makes the thing
+  // scored identical to the thing returned, rather than a near-copy.
+  const sheet = [...best, espionage, war]
+  const guild = planGuildResponse(isolated, playerId, sheet, personality.weights, evaluationSeeds)
 
-  return guild ? [...best, espionage, war, guild] : [...best, espionage, war]
+  return guild ? [...sheet, guild] : sheet
 }

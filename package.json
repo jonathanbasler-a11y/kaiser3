@@ -1,7 +1,7 @@
 {
   "name": "kaiser3",
   "version": "0.0.1",
-  "description": "Kaiser 3 — modern rebuild of the 1984 Ariolasoft economic/political sim",
+  "description": "Kaiser 3 \u00e2\u20ac\u201d modern rebuild of the 1984 Ariolasoft economic/political sim",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,6 +14,7 @@
     "event-profile": "tsx scripts/event-profile.ts",
     "population-profile": "tsx scripts/population-profile.ts",
     "ai-bench": "tsx scripts/ai-bench.ts",
+    "guild-bench": "tsx scripts/guild-bench.ts",
     "balance": "tsx scripts/balance.ts",
     "hardening-measure": "tsx scripts/hardening-measure.ts",
     "gen-art": "tsx scripts/gen-art.ts",
