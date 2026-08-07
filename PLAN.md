@@ -2163,7 +2163,7 @@ the headline and the three caveats that bound it:
   not establish: it shows this tranche's *change to the guild AI* is difficulty-neutral. It does
   **not** show the guild *mechanic* is not implicated, which would need a guilds-off control that
   was not run.
-- **The cause is which rivals the default fields.** `app.ts:397` assigns `personalities[i % length]`,
+- **The cause is which rivals the default fields.** `app.ts:410` assigns `personalities[i % length]`,
   so a 2-rival game always draws Builder and Expansionist — measurably the two weakest archetypes.
   Other pairings score 10–28% for the same human seats.
 
@@ -2175,6 +2175,10 @@ Three caveats that keep this from being a finished result:
    seat answers petitions, so 58% is an upper bound on a build nobody can play, and the real figure
    today is lower — plausibly a lot lower, since universal lapsing is exactly what collapsed the
    field in 21.8. This measurement should be re-run after 21.10 lands.
+   → **CLEARED by 21.10, re-measured in 21.11: still 58.0%, unchanged.** The expectation that the
+   number would move was wrong — `guild-bench` is headless and always played this seat with the AI
+   planner, so a UI-only tranche cannot touch it. What 21.10 changed is the measurement's validity,
+   not its value. See §21.11 and BACKLOG S11.
 2. **A planner seat is not "a competent human".** Decision parity guarantees the planner emits the
    same *action space* a human can, not the same skill. The seat's own archetype swings the result
    from 30% (Builder) to 90% (Raider) under identical rules — the per-row figures of the bench's
@@ -2224,3 +2228,159 @@ already appends.
 - ✓ Suite: 42 files, **469** tests (463 + 6), `tsc` + `vite build` green
 
 ---
+
+---
+
+## Phase 21.11: Closeout — Fixtures, the Gate, and Marking D2 Done ✓
+
+The last tranche of the guild work. Its planned deliverable was "regenerate
+`planner-golden.json` once, run `npm run balance` once, update the docs, mark D2
+implemented". Two of those turned out to be different jobs than expected.
+
+### The one deliberate regeneration was already spent — verified, not assumed
+
+The tranche plan expected 21.8 to break `planner-golden.json` and leave it red
+through 21.9, with exactly one reviewed regeneration here once calibration was
+frozen. `tests/golden.test.ts` still carried a banner saying so:
+*"EXPECTED RED FROM PHASE 21.8 UNTIL 21.11. DO NOT REGENERATE TO GO GREEN."*
+
+That banner was stale for three tranches. What actually happened is that 21.8's
+**fixup** regenerated the fixture once, under the review check the plan
+specifies — year-1 block byte-identical, entire year-20 diff one line (builder's
+`sellGrain` 5358 → 5206). It has been green ever since: 21.9 changed how the AI
+answers a petition and did not move it, 21.10 was UI-only.
+
+So 21.11 performed **no regeneration**, and checked rather than assumed that none
+was due: `npx tsx scripts/gen-golden-fixture.ts` was run into a scratch file and
+compared against the committed fixture. **Byte-identical.** Regenerating anyway
+would have been a no-op commit whose only lasting effect is to normalise
+re-baselining as a routine step — the precise habit a golden fixture exists to
+prevent.
+
+The stale banner is replaced with what is actually true, including the history,
+rather than quietly deleted. A stale instruction in a golden test is worse than
+none: it tells the next reader to expect failures and to re-baseline.
+
+### What planner-golden does and does not cover, since it is easy to get backwards
+
+Probed directly rather than reasoned about. Across the 19-year replay each
+archetype resolves **2 petitions and grants both**, finishing at rank 1 (Duke,
+2 charter slots) holding 2 guilds. Slots are therefore saturated by year 19, so
+`nextGuildPetition` offers nothing and **the committed year-20 sheet contains no
+guild decision at all**.
+
+Guild coverage in this fixture is real but **indirect**: it comes from those 19
+years of grants shaping the year-20 state the sheet is planned from, not from a
+guild decision inside the snapshot. That is enough for it to have guarded 21.9, though the
+guarantee is probabilistic rather than structural: `planner-golden.json` stores
+decision SHEETS, not state. A different guild answer necessarily moves the
+year-20 state; it moves the resulting sheet only with very high probability, not
+by construction. The sheet did not move, which is what 21.9's "reproduced the
+closed form's answer" claim rests on. Worth stating precisely,
+because the natural reading of that claim is that the sheet contains the guild
+decision, and it does not. The refuse path is not exercised here at all;
+`tests/guildResponse.test.ts` owns it.
+
+### The gate: PASSED, at the default, on all five
+
+`npx tsx scripts/balance.ts 200 60` — 200 matches × 60 years, 5 AI rulers,
+**PASSED all five criteria in 74.3s**. Full numbers in `docs/balance-report.md`,
+which this tranche brought up to date from Phase 7.
+
+| Criterion | Result | Threshold |
+|---|---|---|
+| Margin flatness | slope −1.051e-2 | ≤ 0.002 |
+| Loss persistence | late 74.1%, ratio 0.97 | ≥ 25%, ≥ 0.6 |
+| Late lead volatility | 56.5% | ≥ 20% |
+| No early runaway | yr-20 leader wins 51.0% | ≤ 85% |
+| No death spiral | growth 1.48, retention 2.23, late non-leader −1.26%, extinction 0.0% | ≥ 1, ≥ 0.5, ≥ −3%, ≤ 15% |
+
+Guild charters were the main risk to criterion 1 — a multiplicative bonus on a
+growing building count is exactly the compounding shape it polices. Field health
+at decade 6 ends at mean rank 5.43 and population 3,281, against a pre-guild
+baseline of 5.43 / 3,206. The feature landed without moving the gate.
+
+### Two corrections folded into `docs/balance-report.md`
+
+It was still the Phase 7 report, and it was wrong in two ways that mattered.
+
+**It listed four criteria.** There are five; Phase 13 added the death-spiral
+floor precisely because the first four are one-sided — a game grinding every
+ruler into the dirt satisfies margin flatness *better* than a healthy one does.
+
+**It said a 200-match run "exceeds practical runtime here" and that "60 matches
+is the honest figure".** Untrue since Phase 13 parallelised match generation:
+200 matches now runs in 74.3s, faster than the 188.3s Phase 7's *60*-match run
+took. This is not pedantry — 21.9 recorded a 60-match smoke run **failing**
+criteria 2 and 5 purely as a sampling artifact (decade 6 comes back all zeros
+when too few matches reach it), identified as such only by re-running the same
+reduced config against the previous commit. A document telling future readers
+that 60 is the honest figure was pointing them at a configuration that
+manufactures false failures.
+
+### D2 marked implemented, with the fifth criterion marked honestly
+
+`docs/superpowers/specs/2026-08-03-phase19d-economy-depth-design.md` § D2 now
+carries per-criterion evidence. Four of five met outright. The fifth —
+*"the existing `calculateBuildingIncome` test baseline is updated with a golden
+fixture that includes guilds"* — is marked `[~]`, not `[x]`:
+
+No `calculateBuildingIncome`-specific fixture was added, and
+`tests/buildings.test.ts` has no guild cases. Its **intent** (income math cannot
+shift accidentally) is carried by `advanceYear-golden.json`, whose 35-year run
+records `guildsGranted: 1` and `guildRefusalsAndLapses: 3` as asserted coverage
+counters — so income with a guild held is pinned cross-process and any drift
+forces a deliberate regeneration. A unit-level baseline would localise a break
+better. Recorded as a follow-up rather than ticked.
+
+The composition criterion is met (Builder 36/27/18/18 cloth/iron/salt/wine
+against Merchant 29/50/18/3) with a caveat carried forward: no archetype ever
+*prefers* a guild type, since `nextGuildPetition` rotates by year with no
+reference to personality. The divergence is a second-order effect of differing
+refusal rates and rank pacing. That satisfies D2 as written and is a thin basis
+for #51's "specialization is visible".
+
+**The adoption criterion needed a new counter to be checkable at all.** D2 asks
+for "at least one guild active *per* Merchant/Builder ruler by year 30" — a
+universal quantifier. The evidence first written here was "first grant lands at
+year 4-8", which is a mean over *matches that granted at all*: `guild-bench`
+only pushed into `firstGrantYears` when a grant occurred, so that cell reads
+identically whether ten rulers in ten adopted or three did. It cannot establish
+a per-ruler claim. 21.11 added an `adopt<=y30` column that counts rulers rather
+than years, and the criterion is genuinely met — **10/10 (100%) for all five
+archetypes**, not just the two the criterion names. Worth recording as a method
+note, not just a result: the original evidence would have looked equally
+convincing had the mechanic been reaching only a third of the field.
+
+### The human-seat re-measurement 21.10 asked for: unchanged, and that is the answer
+
+21.10 cleared BACKLOG S11's blocking caveat by shipping the petition UI, and left an open item to
+re-run the human-seat win rate because "the new figure is what matters". Re-run here:
+**58.0% (29/50), byte-identical to 21.9's run.**
+
+There is no new figure, and there could not have been. `guild-bench` is a headless simulation that
+has always played the human seat with the AI planner; a tranche that touches only `src/ui` changes
+nothing a headless run imports. What 21.10 changed is the measurement's **validity**, not its value
+— before it, the bench modelled a seat that answers petitions while no such seat could exist in a
+playable build. The 58% now means what it says, and it is still outside the owner's 30-40% band.
+S11's remaining work is unchanged: rival assignment (`app.ts:410` always fields the two weakest
+archetypes) and archetype rebalance.
+
+### Acceptance Criteria
+- ✓ `planner-golden.json` verified byte-identical to a fresh generation; **no
+  regeneration performed**, and the reason recorded in the test file itself
+- ✓ Stale "expected red until 21.11" banner in `tests/golden.test.ts` replaced
+  with the actual history and the actual coverage
+- ✓ Guild coverage of the golden scenario **measured** (2 resolutions per
+  archetype, both granted, zero guild decisions in the year-20 sheet) rather
+  than assumed
+- ✓ `npm run balance` run once at the default 200 matches: **PASSED all five**
+- ✓ `docs/balance-report.md` brought current, with the four-vs-five criterion
+  count and the 200-match runtime claim both corrected
+- ✓ D2 marked implemented with per-criterion evidence, **four** deviations recorded
+  (including cooldowns being keyed by guild type rather than by building, which the
+  criterion's "same building" wording cannot express), and the one unmet criterion
+  marked `[~]` rather than ticked
+- ✓ Adoption measured per ruler via a counter added for the purpose (`adopt<=y30`,
+  10/10 for every archetype) rather than inferred from a conditional mean
+- ✓ Suite green, `tsc --noEmit` clean
