@@ -1933,3 +1933,260 @@ growth-curve cliff.
 - ✓ **Balance gate re-run after the AI response**: all five criteria, and the field recovered to
   slightly better than the pre-guild baseline
 - ✓ Suite: 40 files, 455 tests, `tsc --noEmit` clean, **fully green**
+
+---
+
+## Phase 21.9: AI Parity — Real-Reducer Scoring for Charters (D2, #51) ✓
+
+21.8 shipped a closed-form screen in `src/ai/guildResponse.ts`: capitalise the charter into
+market-equivalents, subtract the fee, compare against the refusal spike, pick the larger. It was
+labelled at the time as "good enough to stop the collapse, explicitly not good enough to call the
+mechanic calibrated". 21.9 replaces it with what the tranche plan specified — score
+`[...sheet, grant]` against `[...sheet, refuse]` through the **real reducer**.
+
+### Method, stated once, because every number below depends on it
+
+All figures come from `npx tsx scripts/guild-bench.ts 10 60` (new this tranche) — 10 matches per
+archetype, 60 years, three-way field, the subject drawn against two rivals of *other* archetypes.
+Note the explicit `10`: the script's own default is 12.
+
+The "21.8" columns are **not reproducible from this tree**. They were produced by stashing
+`src/ai/guildResponse.ts` and `src/ai/planner.ts` back to master, running the same command at the
+same seeds, and restoring — `guild-bench.ts` did not exist in 21.8. Every comparison below is that
+paired run, not a re-derivation.
+
+Sample sizes are small and no figure carries a confidence interval. A per-archetype grant rate is
+n≈70–100 resolutions; a win-rate cell is n=10 and its column mean n=50. Differences of a few points
+are noise; the ones called out below are tens of points.
+
+### The measured result, which is the whole tranche
+
+| | 21.8 closed form | 21.9 real reducer |
+|---|---|---|
+| **field grant rate** | **98%** (218/223) | **55%** (200/365) |
+| Builder | 97% | 72% |
+| Expansionist | 100% | 64% |
+| Merchant | 94% | 49% |
+| Schemer | 98% | 42% |
+| Raider | 100% | 58% |
+| unaffordable-refusals | 0–3% | **0%** |
+| guilds held at end | 3.3–4.9 | 3.3–4.4 |
+| first grant | year 3–5 | year 4–8 |
+
+Under the closed form the charter was **not a decision** — every archetype said yes to everything,
+and the only refusals were treasury accidents. Under scoring there is a 30-point spread and two
+archetypes below a coin flip. The field still specializes (guilds held slipped about 10% at the top
+of the range, 4.9 → 4.4, and not at all at the bottom); it
+just takes longer, costs less in fees, and is now a choice.
+
+Two things the closed form could not see, both of which BACKLOG S10's "caveat on method" named as
+unquantified and both of which push toward granting: the refusal spike does not stay unrest — it
+propagates through birth damping, emigration, and revolt exposure and perturbs `rankProgress`
+against a rank weight of 1e6, where a population nudge can outweigh the whole production term; and a
+grant earns its first year of bonus income immediately, because step 3.5 resolves before step 8
+reads `player.guilds`.
+
+### The scored sheet must be the whole sheet — a real bug in this tranche's first draft
+
+Scoring originally ran against `best` (grain, land, tax, construction) and appended espionage and
+war afterwards. That is wrong: recruitment settles at **step 2** and military investment at **step
+2.5**, both *before* the charter fee is charged at **step 3.5**. A sheet missing them projects a
+treasury too high by exactly that spend — and worst for the archetypes that recruit and arm most,
+so the error was not even evenly spread. `planYear` now builds the complete sheet first and scores
+on top of it, which also makes the thing scored identical to the thing returned.
+
+The fix is visible in the table: unaffordable-refusals went to **0% across every archetype**. That
+is a theorem, not a lucky sample, and it is worth stating that way — 0% would read identically if
+the AI had simply stopped answering petitions. Reducer steps 1 through 3.5 are RNG-free (the first
+draw is `calculateHarvest` at step 4) and read only the player's own state plus `kaizerTradePrices`,
+which is not drifted until step 11.6, after the per-ruler loop. So the projected step-3.5 treasury is
+*provably identical* to the real one, the tie rule sends every unaffordable case to refuse, and
+`wantsGrant && !canAfford` becomes unreachable for an AI ruler.
+
+`tests/guildResponse.test.ts` asserts exactly that (`expect(unaffordable).toBe(0)`), and it was
+added because the fix was otherwise untested: reverting the call site to the partial sheet left the
+whole suite green. Verified by doing it — the revert now fails with `1 unaffordable-refusal(s)`.
+
+### What the reducer still cannot see, stated precisely
+
+The fee **cannot** squeeze the same year's construction. Construction is step 3 and the charter is
+step 3.5, so the causation runs the other way: what a ruler already built this year constrains what
+it can charter, never the reverse. S10 finding 4's mechanism is real but **cross-year** — a fee paid
+in year N leaves the treasury short at year N+1's construction step, and can strand it below a
+market's build cost indefinitely. A one-year lookahead sees the smaller treasury but not the
+compounding it forfeits.
+
+### 21.9 changed no data, and that is the finding
+
+The tranche plan says to calibrate `data/buildings.json` "until the grant/refuse split is
+*measured*". It is now measured, and it is healthy — so no data moved. The defect was the **screen**,
+not the numbers. Two S10 findings resolve as consequences rather than as edits:
+
+- **S10 finding 2 (the predicted split runs backwards) is settled, and was wrong in both
+  directions.** It predicted Merchant and Raider would refuse *everything* (0/8) from closed-form
+  margins. Measured: 49% and 58%. S10 flagged its own method as a first-order screen whose omissions
+  all push toward granting — correct, and the error was large enough to invert the conclusion.
+- **S10 finding 4 is mitigated for the AI, not eliminated.** The planner now prices the fee against
+  a treasury that reflects the rest of its own sheet, and Builder's first grant moved year 5 → 8.
+  But the mechanism is cross-year (above) and a one-year lookahead cannot see the forfeited
+  compounding, so this is a smaller footgun rather than a closed one. It remains fully live for a
+  *human*, which is arguably correct — it is a real decision with a real cost.
+
+S10 finding 1 (24–28 year payback against a market's 5) stands as arithmetic but is not borne out as
+a behaviour problem: charters are taken at years 4–8, not year 30, so they do pay back inside the
+game. Left recorded, not acted on.
+
+### D2's composition criterion — met, but not by the mechanism the doc implies
+
+`docs/superpowers/specs/2026-08-03-phase19d-economy-depth-design.md:440-442` requires that "Builder
+and Merchant show meaningfully different guild compositions (not all rulers specializing
+identically)", and makes composition the trigger for another pass over the multipliers. The first
+draft of this section claimed the split was healthy without ever measuring composition — the bench
+computed it per archetype and then printed only the field aggregate. Now printed per archetype:
+
+| Archetype | cloth | iron | salt | wine |
+|---|---|---|---|---|
+| Builder | **36%** | 27% | 18% | **18%** |
+| Expansionist | 28% | 33% | 23% | 16% |
+| Merchant | 29% | **50%** | 18% | **3%** |
+| Schemer | 17% | **50%** | 21% | 12% |
+| Raider | 32% | 45% | 14% | 9% |
+
+Builder against Merchant — the doc's named pair — differ substantially: Builder takes six times
+Merchant's share of wine and is the only archetype whose largest holding is not iron, while Merchant
+is half iron and almost never reaches wine at all. **Criterion met**, on the pair the doc names.
+
+But it is worth being exact about *why*, because the obvious reading is wrong. `nextGuildPetition`
+rotates the offered type by **year** over the eligible set (`src/engine/guilds.ts`), with no
+reference to personality — **no archetype ever *prefers* a guild type.** Composition can therefore
+only diverge through which petitions a ruler is eligible for (wine needs rank 2 and three buildings,
+so it depends on rank pacing) and how often it accepts them.
+
+That much is established. What is *not* established is any specific attribution within it — an
+earlier draft of this section claimed Merchant sees little wine because it refuses half of
+everything and so climbs the rank gates slower, and the table refutes that: Schemer refuses *more*
+(42% grant vs 49%) yet holds four times Merchant's wine share. Across the field, grant rate against
+wine share runs 72/18, 64/16, 58/9, 49/3, 42/12 — no monotone relation. Something else, most likely
+the interaction of rank pacing with the year-rotation phase, is doing the work. Unresolved, and
+recorded as unresolved.
+
+Either way the differentiation is a second-order consequence of eligibility and acceptance, not of
+taste. That satisfies D2 as written, and it is a thin basis for #51's "specialization is visible" —
+flagged rather than fixed, since fixing it means giving petitions a personality affinity, which is a
+design change and not this tranche's.
+
+### A deliberate deviation: `scoreCandidate` lives in a new module
+
+The plan says "export `scoreCandidate` from `planner.ts`". Substance honoured, location changed:
+`planner.ts` already imports `planGuildResponse`, so importing back would close a cycle. Node's ESM
+loader tolerates it, but bundlers order cyclic modules heuristically and a mis-ordered cycle fails as
+an undefined function at planning time rather than at build time. `isolate` and `scoreCandidate`
+moved to `src/ai/candidateScore.ts`, which both sides depend on. Nothing outside `src/ai` imported
+either function, so no re-export shim was needed.
+
+Cost: two extra `scoreCandidate` calls in the years a petition is pending — one `advanceYear` run
+per evaluation seed each, so 4 at the default 2 seeds and 6 at `hard`'s 3 — against a ~1,650-candidate
+main sweep, and nothing at all in the years without a petition. Deliberately not folded into
+`generateCandidates`, which would double the sweep to price a binary.
+
+### A second deviation: measured with `guild-bench`, not `ai-bench`
+
+PLAN.md names `scripts/ai-bench.ts` as 21.9's instrument (in prose, at §21.7b's handoff and the
+21.6-21.11 sequencing notes — not in the Phase 14 table). It is the wrong tool for
+this question: it reports win rates and end-state profiles, and has no visibility into how often a
+petition was offered or answered — the exact quantity that had to be measured. `scripts/guild-bench.ts`
+was written instead, and `ai-bench` was left untouched. Recorded here rather than passed over.
+
+`tests/fixtures/ai-bench-baseline.json` was **not** regenerated. AI decisions did change this
+tranche, so this is worth naming: nothing reads that fixture — no test, script, or source file
+references it — so it is an orphan from an earlier phase and regenerating it would create the
+appearance of coverage where there is none. Filed as a cleanup note, not done here.
+
+### The regression guard, and why it is two-sided
+
+`tests/guildResponse.test.ts` asserts the field grant rate stays strictly inside **15–85%** across
+two seeded 40-year three-way matches. Both degenerate ends read as "the charter is not a decision",
+and **neither is visible to `npm run balance`** — 21.8 proved that when a 0% grant rate collapsed the
+field from mean rank 5.43 to 1.99 while all five criteria still returned PASS.
+
+The band is checked, not guessed. Measured in that exact scenario:
+
+| | granted / refused | rate | vs band |
+|---|---|---|---|
+| 21.8 closed form | 29 / 2 | 93.5% | **FAILS** |
+| 21.9 real reducer | 29 / 21 | 58.0% | passes |
+
+Worth spelling out: the closed form **did** refuse twice there, so the obvious one-sided
+`refused > 0` check would have gone green on the very behaviour this tranche replaced. That is why
+the guard is a band.
+
+### `npm run balance` below 200 matches produces spurious FAILs
+
+Recorded because it will catch someone else. A smoke run at 60 matches failed *loss persistence* and
+*no death spiral* — decade 6 comes back all zeros at that sample size, because too few matches reach
+it. Running the **identical** 60-match config against 21.8 reproduced the same two FAILs, which is
+what established it as sampling rather than regression. At the default 200 the gate passes on both.
+Use the default; a reduced-match run is only meaningful against a same-config control.
+
+This contradicts `docs/balance-report.md:26-29`, which states that "a 200-match run exceeds practical
+runtime here. 60 matches is the honest figure". That report is still at Phase 7 and still lists four
+criteria against the current five. A 200-match run now takes ~78s. Not corrected here — the report
+is 21.11's deliverable — but the contradiction is flagged so 21.11 does not inherit it silently.
+
+### Acceptance Criteria
+- ✓ Grant and refusal are scored through the **real reducer**, on the same terms and the same
+  evaluation seeds as the main candidate sweep
+- ✓ Scored against the **complete** emitted sheet, so espionage and military spend that settle
+  before step 3.5 are reflected in the projected treasury — unaffordable-refusals fell to 0%
+- ✓ The grant/refuse split is **measured, not predicted** — 98% → 55% field rate, 30-point archetype
+  spread, method and command recorded above
+- ✓ D2's composition criterion **measured** (not assumed) and met, with the indirect mechanism that
+  produces it stated rather than glossed
+- ✓ 21.8's affordability short-circuit removed; the scorer reaches the same answer unaided, and
+  `tests/guildResponse.test.ts` asserts the two branches score **exactly equal** when unaffordable
+  rather than only checking the outcome
+- ✓ Ties go to refusing; decision objects are returned fresh per call, never shared across rulers
+- ✓ No import cycle; `tsc --noEmit` clean
+- ✓ `planner-golden.json` **unchanged** — real-reducer scoring reproduced the closed form's answer in
+  the golden scenario, so no fixture regeneration was needed or performed
+- ✓ Two-sided degeneracy guard, verified non-vacuous against the behaviour it replaces
+- ✓ **Balance gate PASSES all five at the default 200 matches**
+- ✓ Suite: 41 files, **463** tests, fully green. (PLAN.md §21.8 records 455; the tree was actually at
+  456 before this tranche, so that is a pre-existing off-by-one, left uncorrected here rather than
+  edited into another phase's record. 456 + 7 new = 463.)
+
+### Out of scope, measured, and handed on: the default field is too easy for a competent seat
+
+The owner set an explicit target during this tranche — **a 30–40% win rate for the human seat, stated
+as a ceiling as much as a floor** ("a win rate of 30-40% is ok I do not need it to be too easy"). No
+harness measured anything of the kind, so `guild-bench` now does. Filed in full as **BACKLOG S11**;
+the headline and the three caveats that bound it:
+
+- **58% for a planner-played seat** against the default rival pair, versus a fair share of 33.3%.
+- **21.9 did not move it** (60% → 58%, a one-match difference at n=50). Note what this does and does
+  not establish: it shows this tranche's *change to the guild AI* is difficulty-neutral. It does
+  **not** show the guild *mechanic* is not implicated, which would need a guilds-off control that
+  was not run.
+- **The cause is which rivals the default fields.** `app.ts:397` assigns `personalities[i % length]`,
+  so a 2-rival game always draws Builder and Expansionist — measurably the two weakest archetypes.
+  Other pairings score 10–28% for the same human seats.
+
+Three caveats that keep this from being a finished result:
+
+1. **The shipped human cannot answer a petition at all.** `grep -i guild src/ui` returns nothing —
+   the petition UI is 21.10's deliverable and does not exist yet. In the current build every human
+   petition therefore *lapses*: full +8 spike, three-year cooldown, no charter. The bench's human
+   seat answers petitions, so 58% is an upper bound on a build nobody can play, and the real figure
+   today is lower — plausibly a lot lower, since universal lapsing is exactly what collapsed the
+   field in 21.8. This measurement should be re-run after 21.10 lands.
+2. **A planner seat is not "a competent human".** Decision parity guarantees the planner emits the
+   same *action space* a human can, not the same skill. The seat's own archetype swings the result
+   from 30% (Builder) to 90% (Raider) under identical rules — the per-row figures of the bench's
+   shipped-default table, n=10 each, so wide intervals but far too large a gap to be noise. "58%" is
+   therefore an unweighted mean over five arbitrary weight vectors, not a property of human play.
+3. **n=50 per pairing.** The 58% survives its interval; the claim that *no* pairing lands in 30–40%
+   does not — expansionist+merchant at 28% and merchant+schemer at 22% both have intervals that
+   reach into the band.
+
+Not fixed here: the rival-assignment line is `src/ui/app.ts`, Cursor's lane for 21.10, and the
+underlying archetype rebalance is `data/personalities.json`, which is balance-critical.

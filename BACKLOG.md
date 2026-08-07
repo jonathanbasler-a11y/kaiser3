@@ -889,6 +889,34 @@ Related dead zone worth naming: custom 131–140% buys nothing. It is above
 
 ## S10 — Guild charter economics: 20-28 year payback, and the archetype split runs backwards
 
+> **STATUS after 21.9 — findings 2 and 4 are RESOLVED; 1 and 3 remain open.** 21.9 replaced 21.8's
+> closed-form screen with real-reducer scoring and measured the mechanic with `npm run guild-bench`.
+> Everything below was written from closed-form margins, and the section's own "caveat on method"
+> turned out to be the important part: the omissions were large enough to invert conclusion 2.
+>
+> - **Finding 2 (split runs backwards) — RESOLVED, and it was wrong in both directions.** Predicted
+>   Merchant and Raider refuse *everything* (0/8). Measured: Merchant 49%, Raider 58%. The real
+>   defect was not the direction of the split but that there was no split at all — the closed form
+>   granted 98% of petitions field-wide. Real-reducer scoring gives 55% with a 30-point archetype
+>   spread (Builder 72%, Expansionist 64%, Raider 58%, Merchant 49%, Schemer 42%). Guarded against
+>   regression at both ends by `tests/guildResponse.test.ts`.
+> - **Finding 4 — MITIGATED for the AI, not eliminated, and this entry's own mechanism is the
+>   correct one.** 21.9's first draft claimed the fee squeezes the *same* year's construction. It
+>   does not: construction is `year.ts` step 3 and the charter is step 3.5, so what a ruler already
+>   built constrains what it can charter and never the reverse. This entry's account below is right
+>   and is cross-year — a fee in year N strands the treasury below a market's cost at year N+1. What
+>   21.9 actually fixed is narrower: the planner now scores the charter against its **complete**
+>   sheet, so recruitment (step 2) and military investment (step 2.5) are no longer missing from the
+>   projected treasury. Unaffordable-refusals fell to 0% and Builder's first grant moved year 5 → 8.
+>   A one-year lookahead still cannot see the forfeited compounding, so this is a smaller footgun,
+>   not a closed one — and it remains fully live for a human, which is arguably correct.
+> - **Finding 1 (payback 24-28y vs a market's 5y) — STILL OPEN as arithmetic, not borne out as
+>   behaviour.** Charters are actually taken at years 4-8, so they do pay back inside a 60-year game.
+>   21.9 deliberately changed no data: with the split measured healthy, every available lever points
+>   at the margin-flatness criterion. Revisit only if play shows charters feel worthless.
+> - **Finding 3 (evaluator does not price guild loss to fire) — STILL OPEN**, unchanged and still
+>   bounded small. Re-check whenever the charter cap or fire's parameters move.
+
 Surfaced by phase 21.7b while wiring the evaluator's production term. Both findings are arithmetic
 against shipped data, not simulation results — but the first needs no simulation to be worrying, and
 the second contradicts a prediction the phase plan makes explicitly.
@@ -988,3 +1016,140 @@ value has to carry the decision on its own, which is what would actually produce
 
 Note `upkeepSurchargeFraction` must stay strictly below `incomeMultiplier - 1` whatever else moves —
 `tests/guilds.test.ts` enforces it, and it is the "no guild is ever worse" promise from the D2 spec.
+
+---
+
+## S11 — The default rival pair is the weakest one, and the archetypes are unbalanced against each other
+
+Surfaced by phase 21.9 while building `scripts/guild-bench.ts`. Simulation results, not arithmetic.
+
+**The owner's target, recorded here because no doc carried it before (2026-08-07):** the human seat
+should win **30-40%** of games in the shipped default configuration. Stated as a ceiling as much as a
+floor — *"a win rate of 30-40% is ok I do not need it to be too easy"*. Fair share in a three-way
+field is 33.3%, so the band means "the player is a peer of the field, not its master". A tuning pass
+that pushes this above 40% has made the game easier, whatever else it improved.
+
+### Read the caveats before the numbers
+
+Three limits bound everything below. None of them is fatal to the finding; all of them stop it being
+a finished result.
+
+1. **The shipped human cannot answer a guild petition at all.** `grep -i guild src/ui` returns
+   nothing — the petition UI is 21.10's deliverable. In the current build every human petition
+   therefore *lapses*: full +8 unrest spike, three-year cooldown, no charter. The bench's human seat
+   answers petitions, so its win rate is an **upper bound on a build nobody can play**. Universal
+   lapsing is precisely what collapsed the AI field in 21.8 (mean rank 5.43 → 1.99), so the true
+   figure for today's build is lower and possibly far lower. **Re-run this measurement after 21.10
+   lands** — the headline may invert.
+2. **A planner seat is not "a competent human".** CLAUDE.md's Decision-parity invariant guarantees
+   the planner emits the same *action space* a human can, through the same reducer. It says nothing
+   about skill. The seat's own archetype swings the result from 30% to 90% under identical rules, so
+   any single number here is an unweighted mean over five arbitrary weight vectors, not a property
+   of human play. It is a useful **control** — held constant across a tuning pass it answers "did
+   this change make the game easier?" — and a weak **absolute**.
+3. **n=50 per pairing** (5 human-seat archetypes × 10 matches). The 58% headline survives its
+   interval; finer distinctions below do not, and are marked where they matter.
+
+Configuration is the literal shipped default (`src/ui/app.ts:326-327`): you + 2 rivals, 60 years,
+`standard` difficulty — which is neutral, so the bench measures it exactly (2 evaluation seeds, all
+starting multipliers 1.0). Command: `npx tsx scripts/guild-bench.ts 10 60`.
+
+### 1. A planner-played seat wins 58% against the default rival pair
+
+Against a fair share of 33.3%, and against the owner's 30-40% ceiling.
+
+21.9's guild rewrite did **not** move this (60% → 58%, a one-match difference at n=50). Note what
+that does and does not establish: it shows 21.9's *change to the guild AI* is difficulty-neutral. It
+does **not** show the guild *mechanic* is uninvolved — both endpoints have guilds switched on, and a
+guilds-off control was not run.
+
+### 2. The cause is which rivals the default fields
+
+`src/ui/app.ts:397` assigns rivals `personalities[i % personalities.length]`, so a 2-rival game
+*always* draws `personalities[0]` and `personalities[1]` — Builder and Expansionist. Those are the
+two weakest archetypes:
+
+| rival pair | human-seat win rate (n=50) |
+|---|---|
+| **builder + expansionist** (shipped today) | **58%** |
+| expansionist + merchant | 28% |
+| merchant + schemer | 22% |
+| raider + builder | 14% |
+| schemer + raider | 10% |
+
+Produced by a throwaway probe, not by a committed script: `guild-bench.ts` hardcodes the shipped
+pair. To reproduce, vary `SHIPPED_RIVALS` in its last section.
+
+A seat-symmetry control splits 28/34/38 across seat positions (n=50, against a fair 33.3), so this is
+archetype strength and not a positional artifact of the competitor list. `guild-bench.ts` prints this as the
+`ALL ARCHETYPES` row of its seat-symmetry table — the per-archetype rows above it are individually
+noisy at n=10 and should not be read one at a time.
+
+The UI compounds it: the setup screen lists all five archetypes under "Rival rulers", which reads as
+"your rivals are drawn from these", when a 2-rival game deterministically gets the same two every
+time. Schemer and Raider are never encountered at the default setting.
+
+### 3. The deeper problem: the archetypes are unbalanced against each other
+
+The spread above is 10% to 58% for the *same* human seats — Builder and Expansionist lose to
+everyone, Schemer and Raider beat everyone. Swapping the default pair moves the number but does not
+obviously land it: the closest, expansionist+merchant at 28%, is below the band, though at n=50 its
+interval does reach into it. Treat "no pairing lands in 30-40%" as suggested, not established.
+Deciding this properly means rebalancing `data/personalities.json`, not just re-picking a pair.
+
+### Why 21.9 did not fix it
+
+Two owners, neither of them this tranche: the rival-assignment line is `src/ui/app.ts`, which is
+Cursor's lane for 21.10; the rebalance is `data/personalities.json`, which is balance-critical and
+moves `npm run balance`. Neither belongs in a tranche scoped to guild AI parity.
+
+### Suggested order when this is picked up
+
+**21.10 first** — until a human can answer a petition, no human-seat measurement means anything.
+Then re-measure. Then rebalance archetypes, then choose the default pair, then re-measure again;
+doing the last two in the other order tunes the pair against archetypes that are about to move.
+Re-run `guild-bench` and `npm run balance` at the default 200 matches after each step.
+
+Note that the balance gate's criteria are about fairness and anti-snowball and will **not** see any
+of this: a field where Raider reliably beats Builder looks perfectly fair to a gate that measures
+whether the leader can be caught.
+
+---
+
+## S12 — The main candidate sweep still selects under an inflated treasury
+
+Surfaced by phase 21.9's spec audit, as the generalisation of a bug that tranche fixed in one place.
+
+21.9 found that `planGuildResponse` was pricing a charter against a treasury that the ruler's own
+espionage and military spend had already claimed, and fixed it by scoring the guild answer on top of
+the **complete** sheet. But the same error is still present, unfixed, in the far larger consumer:
+
+`planYear` (`src/ai/planner.ts`) picks `best` from ~1,650 candidates **before** espionage and war are
+planned. Each candidate is scored through `advanceYear` on a sheet containing only grain, land, tax,
+and construction — with no recruitment decision and no military investment. But in the real year those
+settle at **step 2** and **step 2.5**, ahead of construction at **step 3**. So every construction
+candidate is judged against money that is about to be spent elsewhere, and the engine then clamps
+whatever it cannot afford.
+
+Why it is not simply the same fix again: the ordering is genuinely circular. `planMilitaryInvestment`
+takes `priorSpendTalers`, derived from the land order in `best`, so military spend cannot be known
+until `best` is chosen, and `best` cannot be scored faithfully until military spend is known. The
+guild case was easy precisely because it is decided last and depends on nothing.
+
+**Severity is unclear and should be measured before anything is changed.** Engine clamping means the
+result is legal, never over-spent — the failure mode is a ruler *preferring* a construction plan it
+then cannot fully execute, not one that breaks. It may be close to harmless, since the inflation is
+a near-common offset across candidates that differ mainly in construction. It is also load-bearing
+in a way the guild path was not: any change here moves `tests/fixtures/planner-golden.json` and the
+balance gate.
+
+Plausible approaches, cheapest first:
+
+1. **Measure first.** Instrument how often the engine clamps a chosen candidate's construction, and
+   by how much. If it is rare, close this as accepted.
+2. Plan espionage and a *provisional* military investment before the sweep, score against those, and
+   accept that the final military figure may differ slightly.
+3. Two-pass: sweep, plan military against the winner, re-sweep with it included. Doubles the sweep.
+
+Do not attempt this in the same tranche as anything else — it regenerates the planner fixture, so it
+needs the deliberate-single-regeneration discipline PLAN.md applies to fixture changes.
