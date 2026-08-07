@@ -954,18 +954,30 @@ production weight, times an <=8% share) and self-correcting the moment the chart
 parameters move — but it is the hospital failure mode in miniature, so it should be re-checked
 whenever either constant changes.
 
-**4. (Found in 21.8) The mechanic can cost a cash-poor builder his rank entirely.** The golden
-fixture's `alfred` answers `grant` every year but is chronically broke from his own build sheet, so
-three of four grants are UNAFFORDABLE — and an unaffordable grant is punished exactly like a refusal
-(+8 unrest) by deliberate anti-exploit design. The accumulated unrest suppresses his population below
-the rank gate permanently: he promoted reliably through 21.7b and never promotes after 21.8, verified
-unchanged at 35, 45 and 60 year runs.
+**4. (Found in 21.8) ONE early charter fee can cost a builder his entire compounding curve.**
+Measured directly against the golden fixture, before and after 21.8:
 
-This is the sanity check PLAN.md asked for on that "slightly coercive" rule, and it found a real
-cost. The rule itself is still right (without it, answering `grant` while broke would be a free way
-to dodge the unrest), but the COMBINATION of a high charterFee and a full-strength refusal spike
-means a poor ruler is taxed for wanting to participate. Cheapest fix is the same first lever as
-above — `charterFee` down — which makes grants affordable rather than making refusal cheaper.
+| alfred @ year 35 | pre-21.8 | post-21.8 |
+|---|---|---|
+| taler | 37,647 | **0** |
+| markets / mills | 9 / 9 | **0 / 0** |
+| rank | 1 (Duke) | **0** |
+
+The mechanism is a knife-edge, and it is worth being precise because the first diagnosis of it was
+wrong. It is NOT unrest: unrest is 0 at every checkpoint (an +8 spike decays at 5/yr and is gone in
+two years), population RISES 1039 -> 2465, and the binding gate at year 35 is wealth (0 against
+28,000), not population.
+
+What actually happens: alfred pays a single 1,200 Taler charter fee in year 2, which leaves him at
+1,852 against a market's 2,000 cost. He never crosses that threshold again — `constructionSpend` is
+**0 every year from year 3 onward** — so he stays at 1 market and 1 mill and eventually loses both to
+fire and sabotage. Pre-21.8 that same 1,200 Taler would have bought the market that compounds into
+9 markets, 9 mills, and Duke.
+
+So the fee's damage is not the fee; it is the lost compounding, and it is concentrated entirely in
+the early game where 1,200 Taler is a market. That makes `charterFee` down the clear first lever
+(and argues for scaling it to rank or treasury rather than a flat number), but for a sharper reason
+than "poor rulers are taxed": a flat early fee is a growth-curve cliff.
 
 **Not fixed in 21.7b or 21.8 deliberately.** 21.9 owns calibration against `scripts/ai-bench.ts`, and
 retuning `charterFee`/`incomeMultiplier` without that measurement would be guessing. Lever order when

@@ -27,6 +27,7 @@ import { annualGrainRequirement } from '../engine/economy.ts'
 import { Personality } from './personalities.ts'
 import { planAggression } from './aggression.ts'
 import { planWar, planMilitaryInvestment } from './warAggression.ts'
+import { planGuildResponse } from './guildResponse.ts'
 import buildingsData from '../../data/buildings.json'
 import economyData from '../../data/economy.json'
 
@@ -349,5 +350,11 @@ export function planYear(
     ...planMilitaryInvestment(state, playerId, personality.aggression, priorSpendTalers)
   }
 
-  return [...best, espionage, war]
+  // 21.8: answer a pending guild petition, if there is one. Appended LAST and
+  // omitted entirely when nothing is pending, so the sheet is unchanged in the
+  // overwhelmingly common year — which is what keeps golden-fixture movement
+  // attributable to petitions actually firing rather than to sheet shape.
+  const guild = planGuildResponse(player, personality.weights)
+
+  return guild ? [...best, espionage, war, guild] : [...best, espionage, war]
 }

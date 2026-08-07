@@ -2,9 +2,11 @@
 // (tests/fixtures/advanceYear-golden.json).
 //
 // Was `advanceYear-noguild-golden.json` from 21.0 through 21.7b, where it did
-// exactly the job its name described: pin the reducer's pre-guild behaviour so
-// every tranche of the D2 workstream could PROVE it changed nothing. It held
-// byte-identical across seven tranches and caught real drift twice.
+// exactly the job its name described: pin the reducer's behaviour so each
+// tranche had to PROVE what it changed. It was regenerated once in that span,
+// deliberately and with a reviewed diff, at 21.4 when the feed dial was re-based
+// (unrest 28.6 -> 13.6) — so "held byte-identical throughout" would overstate
+// it; "moved only when a tranche meant it to" is the accurate claim.
 //
 // Renamed at 21.8, when guild petitions began firing and the baseline
 // deliberately moved. Keeping a fixture called "noguild" whose checkpoints
@@ -55,19 +57,31 @@ const seedForYear = (year: number): number => SEED_BASE + year * 1000
 // 35 rather than a rounder 25: long enough that rank promotion used to land
 // inside the run (~year 29 through 21.7b).
 //
-// IT NO LONGER DOES, and that is a real 21.8 outcome rather than a fixture
-// defect. Once petitions fire, alfred takes three unaffordable-grant unrest
-// hits (+8 each: he answers 'grant' every year but is chronically broke from
-// his own build sheet, and an unaffordable grant is punished exactly like a
-// refusal by deliberate anti-exploit design). The resulting unrest suppresses
-// his population below the rank gate permanently — verified by extending the
-// run to 45 and then 60 years, where he still never promotes.
+// IT NO LONGER DOES, and the reason is a genuine 21.8 finding rather than a
+// fixture defect — though NOT the one an earlier draft of this comment claimed.
+//
+// The wrong story (written first, refuted by the committed fixture): "refusal
+// unrest suppresses his population below the rank gate." All three parts are
+// false. Unrest is 0 at every checkpoint (an +8 spike decays at 5/yr and is
+// gone in two years), population RISES 1039 -> 2465, and it clears the 1900
+// floor comfortably.
+//
+// The real mechanism is a knife-edge: alfred pays one 1,200 Taler charter fee
+// in year 2, which leaves him at 1,852 against a market's 2,000 cost. He never
+// crosses that threshold again, so he stops building entirely from year 3
+// (constructionSpend is 0 every year thereafter), stays at 1 market and 1 mill,
+// and eventually loses both to fire and sabotage. Pre-21.8 he compounded to 9
+// markets, 9 mills, 37,647 Taler and Duke. The binding gate at year 35 is
+// wealth (0 against 28,000), not population.
+//
+// One early charter fee cost him the compounding curve. That is the finding,
+// and it is filed as BACKLOG S10 for 21.9's calibration.
 //
 // The scenario was NOT tuned to force the counter back up. Two earlier attempts
 // are recorded because both were instructive: extending the span did nothing,
 // and giving conrad markets so he could receive petitions inadvertently FUNDED
 // his sabotage campaign (strikes 8 -> 17), raiding alfred even harder. Promotion
-// semantics now get precise coverage in tests/guilds.test.ts, where a promoting
+// semantics now get precise coverage in tests/guildReducer.test.ts, where a promoting
 // player can simply be constructed; this fixture stays a determinism ratchet and
 // records what the world actually does. The balance signal — that guild
 // petitions can cost a poor builder his rank — is filed as BACKLOG S10.
@@ -144,7 +158,7 @@ export function sheetFor(playerId: string): Decision[] {
     // Schemer: the cross-ruler espionage pass is the part of the year where one
     // ruler's resolution can shift another's, so somebody has to actually strike.
     // Low tax and no construction keep him solvent enough to keep paying for
-    // saboteurs across the full 25 years — an earlier draft had him bankrupt by
+    // saboteurs across the full run — an earlier draft had him bankrupt by
     // year 10, which silently retired the branch this sheet exists to cover.
     case 'conrad':
       return [

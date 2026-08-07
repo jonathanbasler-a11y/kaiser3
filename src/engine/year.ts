@@ -184,6 +184,13 @@ export function advanceYear(
     }
 
     const unrestAtYearStart = player.population.unrest
+    // Feeding is measured from AFTER step 3.5's guild resolution, not from the
+    // year start — otherwise a refused charter's unrest spike lands inside
+    // report.unrestFromFeeding, which app.ts renders as "Feeding
+    // (shortfall/decay)". A player who refused a guild would be told the unrest
+    // came from grain. Re-baselined at 3.5; identical to unrestAtYearStart in
+    // the overwhelmingly common year with no petition to answer.
+    let unrestBeforeFeeding = unrestAtYearStart
 
     // 1. Land trading (against the NPC Kaiser)
     const landDecision = findDecision<LandTradeDecision>(playerDecisions, 'land_trade')
@@ -289,6 +296,8 @@ export function advanceYear(
       player.guildCooldowns = resolution.guildCooldownsAfter
       player.taler = Math.max(0, player.taler - resolution.talerSpent)
       player.population.unrest = Math.min(100, player.population.unrest + resolution.unrestDelta)
+      report.unrestFromGuild = player.population.unrest - unrestBeforeFeeding
+      unrestBeforeFeeding = player.population.unrest
       report.guildResolution = {
         kind: player.pendingGuild.kind,
         specialization: player.pendingGuild.specialization,
@@ -348,7 +357,7 @@ export function advanceYear(
     report.immigrationGate = popResult.immigrationGate
     report.feedTargetAdequacy = feeding.targetAdequacy
     report.feedAdequacy = feeding.feedAdequacy
-    report.unrestFromFeeding = player.population.unrest - unrestAtYearStart
+    report.unrestFromFeeding = player.population.unrest - unrestBeforeFeeding
 
     // Extinction: population collapsed to nothing. No heir is possible — this is
     // the one permanent failure state, distinct from succession below.
@@ -580,14 +589,21 @@ export function advanceYear(
       //
       // NO TALER PURSE, on purpose. Every rank gate is a wealthMin gate, so a
       // cash grant on promotion accelerates the next promotion — positive
-      // feedback aimed squarely at the balance gate's maxReturnTrendSlope, which
-      // is the one criterion PLAN.md flags as most at risk from this workstream.
-      // Unrest relief is the reward that cannot compound into a runaway.
+      // feedback against the balance gate's maxReturnTrendSlope criterion
+      // (src/ai/balanceCriteria.ts). Unrest relief is the reward that cannot
+      // compound into a runaway.
       report.unlockedFeatures = promotion.unlockedFeatures
       report.charterSlotsAfterPromotion = charterSlotsForRank(player.rank)
       const unrestBeforeCelebration = player.population.unrest
       player.population.unrest = Math.max(0, player.population.unrest - PROMOTION_UNREST_RELIEF)
       report.promotionUnrestRelief = unrestBeforeCelebration - player.population.unrest
+      // The relief lands AFTER step 12.5 finalised report.unrestGain, so both
+      // the component (negative) and the total have to be re-closed here or the
+      // documented "components sum to unrestGain exactly" contract
+      // (state.ts PlayerChronicle) silently breaks in every promotion year.
+      report.unrestFromPromotion = -report.promotionUnrestRelief
+      const startUnrest = unrestStartByPlayer.get(playerId)
+      if (startUnrest !== undefined) report.unrestGain = player.population.unrest - startUnrest
     }
   }
 

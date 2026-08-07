@@ -274,12 +274,23 @@ export interface PlayerChronicle {
   eventFarmlandLoss: number        // F6: flood washing out hectares
   unrestGain: number
   // Components of unrestGain — feeding shortfall/decay (population.ts), tax
-  // burden (tax.ts), and war weariness (year.ts step 12.5+). Measured as
-  // actual before/after state deltas at each step, so they sum to unrestGain
-  // exactly even where the 0-100 clamp bites mid-year.
+  // burden (tax.ts), war weariness (year.ts step 12.5+), and since 21.8 a
+  // refused/lapsed guild charter (step 3.5) plus the promotion celebration
+  // relief (step 13, negative). Measured as actual before/after state deltas at
+  // each step, so they sum to unrestGain exactly even where the 0-100 clamp
+  // bites mid-year — note unrestGain is therefore re-closed in step 13, since
+  // the promotion relief lands after step 12.5 first computes it.
   unrestFromFeeding: number
   unrestFromTax: number
   unrestFromWarWeariness: number
+  // Phase 21.8. Two more components of the same sum. Optional so pre-21.8
+  // literals keep compiling; both default to 0 and are absent in any year
+  // without a guild resolution / promotion.
+  //   guild     — a refused or lapsed charter's spike (step 3.5). Kept separate
+  //               so it is not misreported as a feeding shortfall.
+  //   promotion — the one-time celebration relief (step 13), always <= 0.
+  unrestFromGuild?: number
+  unrestFromPromotion?: number
   events: PlayerEvent[]
   rankPromoted: boolean
   newRank?: number
@@ -355,7 +366,8 @@ export interface GameEvent {
 // explicit about why it is not. TradeDecision was a PERMANENTLY abandoned
 // feature: F2 was deferred with no committed follow-up, so the type sat dead
 // indefinitely. GuildDecision is scaffolding on a locked sequencing table
-// (PLAN.md §21.6-21.11): 21.8 wires the reducer to create the pendingGuild a
+// (the SESSION implementation plan's 21.6-21.11 table — NOT this repo's
+// PLAN.md, which has no such section): 21.8 wires the reducer to create the pendingGuild a
 // GuildDecision answers, and nothing in 21.6-21.7 constructs one (no AI path, no
 // UI control), so it is inert but not reachable-and-dead — the fixtures for both
 // tranches must stay byte-identical BECAUSE nothing can emit one yet. If 21.8

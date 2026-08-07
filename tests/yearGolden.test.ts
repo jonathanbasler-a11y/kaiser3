@@ -41,7 +41,7 @@ describe('advanceYear cross-process golden', () => {
 
   // Built in beforeAll rather than in the describe body so that a throw inside
   // the reducer surfaces as a named test failure instead of a suite-collection
-  // error, and so the 25-year run happens once rather than per assertion.
+  // error, and so the multi-year run happens once rather than per assertion.
   beforeAll(() => {
     live = buildFixture()
   })
@@ -93,14 +93,16 @@ describe('advanceYear cross-process golden', () => {
     ]
 
     // `promotions` was on the list above through 21.7b and is deliberately NOT
-    // any more. Once petitions fire, alfred's three unaffordable-grant unrest
-    // hits suppress his population below the rank gate for the rest of the run —
-    // confirmed unchanged at 45 and 60 years. Asserting it positive would mean
+    // any more. Once petitions fire, one early 1,200 Taler charter fee leaves
+    // alfred just under a market's 2,000 cost, he stops building from year 3,
+    // and his economy never recovers — so he never reaches the WEALTH gate
+    // (population is fine, and unrest is 0 throughout; see the long note in
+    // helpers/yearGoldenRun.ts for why the first diagnosis of this was wrong). Asserting it positive would mean
     // tuning the scenario to protect a counter; asserting it zero would pin a
     // number nobody wants to keep. It is covered by the exact-match assertion
     // below instead, so a change still has to be looked at, and the promotion
     // MOMENT itself (charter slots, unrest relief, unlockedFeatures) is unit
-    // tested directly in tests/guilds.test.ts where a promoting player can just
+    // tested directly in tests/guildReducer.test.ts where a promoting player can just
     // be constructed. The underlying balance signal is BACKLOG S10.
 
     for (const [counter, description] of branches) {

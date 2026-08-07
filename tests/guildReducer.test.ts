@@ -155,6 +155,30 @@ describe('21.8: the promotion moment (#49)', () => {
     expect(Array.isArray(report.unlockedFeatures)).toBe(true)
   })
 
+  it('actually carries a feature when the rank reached defines one', () => {
+    // Non-vacuous coverage. The previous assertion is only Array.isArray, and
+    // aboutToPromote() reaches Prince (rank 2) — which defines no
+    // unlockedFeature, so it passes on an empty array and would still pass if
+    // year.ts stopped recording the field at all. Count (rank 3) is the ONLY
+    // rank in data/ranks.json with an unlockedFeature ("tradingHouses"), so
+    // this is the one scenario that proves the wiring.
+    const state = createStarterState([{ id: 'a', name: 'A' }])
+    state.players.a.taler = 90000
+    // Headroom on BOTH gates, deliberately. The promotion check is step 13, so
+    // a ruler has to still qualify after feeding (step 5) and events (step 11)
+    // have taken their cut: an earlier draft set 3,000 peasants exactly and a
+    // plague dropped him to 2,434, under Count's 2,700 floor, reaching only
+    // rank 2 and leaving this test passing vacuously on an empty array.
+    state.players.a.population = { peasants: 3800, unrest: 20 }
+    state.players.a.grainStock = 400000
+
+    const after = advanceYear(state, { a: sheet() }, 100)
+    const report = after.chronicle.playerReports.a
+
+    expect(after.state.players.a.rank).toBeGreaterThanOrEqual(3)
+    expect(report.unlockedFeatures).toContain('tradingHouses')
+  })
+
   it('widens the guild charter cap, so promotion is what unlocks more guilds', () => {
     const after = advanceYear(aboutToPromote(), { a: sheet() }, 100)
     const newRank = after.state.players.a.rank
@@ -257,5 +281,66 @@ describe('21.8: ZERO new RNG draws — the cross-player guard', () => {
       expect(result.harvestYield, `p2 harvest under ${name}`).toBe(baseline.harvestYield)
       expect(result.births, `p2 births under ${name}`).toBe(baseline.births)
     }
+  })
+})
+
+describe('21.8: unrest accounting stays honest (regression, found by spec audit)', () => {
+  // Two real bugs this tranche introduced, both caught by audit rather than by
+  // any existing test — reportComponents.test.ts's scenarios happen never to
+  // promote and never to hold a petition, so both slipped straight through.
+  it('unrestGain still equals the true before/after delta in a PROMOTION year', () => {
+    // The -5 celebration relief lands in step 13, AFTER step 12.5 has already
+    // finalised unrestGain. Without re-closing the total there, unrestGain is
+    // off by exactly the relief and state.ts's documented "components sum to
+    // unrestGain" contract silently breaks in every promotion year.
+    const state = createStarterState([{ id: 'a', name: 'A' }])
+    state.players.a.taler = 60000
+    state.players.a.population = { peasants: 2400, unrest: 30 }
+    const before = state.players.a.population.unrest
+
+    const result = advanceYear(state, { a: sheet() }, 100)
+    const report = result.chronicle.playerReports.a
+    const after = result.state.players.a.population.unrest
+
+    expect(report.rankPromoted).toBe(true)
+    expect(report.promotionUnrestRelief).toBeGreaterThan(0)
+    expect(report.unrestGain).toBeCloseTo(after - before, 6)
+
+    const components =
+      report.unrestFromFeeding + report.unrestFromTax + report.unrestFromWarWeariness +
+      (report.unrestFromGuild ?? 0) + (report.unrestFromPromotion ?? 0)
+    expect(components).toBeCloseTo(report.unrestGain, 6)
+  })
+
+  it('a refused charter is attributed to GUILD, not misreported as a feeding shortfall', () => {
+    // unrestAtYearStart is captured before step 3.5, so without re-baselining,
+    // the +8 spike lands inside unrestFromFeeding — which app.ts renders as
+    // "Feeding (shortfall/decay)". A player who refused a guild would be told
+    // the unrest came from grain, squarely against Phase 20.4's "explain every
+    // number".
+    const seeded = advanceYear(withMarkets(['a'], 3), { a: sheet() }, 100).state
+    // Well-fed and untaxed, so feeding/tax contribute nothing of their own.
+    seeded.players.a.grainStock = 500000
+
+    const refused = advanceYear(seeded, { a: sheet([{ type: 'guild', action: 'refuse' }]) }, 200)
+    const report = refused.chronicle.playerReports.a
+
+    expect(report.guildResolution!.granted).toBe(false)
+    expect(report.unrestFromGuild).toBeGreaterThan(0)
+    // The spike is NOT hiding in the feeding bucket.
+    expect(report.unrestFromFeeding).toBeLessThanOrEqual(0)
+
+    const components =
+      report.unrestFromFeeding + report.unrestFromTax + report.unrestFromWarWeariness +
+      (report.unrestFromGuild ?? 0) + (report.unrestFromPromotion ?? 0)
+    expect(components).toBeCloseTo(report.unrestGain, 6)
+  })
+
+  it('a granted charter adds no unrest at all', () => {
+    const seeded = advanceYear(withMarkets(['a'], 3), { a: sheet() }, 100).state
+    seeded.players.a.taler = 50000
+    const granted = advanceYear(seeded, { a: sheet([{ type: 'guild', action: 'grant' }]) }, 200)
+    expect(granted.chronicle.playerReports.a.guildResolution!.granted).toBe(true)
+    expect(granted.chronicle.playerReports.a.unrestFromGuild ?? 0).toBe(0)
   })
 })
