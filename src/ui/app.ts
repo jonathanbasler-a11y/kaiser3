@@ -9,12 +9,13 @@ import { GameState, Decision, Chronicle, PlayerState, EspionageMode, PlayerChron
 import { eventLossMagnitudeText, calculateEventProbability, getEventCatalog, formatBuildingsDestroyed } from '../engine/events/events.ts'
 import { createStarterState, applyStartingMultiplier } from '../engine/starter.ts'
 import { advanceYear } from '../engine/year.ts'
-import { getRankName, isFeatureUnlocked, getNextRank, groupProgressDetail, getAllRanks, getTopRank, RankRequirement, requirementGroupStatus } from '../engine/ranks.ts'
+import { getRankName, isFeatureUnlocked, getNextRank, groupProgressDetail, getAllRanks, getTopRank, RankRequirement, requirementGroupStatus, charterSlotsForRank } from '../engine/ranks.ts'
 import { warStrength, warStrengthBreakdown, warWinProbability, militaryMultiplier, isTruceActive, truceExpiryYear } from '../engine/war.ts'
 import { medievalRivalName } from '../engine/gameLoop.ts'
 import { strikeSuccessProbability } from '../engine/espionage.ts'
 import { totalLand, remainingLandBuyBudget, affordableHectares } from '../engine/land.ts'
 import { meetsPalaceLandGate, meetsCathedralGates } from '../engine/buildings.ts'
+import { guildDefinition, guildGrossBonusIncome, guildUpkeepSurcharge, activeGuildCount } from '../engine/guilds.ts'
 import { getPersonalities, Personality } from '../ai/personalities.ts'
 import { getDifficultyPresets, getDifficultyPreset, DEFAULT_DIFFICULTY_ID, DifficultyPreset } from '../ai/difficulty.ts'
 import { planYear } from '../ai/planner.ts'
@@ -36,6 +37,17 @@ import {
   StandingOrderFire
 } from './decisions.ts'
 import { previewYear, warSnapshotDraft, YearPreview, downsideTailProbability } from './preview.ts'
+import {
+  petitionTitle,
+  petitionBody,
+  petitionQueuedReportLine,
+  guildResolutionReportLine,
+  promotionCardBody,
+  unansweredPetitionPreviewWarning,
+  unaffordableGrantPreviewWarning,
+  guildTypeLabel,
+  buildingKindLabel
+} from './guildCopy.ts'
 import {
   feedStockFromChronicle,
   roundedDelta,
@@ -86,6 +98,7 @@ const PALACE = buildingsData.prestige.palace
 const PRODUCTION = buildingsData.production
 const MITIGATION = buildingsData.mitigation
 const COMMERCE = buildingsData.commerce
+const GUILD_REFUSAL_SPIKE: number = buildingsData.guilds.guildRefusalUnrestSpike
 const HARVEST = economyData.harvest
 const FEEDING = economyData.feeding
 const ESPIONAGE = economyData.espionage
@@ -655,6 +668,18 @@ function renderGame(): void {
     for (const b of Array.from(tabbar.children)) b.classList.remove('active')
     const activeBtn = tabbar.querySelector(`[data-tab="${session!.activeTab}"]`)
     activeBtn?.classList.add('active')
+    // Keep the Build-tab petition badge in sync when the draft answer changes
+    // without a full renderGame (scroll-preserving path from 21.1).
+    const buildBtn = tabbar.querySelector('[data-tab="build"]')
+    const existingBadge = buildBtn?.querySelector('.tab-badge')
+    const needsBadge = !!(session!.state.players[HUMAN_ID].pendingGuild && session!.draft.guildAction === null)
+    if (needsBadge && !existingBadge && buildBtn) {
+      buildBtn.querySelector('.tab-label-wrap')?.appendChild(
+        el('span', { class: 'tab-badge', textContent: '!', title: 'Guild petition awaiting answer' })
+      )
+    } else if (!needsBadge && existingBadge) {
+      existingBadge.remove()
+    }
     content.appendChild(renderTabContent(session!.activeTab))
   }
   rerenderActiveTab = renderTab
@@ -662,9 +687,16 @@ function renderGame(): void {
   for (const tab of tabs) {
     const btn = el('button', { class: 'tab-btn', type: 'button' })
     btn.dataset.tab = tab.id
+    const labelWrap = el('span', { class: 'tab-label-wrap' },
+      el('span', { class: 'tab-label' }, tab.label)
+    )
+    // Phase 21.10: unanswered guild petition needs a Build-tab answer before End Year.
+    if (tab.id === 'build' && player.pendingGuild && session.draft.guildAction === null) {
+      labelWrap.appendChild(el('span', { class: 'tab-badge', textContent: '!', title: 'Guild petition awaiting answer' }))
+    }
     btn.append(
       spriteImg('uiIcons', tab.icon, tab.label, 'tab-icon'),
-      el('span', { class: 'tab-label' }, tab.label)
+      labelWrap
     )
     btn.addEventListener('click', () => { session!.activeTab = tab.id; renderTab() })
     tabbar.appendChild(btn)
@@ -717,6 +749,7 @@ function updatePreviewPanel(panel: HTMLElement, preview: YearPreview | null): vo
     { label: 'Graft', value: preview.tributeIncome },
     { label: 'Markets', value: preview.marketIncome },
     { label: 'Mills', value: preview.millIncome },
+    { label: 'Guild bonus', value: preview.guildBonusIncome },
     { label: 'Trading houses', value: preview.tradingHouseIncome },
     { label: 'Grain trade', value: preview.grainTradeIncome },
     { label: 'Upkeep', value: -preview.upkeepCost }
@@ -779,6 +812,15 @@ function updatePreviewPanel(panel: HTMLElement, preview: YearPreview | null): vo
   for (const shortfall of preview.shortfalls) {
     panel.appendChild(el('p', { class: 'help-text bad preview-line' }, shortfall))
   }
+
+  // Phase 21.10: petition warnings from the same advanceYear oracle as shortfalls.
+  const pending = session?.state.players[HUMAN_ID]?.pendingGuild
+  const guildAction = session?.draft.guildAction ?? null
+  if (pending && guildAction === null) {
+    panel.appendChild(el('p', { class: 'help-text warn preview-line' }, unansweredPetitionPreviewWarning(pending)))
+  } else if (pending && guildAction === 'grant' && preview.guildResolution?.refusedForUnaffordable) {
+    panel.appendChild(el('p', { class: 'help-text bad preview-line' }, unaffordableGrantPreviewWarning(pending)))
+  }
 }
 
 function statGrid(player: PlayerState, _state: GameState): HTMLElement {
@@ -792,12 +834,17 @@ function statGrid(player: PlayerState, _state: GameState): HTMLElement {
     : `${player.population.unrest.toFixed(0)}/100`
 
   const lastYear = session?.lastChronicle
-  const unrestTip = lastYear
-    ? breakdownTip([
+  const unrestParts: Array<{ label: string; value: number }> = lastYear
+    ? [
         { label: 'Feeding (shortfall/decay)', value: lastYear.unrestFromFeeding },
         { label: 'Taxation', value: lastYear.unrestFromTax },
         { label: 'War weariness', value: lastYear.unrestFromWarWeariness }
-      ])
+      ]
+    : []
+  if (lastYear?.unrestFromGuild) unrestParts.push({ label: 'Guild petition', value: lastYear.unrestFromGuild })
+  if (lastYear?.unrestFromPromotion) unrestParts.push({ label: 'Promotion', value: lastYear.unrestFromPromotion })
+  const unrestTip = lastYear
+    ? breakdownTip(unrestParts)
     : 'Accumulates from underfeeding and heavy taxation; decays slowly in peacetime. Resolve at least one year to see last year\'s breakdown.'
 
   return el('div', { class: 'stat-grid' },
@@ -1513,6 +1560,72 @@ function mitigationRow(assetId: string, label: string, owned: boolean, draftValu
   return buildRow(assetId, label, control)
 }
 
+function renderGuildPetitionCard(player: GameState['players'][string], draft: DecisionDraft): HTMLElement {
+  const pending = player.pendingGuild!
+  const def = guildDefinition(pending.specialization)
+  const canAffordFee = player.taler >= def.charterFee
+  const grantActive = draft.guildAction === 'grant'
+  const refuseActive = draft.guildAction === 'refuse'
+
+  const setAction = (action: 'grant' | 'refuse') => {
+    draft.guildAction = draft.guildAction === action ? null : action
+    rerenderActiveTab?.()
+  }
+
+  const grantBtn = el('button', {
+    className: grantActive ? 'active' : '',
+    textContent: `Grant (−${def.charterFee.toLocaleString('en-US')} Taler)`
+  })
+  grantBtn.addEventListener('click', () => setAction('grant'))
+  const refuseBtn = el('button', {
+    className: refuseActive ? 'active' : '',
+    textContent: `Refuse (+${GUILD_REFUSAL_SPIKE} unrest)`
+  })
+  refuseBtn.addEventListener('click', () => setAction('refuse'))
+
+  const status = draft.guildAction === null
+    ? el('p', { class: 'help-text warn' }, 'No answer yet — End Year will lapse this petition as a refusal.')
+    : draft.guildAction === 'grant'
+      ? el('p', { class: canAffordFee ? 'help-text good' : 'help-text warn' },
+          canAffordFee
+            ? 'Grant queued. Construction and recruitment spend first — keep enough Taler for the charter fee.'
+            : `Treasury is below the ${def.charterFee.toLocaleString('en-US')} fee now; if it still is after this year's other spends, grant becomes a refusal.`)
+      : el('p', { class: 'help-text' }, 'Refuse queued — the guild leaves empty-handed and unrest rises.')
+
+  return el('div', { class: 'guild-petition' },
+    el('h3', {}, petitionTitle(pending)),
+    el('p', {}, petitionBody(pending)),
+    el('div', { class: 'segmented' }, grantBtn, refuseBtn),
+    status
+  )
+}
+
+function renderGuildHoldings(player: GameState['players'][string], slots: number, held: number): HTMLElement {
+  const box = el('div', {},
+    el('h3', {}, 'Guild charters'),
+    el('p', { class: 'help-text' },
+      slots > 0
+        ? `Charter slots: ${held} of ${slots} filled at ${getRankName(player.rank)}.`
+        : 'Raise your rank to unlock guild charter slots.'
+    )
+  )
+  const guilds = player.guilds ?? []
+  if (guilds.length === 0) {
+    box.appendChild(el('p', { class: 'help-text' }, 'No specialized markets or mills yet.'))
+    return box
+  }
+  for (const g of guilds) {
+    const base = g.kind === 'market' ? PRODUCTION.market.incomePerYear : PRODUCTION.mill.incomePerYear
+    const bonus = Math.round(guildGrossBonusIncome(g.specialization, base))
+    const surcharge = Math.round(guildUpkeepSurcharge(g.specialization, base))
+    box.appendChild(el('div', { class: 'row between guild-holding' },
+      el('span', {}, `${guildTypeLabel(g.specialization)} ${buildingKindLabel(g.kind)}`),
+      el('span', { class: 'help-text' }, `+${bonus}/yr · −${surcharge} upkeep`)
+    ))
+  }
+  return box
+}
+
 function renderBuildTab(player: GameState['players'][string], draft: DecisionDraft): HTMLElement {
   const landHeld = totalLand(player.land)
   const CATHEDRAL = buildingsData.prestige.cathedral
@@ -1533,7 +1646,20 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
     })
   )
 
-  const container = el('div', {},
+  const container = el('div', {})
+
+  // Phase 21.10 — pending guild petition (answer before End Year or it lapses).
+  if (player.pendingGuild) {
+    container.appendChild(renderGuildPetitionCard(player, draft))
+  }
+
+  const slots = charterSlotsForRank(player.rank)
+  const held = activeGuildCount(player)
+  if (slots > 0 || held > 0 || (player.guilds && player.guilds.length > 0)) {
+    container.appendChild(renderGuildHoldings(player, slots, held))
+  }
+
+  container.append(
     el('h3', {}, 'Production'),
     buildRow('market', 'Market', stepper({
       label: `Markets (${player.buildings.markets}) — ${costSuffix(PRODUCTION.market.buildCost, { income: PRODUCTION.market.incomePerYear, upkeep: PRODUCTION.market.upkeepPerYear })}`,
@@ -1546,10 +1672,12 @@ function renderBuildTab(player: GameState['players'][string], draft: DecisionDra
       tooltip: `Passive Taler income every year, more than a market but costlier to run. Capped by land: 1 mill per ${PRODUCTION.mill.ratioPerHectares.toLocaleString('en-US')} ha owned.`
     })),
     el('h3', {}, 'Rank path'),
-    palaceRow,
-    palaceLandOk ? null : el('p', { class: 'help-text bad' },
-      `Needs ${PALACE.landRequirement.toLocaleString('en-US')} ha to begin construction — you hold ${landHeld.toFixed(0)} ha.`)
+    palaceRow
   )
+  if (!palaceLandOk) {
+    container.appendChild(el('p', { class: 'help-text bad' },
+      `Needs ${PALACE.landRequirement.toLocaleString('en-US')} ha to begin construction — you hold ${landHeld.toFixed(0)} ha.`))
+  }
 
   if (!player.buildings.cathedral) {
     const cathedralLandOk = landHeld >= CATHEDRAL.landRequirement
@@ -1997,6 +2125,7 @@ function buildIncomeBreakdown(report: Chronicle['playerReports'][string]): HTMLE
     pair('Judicial graft', report.tributeIncome),
     pair('Market income', report.marketIncome),
     pair('Mill income', report.millIncome),
+    pair('Guild bonus', report.guildBonusIncome ?? 0),
     pair('Trading house income', report.tradingHouseIncome),
     pair('Grain trade', report.grainTradeIncome),
     pair('Land trade', report.landTradeNet),
@@ -2021,6 +2150,7 @@ function buildIncomeBreakdown(report: Chronicle['playerReports'][string]): HTMLE
         { label: 'Garrison', value: -report.upkeepBreakdown.garrison },
         { label: 'Dike', value: -report.upkeepBreakdown.dike },
         { label: 'Trading-house tribute', value: -report.upkeepBreakdown.tradingHouseTribute },
+        { label: 'Guild surcharge', value: -report.upkeepBreakdown.guildSurcharge },
         { label: 'Secret service (guards/saboteurs)', value: -report.upkeepBreakdown.secretService },
         { label: 'Army (training/equipment)', value: -report.upkeepBreakdown.army }
       ])
@@ -2069,6 +2199,32 @@ function collectEventCards(chronicle: Chronicle): EventCard[] {
       body: report.positiveEvent.text,
       magnitude: positiveEventMagnitudeText(report.positiveEvent),
       rewardType: report.positiveEvent.rewardType
+    })
+  }
+
+  // Phase 21.10 — petition announcement (queued this year; answered next turn).
+  if (report.guildPetition) {
+    cards.push({
+      kind: 'positive',
+      sceneId: null,
+      title: petitionTitle(report.guildPetition),
+      body: petitionBody(report.guildPetition),
+      magnitude: 'Answer on the Build tab',
+      rewardType: 'taler'
+    })
+  }
+
+  // Phase 21.10 — promotion as a moment (#49). Last so it closes the year.
+  if (report.rankPromoted && report.newRank !== undefined) {
+    cards.push({
+      kind: 'positive',
+      sceneId: null,
+      title: getRankName(report.newRank),
+      body: promotionCardBody(report.newRank, report.charterSlotsAfterPromotion),
+      magnitude: report.promotionUnrestRelief
+        ? `Unrest −${report.promotionUnrestRelief.toFixed(0)}`
+        : 'The realm celebrates',
+      rewardType: 'unrest'
     })
   }
 
@@ -2194,8 +2350,31 @@ function buildReportEntries(
   }
 
   if (report.rankPromoted) {
-    entries.push(el('div', { class: 'log-entry good' }, `Raised to the rank of ${getRankName(report.newRank!)}.`))
+    const rankName = getRankName(report.newRank!)
+    let promo = `Raised to the rank of ${rankName}.`
+    if (report.charterSlotsAfterPromotion !== undefined) {
+      promo += ` Guild charter slots: ${report.charterSlotsAfterPromotion}.`
+    }
+    if (report.unlockedFeatures && report.unlockedFeatures.length > 0) {
+      promo += ` Unlocked: ${report.unlockedFeatures.join(', ')}.`
+    }
+    if (report.promotionUnrestRelief && report.promotionUnrestRelief > 0) {
+      promo += ` The realm celebrates (−${report.promotionUnrestRelief.toFixed(0)} unrest).`
+    }
+    entries.push(el('div', { class: 'log-entry good' }, promo))
   }
+
+  if (report.guildResolution) {
+    const line = guildResolutionReportLine(report.guildResolution)
+    entries.push(el('div', {
+      class: report.guildResolution.granted ? 'log-entry good' : 'log-entry bad'
+    }, line))
+  }
+
+  if (report.guildPetition) {
+    entries.push(el('div', { class: 'log-entry' }, petitionQueuedReportLine(report.guildPetition)))
+  }
+
   const popBreakdown = populationBreakdownText(
     report.births, report.deaths, report.immigration, report.emigration, report.eventPopulationLoss
   )
