@@ -954,7 +954,20 @@ production weight, times an <=8% share) and self-correcting the moment the chart
 parameters move — but it is the hospital failure mode in miniature, so it should be re-checked
 whenever either constant changes.
 
-**Not fixed in 21.7b deliberately.** 21.9 owns calibration against `scripts/ai-bench.ts`, and
+**4. (Found in 21.8) The mechanic can cost a cash-poor builder his rank entirely.** The golden
+fixture's `alfred` answers `grant` every year but is chronically broke from his own build sheet, so
+three of four grants are UNAFFORDABLE — and an unaffordable grant is punished exactly like a refusal
+(+8 unrest) by deliberate anti-exploit design. The accumulated unrest suppresses his population below
+the rank gate permanently: he promoted reliably through 21.7b and never promotes after 21.8, verified
+unchanged at 35, 45 and 60 year runs.
+
+This is the sanity check PLAN.md asked for on that "slightly coercive" rule, and it found a real
+cost. The rule itself is still right (without it, answering `grant` while broke would be a free way
+to dodge the unrest), but the COMBINATION of a high charterFee and a full-strength refusal spike
+means a poor ruler is taxed for wanting to participate. Cheapest fix is the same first lever as
+above — `charterFee` down — which makes grants affordable rather than making refusal cheaper.
+
+**Not fixed in 21.7b or 21.8 deliberately.** 21.9 owns calibration against `scripts/ai-bench.ts`, and
 retuning `charterFee`/`incomeMultiplier` without that measurement would be guessing. Lever order when
 21.9 picks this up, cheapest-risk first: `charterFee` down (payback is the cleanest lever and does
 not touch the balance gate's income side), then `incomeMultiplier` up (moves income — needs a balance

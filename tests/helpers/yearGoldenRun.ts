@@ -1,10 +1,15 @@
 // THE SCENARIO DEFINITION for the reducer golden fixture
-// (tests/fixtures/advanceYear-noguild-golden.json).
+// (tests/fixtures/advanceYear-golden.json).
 //
-// "noguild" names the baseline this captures: the reducer's behaviour BEFORE the
-// 19D-D2 guild workstream (PLAN.md phase 21.6+) adds petitions, charters, or any
-// guild income. It is the thing later phases in that workstream must prove they
-// did not disturb.
+// Was `advanceYear-noguild-golden.json` from 21.0 through 21.7b, where it did
+// exactly the job its name described: pin the reducer's pre-guild behaviour so
+// every tranche of the D2 workstream could PROVE it changed nothing. It held
+// byte-identical across seven tranches and caught real drift twice.
+//
+// Renamed at 21.8, when guild petitions began firing and the baseline
+// deliberately moved. Keeping a fixture called "noguild" whose checkpoints
+// contain guilds would be precisely the stale-name trap this codebase keeps
+// getting bitten by. The file is the same lineage (git mv), not a fresh start.
 //
 // Shared deliberately by scripts/gen-year-golden.ts (which writes the fixture)
 // and tests/yearGolden.test.ts (which checks live output against it), so the two
@@ -47,11 +52,25 @@ import { Decision, GameState, PlayerState } from '../../src/engine/state.ts'
 export const SEED_BASE = 42
 const seedForYear = (year: number): number => SEED_BASE + year * 1000
 
-// 35 rather than a rounder 25: rank promotion (year.ts step 13) is measured at
-// roughly year 29 for a solo builder, so a 25-year run never promotes anybody
-// and leaves the promotion branch — the one phase 21.8 is about to change — out
-// of the baseline entirely. The `promotions` coverage counter is what keeps this
-// honest if the economy is ever retuned enough to push promotion past year 35.
+// 35 rather than a rounder 25: long enough that rank promotion used to land
+// inside the run (~year 29 through 21.7b).
+//
+// IT NO LONGER DOES, and that is a real 21.8 outcome rather than a fixture
+// defect. Once petitions fire, alfred takes three unaffordable-grant unrest
+// hits (+8 each: he answers 'grant' every year but is chronically broke from
+// his own build sheet, and an unaffordable grant is punished exactly like a
+// refusal by deliberate anti-exploit design). The resulting unrest suppresses
+// his population below the rank gate permanently — verified by extending the
+// run to 45 and then 60 years, where he still never promotes.
+//
+// The scenario was NOT tuned to force the counter back up. Two earlier attempts
+// are recorded because both were instructive: extending the span did nothing,
+// and giving conrad markets so he could receive petitions inadvertently FUNDED
+// his sabotage campaign (strikes 8 -> 17), raiding alfred even harder. Promotion
+// semantics now get precise coverage in tests/guilds.test.ts, where a promoting
+// player can simply be constructed; this fixture stays a determinism ratchet and
+// records what the world actually does. The balance signal — that guild
+// petitions can cost a poor builder his rank — is filed as BACKLOG S10.
 export const TOTAL_YEARS = 35
 
 // Snapshotting several points rather than only the end state: if this breaks,
@@ -88,7 +107,13 @@ export function sheetFor(playerId: string): Decision[] {
           wellBuild: 1, hospitalBuild: 1, granaryBuild: 1, garrisonBuild: 0,
           tradingHouseBuild: 0
         },
-        { type: 'espionage', guardHire: 1, saboteurHire: 0 }
+        { type: 'espionage', guardHire: 1, saboteurHire: 0 },
+        // 21.8: alfred ANSWERS his petitions, so the fixture covers the grant
+        // branch — charterFee paid, a guild actually held, guild income and
+        // upkeep flowing through buildings.ts. He is also conrad's sabotage
+        // target, so holding guilds additionally exercises 21.7a's
+        // prune-on-destruction inside the real reducer.
+        { type: 'guild', action: 'grant' }
       ]
 
     // Prestige/tax path, and the belligerent. Heavy tax pushes unrest past the
@@ -136,7 +161,7 @@ export function sheetFor(playerId: string): Decision[] {
           type: 'espionage',
           guardHire: 0, saboteurHire: 1,
           targetPlayerId: 'alfred', saboteursCommitted: 1, mode: 'sabotage'
-        }
+        },
       ]
 
     default:
@@ -160,6 +185,13 @@ export interface CoverageCounters {
   positiveEventsFired: number
   promotions: number
   shortfallsNoted: number
+  // 21.8 (D2). Pins that the scenario actually exercises the guild pipeline —
+  // without these, a future change that silently stopped petitions firing would
+  // move the checkpoints (caught) but give no clue WHY (not caught).
+  guildPetitionsQueued: number
+  guildsGranted: number
+  guildRefusalsAndLapses: number
+  promotionMoments: number
 }
 
 export interface YearGoldenFixture {
@@ -193,7 +225,11 @@ export function buildFixture(): YearGoldenFixture {
     eventsFired: 0,
     positiveEventsFired: 0,
     promotions: 0,
-    shortfallsNoted: 0
+    shortfallsNoted: 0,
+    guildPetitionsQueued: 0,
+    guildsGranted: 0,
+    guildRefusalsAndLapses: 0,
+    promotionMoments: 0
   }
 
   for (let year = 0; year < TOTAL_YEARS; year++) {
@@ -207,6 +243,12 @@ export function buildFixture(): YearGoldenFixture {
       coverage.shortfallsNoted += report.shortfalls.length
       if (report.positiveEvent) coverage.positiveEventsFired += 1
       if (report.rankPromoted) coverage.promotions += 1
+      if (report.guildPetition) coverage.guildPetitionsQueued += 1
+      if (report.guildResolution) {
+        if (report.guildResolution.granted) coverage.guildsGranted += 1
+        else coverage.guildRefusalsAndLapses += 1
+      }
+      if (report.charterSlotsAfterPromotion !== undefined) coverage.promotionMoments += 1
     }
 
     if ((CHECKPOINT_YEARS as readonly number[]).includes(state.year)) {

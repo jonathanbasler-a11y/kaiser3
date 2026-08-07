@@ -204,6 +204,29 @@ export interface PlayerChronicle {
   /** What the feed dial asked for vs what the barn could actually cover (#50a). */
   feedTargetAdequacy?: number
   feedAdequacy?: number
+  // Phase 21.8 (D2, #49/#51). All optional so every pre-21.8 PlayerChronicle
+  // literal across tests keeps compiling, and all absent in the overwhelmingly
+  // common year where nothing guild-related happened.
+  //
+  /** A petition was QUEUED this year (step 14); the player answers it next turn. */
+  guildPetition?: PendingGuildPetition
+  /** A petition queued last year was RESOLVED this year (step 3.5). */
+  guildResolution?: {
+    kind: 'market' | 'mill'
+    specialization: GuildType
+    granted: boolean
+    /** No answer was submitted — lapsed to a refusal rather than carrying over. */
+    lapsed: boolean
+    /** Answered 'grant' but the treasury could not cover charterFee. */
+    refusedForUnaffordable: boolean
+    charterFeePaid: number
+    unrestDelta: number
+  }
+  // The promotion moment (#49). checkPromotion has always computed
+  // unlockedFeatures and nothing ever read it; step 13 now records it here.
+  unlockedFeatures?: string[]
+  charterSlotsAfterPromotion?: number
+  promotionUnrestRelief?: number
   harvestYield: number
   spoilage: number
   grainOverflowLost: number        // Surplus that exceeded storage and rotted

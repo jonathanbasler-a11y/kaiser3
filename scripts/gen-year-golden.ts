@@ -1,4 +1,4 @@
-// One-off generator for the REDUCER golden fixture (tests/fixtures/advanceYear-noguild-golden.json).
+// One-off generator for the REDUCER golden fixture (tests/fixtures/advanceYear-golden.json).
 //
 // Run manually with `npx tsx scripts/gen-year-golden.ts` ONLY when a deliberate,
 // reviewed change to advanceYear should shift the baseline — never as part of
@@ -37,7 +37,7 @@ const outPath = join(
   '..',
   'tests',
   'fixtures',
-  'advanceYear-noguild-golden.json'
+  'advanceYear-golden.json'
 )
 
 const fixture = buildFixture()
