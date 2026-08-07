@@ -22,7 +22,7 @@
 // reducer change is deliberate and reviewed, in the same commit as the change.
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import golden from './fixtures/advanceYear-noguild-golden.json'
+import golden from './fixtures/advanceYear-golden.json'
 import {
   buildFixture,
   decisionsForAll,
@@ -41,7 +41,7 @@ describe('advanceYear cross-process golden', () => {
 
   // Built in beforeAll rather than in the describe body so that a throw inside
   // the reducer surfaces as a named test failure instead of a suite-collection
-  // error, and so the 25-year run happens once rather than per assertion.
+  // error, and so the multi-year run happens once rather than per assertion.
   beforeAll(() => {
     live = buildFixture()
   })
@@ -86,10 +86,24 @@ describe('advanceYear cross-process golden', () => {
       ['eventsFired', 'the negative event catalog (year.ts:304)'],
       ['positiveEventsFired', 'positive events (year.ts:~318)'],
       ['shortfallsNoted', 'the affordability-shortfall path'],
-      // Directly load-bearing for phase 21.8, which makes promotion do something
-      // besides set a flag. Only reachable because the run is 35 years long.
-      ['promotions', 'rank promotion (year.ts step 13)']
+      // 21.8: the guild pipeline, both branches.
+      ['guildPetitionsQueued', 'guild petitions queued (year.ts step 14)'],
+      ['guildsGranted', 'a charter actually granted (fee paid, guild held)'],
+      ['guildRefusalsAndLapses', 'the refusal/lapse/unaffordable branch']
     ]
+
+    // `promotions` was on the list above through 21.7b and is deliberately NOT
+    // any more. Once petitions fire, one early 1,200 Taler charter fee leaves
+    // alfred just under a market's 2,000 cost, he stops building from year 3,
+    // and his economy never recovers — so he never reaches the WEALTH gate
+    // (population is fine, and unrest is 0 throughout; see the long note in
+    // helpers/yearGoldenRun.ts for why the first diagnosis of this was wrong). Asserting it positive would mean
+    // tuning the scenario to protect a counter; asserting it zero would pin a
+    // number nobody wants to keep. It is covered by the exact-match assertion
+    // below instead, so a change still has to be looked at, and the promotion
+    // MOMENT itself (charter slots, unrest relief, unlockedFeatures) is unit
+    // tested directly in tests/guildReducer.test.ts where a promoting player can just
+    // be constructed. The underlying balance signal is BACKLOG S10.
 
     for (const [counter, description] of branches) {
       it(`enters ${description}`, () => {

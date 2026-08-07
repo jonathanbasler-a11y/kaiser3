@@ -6,6 +6,7 @@ import { SeededRng } from './rng.ts'
 import {
   GameState, Decision, Chronicle, PlayerChronicle, StrikeRecord,
   GrainDecision, LandTradeDecision, TaxDecision, ConstructionDecision, EspionageDecision, WarDecision,
+  GuildDecision,
   cloneGameState
 } from './state.ts'
 import { calculateHarvest, resolveFeeding, applyGrainTrade, storageCapacity, driftCornPrice, WeatherBandId } from './economy.ts'
@@ -13,7 +14,8 @@ import { applyLandTrade } from './land.ts'
 import { applyPopulationDynamics } from './population.ts'
 import { applyTaxation } from './tax.ts'
 import { applyConstruction, calculateBuildingIncome, calculateUpkeepBreakdown } from './buildings.ts'
-import { checkPromotion } from './ranks.ts'
+import { checkPromotion, charterSlotsForRank } from './ranks.ts'
+import { nextGuildPetition, resolveGuildPetition } from './guilds.ts'
 import { resolveEvents } from './events/events.ts'
 import { rollPositiveEvent } from './events/positiveEvents.ts'
 import { applyRecruitment, espionageUpkeep, resolveStrike } from './espionage.ts'
@@ -22,6 +24,11 @@ import { resolveAllianceRequests, resolveWar, applyMilitaryInvestment, militaryU
 import economyData from '../../data/economy.json'
 
 const WARFARE = economyData.warfare
+
+// One-time unrest relief when a rank is won (#49). Deliberately the ONLY
+// material reward attached to promotion — see the long note at step 13 for why
+// a Taler purse would feed straight into the balance gate's runaway criterion.
+const PROMOTION_UNREST_RELIEF = 5
 
 function findDecision<T extends Decision>(decisions: Decision[], type: T['type']): T | undefined {
   return decisions.find((d) => d.type === type) as T | undefined
@@ -87,6 +94,7 @@ export function advanceYear(
   //     2. Recruitment           [Phase 7]
   //     2.5. Military investment [Phase 18C — training/equipment levels]
   //     3. Construction          [Phase 2]
+  //     3.5. Guild petition resolution [21.8 — answers a petition queued at step 14 LAST year]
   //     4. Harvest & weather      [Phase 1 + 8]
   //     5. Grain distribution     [Phase 1]
   //     6. Grain market            [Phase 8]
@@ -106,7 +114,8 @@ export function advanceYear(
   //    12.75. Succession          [F5 — reign turnover, resets score only]
   //
   //   PER RULER again:
-  //    13. Rank promotion check  [Phase 2]
+  //    13. Rank promotion check  [Phase 2 + 21.8 promotion moment: unlocks, charter slots, unrest relief]
+  //    14. Guild petitions for NEXT year [21.8 — written last, resolved at step 3.5 next year]
   //
   // Espionage/warfare sit between the two per-ruler passes because they are the
   // only phases where rulers touch each other, and the promotion check has to
@@ -175,6 +184,13 @@ export function advanceYear(
     }
 
     const unrestAtYearStart = player.population.unrest
+    // Feeding is measured from AFTER step 3.5's guild resolution, not from the
+    // year start — otherwise a refused charter's unrest spike lands inside
+    // report.unrestFromFeeding, which app.ts renders as "Feeding
+    // (shortfall/decay)". A player who refused a guild would be told the unrest
+    // came from grain. Re-baselined at 3.5; identical to unrestAtYearStart in
+    // the overwhelmingly common year with no petition to answer.
+    let unrestBeforeFeeding = unrestAtYearStart
 
     // 1. Land trading (against the NPC Kaiser)
     const landDecision = findDecision<LandTradeDecision>(playerDecisions, 'land_trade')
@@ -259,6 +275,44 @@ export function advanceYear(
       )
     }
 
+    // 3.5. Guild petition resolution (D2, #51) — the answer to a petition queued
+    //      at the END of last year (step 14 below). Placed immediately after
+    //      construction because a charter is the same class of thing: a one-off
+    //      spend against this year's treasury, competing with builds in a fixed,
+    //      predictable order. Before the harvest, so the fee cannot be paid out
+    //      of grain money that has not settled yet — the same trap bug report #27
+    //      hit with construction, and the reason step 6's comment exists.
+    //
+    //      ZERO RNG DRAWS. resolveGuildPetition is a pure function of
+    //      (player, decision, year); the rng is not passed to it and must never
+    //      be. This is what keeps every OTHER player's rolls for the rest of the
+    //      year exactly where they were — a conditional draw here would shift the
+    //      shared stream for the whole field and the suite would still pass.
+    if (player.pendingGuild) {
+      const guildDecision = findDecision<GuildDecision>(playerDecisions, 'guild')
+      const resolution = resolveGuildPetition(player, guildDecision, newState.year)
+
+      player.guilds = resolution.guildsAfter
+      player.guildCooldowns = resolution.guildCooldownsAfter
+      player.taler = Math.max(0, player.taler - resolution.talerSpent)
+      player.population.unrest = Math.min(100, player.population.unrest + resolution.unrestDelta)
+      report.unrestFromGuild = player.population.unrest - unrestBeforeFeeding
+      unrestBeforeFeeding = player.population.unrest
+      report.guildResolution = {
+        kind: player.pendingGuild.kind,
+        specialization: player.pendingGuild.specialization,
+        granted: resolution.granted,
+        lapsed: resolution.lapsed,
+        refusedForUnaffordable: resolution.refusedForUnaffordable,
+        charterFeePaid: resolution.talerSpent,
+        unrestDelta: resolution.unrestDelta
+      }
+      // Answered either way — the petition does not carry over. An unanswered
+      // one lapsed to a refusal above rather than persisting, so "never respond"
+      // cannot strictly dominate answering.
+      player.pendingGuild = undefined
+    }
+
     // 4. Harvest (labor-gated productivity, weather band, spoilage, storage cap)
     const harvest = calculateHarvest(
       player.land, player.population, player.grainStock, player.buildings.granary, rng,
@@ -303,7 +357,7 @@ export function advanceYear(
     report.immigrationGate = popResult.immigrationGate
     report.feedTargetAdequacy = feeding.targetAdequacy
     report.feedAdequacy = feeding.feedAdequacy
-    report.unrestFromFeeding = player.population.unrest - unrestAtYearStart
+    report.unrestFromFeeding = player.population.unrest - unrestBeforeFeeding
 
     // Extinction: population collapsed to nothing. No heir is possible — this is
     // the one permanent failure state, distinct from succession below.
@@ -518,6 +572,71 @@ export function advanceYear(
       player.rank = promotion.newRank
       report.rankPromoted = true
       report.newRank = promotion.newRank
+      // PROMOTION AS A MOMENT (#49: "Events at rank promotion — Ideas?").
+      //
+      // Promotion used to set a number and a boolean and nothing else, which is
+      // why the report had nothing to say about the single best thing that can
+      // happen to a ruler. Three things now attach to it, and deliberately no
+      // fourth:
+      //
+      //   * unlockedFeatures — checkPromotion has ALWAYS computed this array
+      //     (ranks.ts) and nothing has ever read it. It is consumed here at last.
+      //   * charter slots — read live from the new rank via
+      //     charterSlotsForRank, so a promotion widens what guilds a ruler may
+      //     hold. One mechanism answers both "what should promotion grant" and
+      //     the D2 design doc's open question #4 (what caps guild count).
+      //   * a one-time unrest relief: the realm celebrates.
+      //
+      // NO TALER PURSE, on purpose. Every rank gate is a wealthMin gate, so a
+      // cash grant on promotion accelerates the next promotion — positive
+      // feedback against the balance gate's maxReturnTrendSlope criterion
+      // (src/ai/balanceCriteria.ts). Unrest relief is the reward that cannot
+      // compound into a runaway.
+      report.unlockedFeatures = promotion.unlockedFeatures
+      report.charterSlotsAfterPromotion = charterSlotsForRank(player.rank)
+      const unrestBeforeCelebration = player.population.unrest
+      player.population.unrest = Math.max(0, player.population.unrest - PROMOTION_UNREST_RELIEF)
+      report.promotionUnrestRelief = unrestBeforeCelebration - player.population.unrest
+      // The relief lands AFTER step 12.5 finalised report.unrestGain, so both
+      // the component (negative) and the total have to be re-closed here or the
+      // documented "components sum to unrestGain exactly" contract
+      // (state.ts PlayerChronicle) silently breaks in every promotion year.
+      report.unrestFromPromotion = -report.promotionUnrestRelief
+      const startUnrest = unrestStartByPlayer.get(playerId)
+      if (startUnrest !== undefined) report.unrestGain = player.population.unrest - startUnrest
+    }
+  }
+
+  // 14. Guild petitions for NEXT year (D2, #51) — the reducer's new last step.
+  //
+  //     WHY LAST, AND WHY NEXT YEAR. For the player to answer a petition BEFORE
+  //     pressing End Year, it has to already be on the state when the turn
+  //     starts — which IS next-year storage relative to the year that created
+  //     it. So the year that generates a petition ends by writing it, and the
+  //     FOLLOWING year resolves it at step 3.5 above. The design doc's open
+  //     question #3 ("same-year or next-year response?") is a false dichotomy:
+  //     this is next-year storage and same-turn responsiveness at once, with no
+  //     beginYear/endYear split — which would have broken the atomic-year
+  //     assumption that planner.ts, sim.ts, balance.ts, preview.ts, gameLoop.ts
+  //     and every golden fixture rest on.
+  //
+  //     Last, specifically, so eligibility is judged against the state the year
+  //     actually ended in — a market built this year counts, and a market burnt
+  //     down this year does not.
+  //
+  //     ZERO RNG DRAWS, again: nextGuildPetition is a pure function of
+  //     (player, year). The design doc specified a guildPetitionBaseChance roll
+  //     and it was dropped precisely so this step could be appended to the year
+  //     without moving a single later draw for anyone.
+  for (const playerId of newState.activePlayerIds) {
+    const player = newState.players[playerId]
+    if (!player || player.dead) continue
+
+    const petition = nextGuildPetition(player, newState.year)
+    if (petition) {
+      player.pendingGuild = petition
+      const report = chronicle.playerReports[playerId]
+      if (report) report.guildPetition = petition
     }
   }
 

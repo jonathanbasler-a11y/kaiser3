@@ -49,6 +49,7 @@ Phased implementation of the modern rebuild of *Kaiser* (Ariolasoft, 1984). Solo
 | **21.6** | Sonnet | Medium | Guild types + plumbing (D2, #49/#51) | Pure `engine/guilds.ts`, zero callers; fraction-based surcharge + charterFee deviations; all fixtures byte-identical |
 | **21.7a** | Sonnet | Medium | Economics wiring — income/upkeep/prune (D2, #49/#51) | buildings.ts guild income+surcharge; fire/sabotage prune; scarcity.ts verified unaffected; still byte-identical |
 | **21.7b** | Opus | High | Evaluator production term — capitalising a charter (D2, #49/#51) | Market-equivalents inherit `production`'s horizon; guild loss priced via real pruning; `planner-golden` year20 unmoved |
+| **21.8** | Opus | Max | Reducer wiring — petitions fire (D2, #49/#51) | Steps 3.5 + 14, promotion moment; zero new RNG draws; `planner-golden` year20 deliberately RED until 21.11 |
 
 ## Phase 0: Scaffold & Ground Rules ✓
 
@@ -1155,14 +1156,14 @@ machinery), then D1 (requires new data file, RNG stream extension, 19A interacti
 
 ---
 
-**Last updated:** Phase 21.7b — 21.7 is now COMPLETE (economics wiring + evaluator term).
-21.0–21.7 merged; #45, #48, #46, #47, #50a/#50b addressed. D2 guild workstream: types, economics,
-and AI valuation are all in, every fixture still byte-identical, and nothing is player-visible yet
-because petitions cannot fire until 21.8. Next: **21.8 reducer wiring** (Opus/max — the
-highest-risk commit in this workstream; petitions start firing, `golden.test.ts` year20 is EXPECTED
-to move and must NOT be regenerated until 21.11), then 21.9 AI parity + calibration (see BACKLOG S10
-— the plan's predicted archetype split is already falsified on paper), 21.10 Cursor UI, 21.11 single
-deliberate fixture regen + balance gate. Deferred still: F2, F7; D1 trade routes.
+**Last updated:** Phase 21.8 — reducer wiring, petitions now fire. 21.0-21.7 merged.
+#45, #48, #46, #47, #50a/#50b addressed; #49 (promotion moment) and #51 (specialization) now have
+working engine behaviour behind them. **The suite is deliberately RED on 5 tests**
+(`planner-golden` year20) from here until 21.11 — see the block comment in `tests/golden.test.ts`;
+do NOT regenerate to go green. Next: 21.9 AI parity + calibration against `ai-bench` (start from
+BACKLOG S10, which now carries three measured findings including that the mechanic can cost a poor
+builder his rank), then 21.10 Cursor UI against the types 21.8 froze, then 21.11 single deliberate
+regeneration of BOTH fixtures + balance gate. Deferred still: F2, F7; D1 trade routes.
 
 ---
 
@@ -1522,7 +1523,8 @@ specialization not visible"). Design authority is
 `docs/superpowers/specs/2026-08-03-phase19d-economy-depth-design.md` § D2 — itself explicit that its
 shapes are "NOT final schema, illustrative only" — with three deliberate deviations below.
 
-**Contract for this tranche, per the locked 21.6–21.11 sequencing table**: types, a pure
+**Contract for this tranche, per the session implementation plan's locked 21.6–21.11 sequencing
+table** (that table lives in the session plan, not in this document): types, a pure
 `engine/guilds.ts` with **zero callers** anywhere in `src/`, and tolerate-and-default persistence.
 Nothing in `year.ts`, `planner.ts`, or `app.ts` invokes any of it yet — that starts in 21.7
 (economics wiring) and 21.8 (reducer wiring, where petitions first fire). Every fixture must stay
@@ -1786,3 +1788,148 @@ looking at*, not as the measurement. `scripts/ai-bench.ts` is the measurement.
 `charterFee`/`incomeMultiplier` now — without the measurement tool the plan designates — would be
 exactly the eyeball-it antipattern that phase exists to avoid. Recorded as BACKLOG S10 so 21.9 starts
 from the measured position rather than the falsified prediction.
+
+---
+
+## Phase 21.8: Reducer Wiring — Petitions Fire (D2, #49/#51) ✓
+
+The highest-risk commit in this workstream, and the first where the world visibly changes. Two new
+steps in `advanceYear`, plus the promotion moment.
+
+**Step 3.5 — resolve.** Answers a petition queued at step 14 *last* year. Placed right after
+construction because a charter is the same class of thing (a one-off spend competing with builds in a
+fixed order), and *before* the harvest so the fee cannot be paid from grain money that has not settled
+— the trap bug report #27 hit with construction.
+
+**Step 14 — queue.** The reducer's new last step, so eligibility is judged against the state the year
+actually ended in: a market built this year counts, one burnt down this year does not.
+
+**The timing model.** The design doc's open question #3 ("same-year or next-year response?") is a
+false dichotomy. For the player to answer *before* pressing End Year, the petition must already be on
+the state at turn start — which **is** next-year storage. So year N ends by writing it and year N+1
+resolves it: player-facing responsiveness and engine-facing purity at once, with no `beginYear`/
+`endYear` split (which would have broken the atomic-year assumption `planner.ts`, `sim.ts`,
+`balance.ts`, `preview.ts`, `gameLoop.ts` and every fixture rest on).
+
+**Promotion becomes a moment (#49).** `report.unlockedFeatures` finally consumes the array
+`checkPromotion` has always computed and nothing ever read; charter slots widen with rank (one
+mechanism answering both "what does promotion grant" and the design doc's open question #4 on guild
+caps); and a one-time −5 unrest. **No Taler purse** — every rank gate is a `wealthMin` gate, so cash
+on promotion accelerates the next promotion, which is positive feedback aimed straight at the balance
+gate's `maxReturnTrendSlope`. Asserted by test, not just asserted in prose.
+
+### The invariant that made this survivable
+**Zero new RNG draws.** `nextGuildPetition` and `resolveGuildPetition` are pure functions of state;
+the `rng` is not passed to either and must never be. `advanceYear` shares one `SeededRng` across all
+`activePlayerIds`, so a draw here — even a conditional one — would shift every later roll for every
+*other* ruler, and `determinism.test.ts` would stay green because it replays the same shifted world
+twice. `tests/guildReducer.test.ts`'s cross-player guard pins it: one ruler holding and resolving a
+guild leaves the others' weather, harvest, events, positive events, births and deaths bit-identical —
+checked across all three resolution branches, since a conditional draw would most plausibly hide in
+just one.
+
+### The audit found 21.8 near-broke the game, and it had to grow to fix it
+`planner.ts` emitted no guild decision and there is no UI control, so **every petition for every
+ruler lapsed**, each costing the full refusal spike. The balance harness still passed all five
+criteria — and that is the finding, not a reassurance:
+
+| | 21.4 baseline | 21.8 as first written | 21.8 + AI response |
+|---|---|---|---|
+| Mean rank, decade 6 | 5.43 | **1.99** | 5.63 |
+| Population, decade 6 | 3,206 | **952** | 3,300 |
+| Population retention | 2.20 | **0.91** | 2.25 |
+| yr-20 leader wins | 51.0% | 12.5% | 47.0% |
+
+The gate could not see it because its criteria measure *fairness and anti-snowball*, and a uniform
+tax on everyone is perfectly fair — the leader-wins rate actually "improved" to 12.5% because nobody
+can hold a lead while the whole field sinks. **A passing balance gate is not evidence the game is
+good**, only that it is not unfair; that distinction is worth keeping.
+
+Fixed by adding `src/ai/guildResponse.ts` — a closed-form grant/refuse screen over the same
+market-equivalents capitalisation 21.7b gave the evaluator, using existing weights with no
+`personalities.json` edit. This widens 21.8 past its planned scope, deliberately: the alternative was
+merging a knowingly-broken master for one tranche. It is explicitly **not** 21.9's design (scoring
+both branches through the real reducer) — just enough to make the tranche coherent. 21.9 still owns
+calibration.
+
+### Fixture outcomes — one matched the plan, one did not
+- **`planner-golden` was regenerated once here, reversing my initial call.** I first left it red for
+  all five archetypes, reasoning that 21.9 iterates so a per-iteration baseline proves nothing. The
+  audit pointed out my own contradiction: eight lines away I had regenerated the *reducer* ratchet on
+  exactly the opposite argument (leaving it offline for three tranches would hide silent drift), and
+  that argument transfers. It is sharper still after the AI response landed — only **one** archetype
+  then differed, and a single expected failure is far easier to hide a second one behind than five
+  were. 21.10 is a pure-UI phase where any year20 diff would be high signal, and that alarm was
+  switched off. Regenerated with the plan's own review check applied now rather than deferred: the
+  **year1 block is byte-identical**, only builder's year20 moved, and the entire diff is one line
+  (`sellGrain` 5358 → 5206 — the charter fee nudging his grain position over 19 years). 21.11 still
+  does the final regeneration after calibration freezes.
+- **`planner-golden` year1 still passes** — the plan's explicit requirement. The starter state is
+  rank 0 with zero production buildings and so is structurally ineligible; now asserted directly.
+- **`advanceYear-noguild-golden` moved, which the plan predicted it would not.** It had to: the
+  fixture's alfred builds markets, so he becomes petition-eligible in year 1. The plan's expectation
+  was written assuming the design doc's *probabilistic* petitions; 21.6 made them deterministic, which
+  is what makes them reliable — and reliably fire. Regenerated deliberately with a reviewed diff (new
+  keys `pendingGuild`/`guilds`/`guildCooldowns`, value moves confined to unrest/taler/score
+  downstream, no structural surprises) and **renamed to `advanceYear-golden.json`**, since a fixture
+  called "noguild" whose checkpoints contain guilds is exactly the stale-name trap this codebase keeps
+  hitting. Same lineage via `git mv`.
+
+### A real finding the coverage counters caught
+Adding guild coverage to the fixture scenario cost it its **promotion** coverage, and chasing that
+down produced the most useful result of the tranche.
+
+**My first diagnosis was wrong, and the spec audit caught it — worth recording, because the wrong
+version had already been handed forward as 21.9's brief.** I wrote that "refusal unrest suppresses
+his population below the rank gate." All three parts are false against the committed fixture: unrest
+is **0** at every checkpoint (an +8 spike decays at 5/yr and is gone in two years), population
+**rises** 1039 → 2465, and it clears the 1900 floor comfortably. The binding gate is *wealth* — 0
+against 28,000.
+
+The real mechanism is a knife-edge, and it is much sharper:
+
+| alfred @ year 35 | pre-21.8 | post-21.8 |
+|---|---|---|
+| taler | 37,647 | **0** |
+| markets / mills | 9 / 9 | **0 / 0** |
+| rank | 1 (Duke) | **0** |
+
+He pays a single **1,200 Taler charter fee in year 2**, which leaves him at 1,852 against a market's
+2,000 cost. He never crosses that threshold again — `constructionSpend` is **0 every year from year 3
+onward** — so he stays at 1 market and 1 mill and eventually loses both to fire and sabotage. That
+same 1,200 Taler would otherwise have bought the market that compounds into 9/9 and Duke.
+
+**One early charter fee cost him the compounding curve.** The damage is not the fee, it is the lost
+compounding, and it is concentrated entirely in the early game where 1,200 Taler *is* a market.
+
+Two attempts to restore the counter are recorded because both were instructive, and neither was kept:
+extending the span did nothing, and giving conrad markets so he could receive petitions inadvertently
+*funded his sabotage campaign* (strikes 8 → 17), raiding alfred even harder. The scenario was **not**
+tuned to force the number back up — that would be tuning to protect a counter. `promotions` came off
+the must-be-positive list with its reasoning, the exact-match coverage assertion still guards it, and
+promotion semantics moved to `tests/guildReducer.test.ts` where a promoting ruler can simply be
+constructed. Filed to BACKLOG S10 for 21.9, which should read `charterFee` down as the first lever —
+and consider scaling it to rank or treasury rather than a flat number, since a flat early fee is a
+growth-curve cliff.
+
+### Acceptance Criteria
+- ✓ Petition queued at step 14, resolved at step 3.5 the following year; never resolved in the year
+  it was queued
+- ✓ Starter state never petitioned (rank 0, zero production buildings) — why year1 survives
+- ✓ Grant pays `charterFee`, records the guild, clears the petition, costs no unrest
+- ✓ Explicit refusal, lapse, and unaffordable grant all cost unrest and grant nothing; the petition
+  never carries over unanswered
+- ✓ Charter cap stops further petitions once slots are full
+- ✓ A granted guild earns its bonus end-to-end through the reducer (21.7a's wiring, now reachable)
+- ✓ Promotion records `unlockedFeatures` + charter slots + unrest relief, widens the guild cap, pays
+  **no** Taler, and never drives unrest below zero
+- ✓ **Zero new RNG draws** — cross-player guard across grant/refuse/lapse
+- ✓ `unrestGain` still equals the true before/after delta in a promotion year, and all five
+  components sum to it — **two real bugs the audit caught**: the −5 relief lands in step 13 after
+  step 12.5 finalised the total, and the guild spike was being absorbed into `unrestFromFeeding`,
+  which the UI renders as "Feeding (shortfall/decay)". Both now have regression tests.
+- ✓ `unlockedFeatures` proven non-vacuously — the original assertion was `Array.isArray` against a
+  scenario that reaches Prince, which defines no feature, so it passed on an empty array
+- ✓ **Balance gate re-run after the AI response**: all five criteria, and the field recovered to
+  slightly better than the pre-guild baseline
+- ✓ Suite: 40 files, 455 tests, `tsc --noEmit` clean, **fully green**

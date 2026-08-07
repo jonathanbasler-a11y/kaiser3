@@ -42,6 +42,10 @@
           "type": "espionage",
           "guardHire": 1,
           "saboteurHire": 0
+        },
+        {
+          "type": "guild",
+          "action": "grant"
         }
       ],
       "brigitta": [
@@ -129,10 +133,14 @@
   "coverage": {
     "strikesResolved": 8,
     "warsResolved": 7,
-    "eventsFired": 55,
+    "eventsFired": 51,
     "positiveEventsFired": 13,
-    "promotions": 1,
-    "shortfallsNoted": 338
+    "promotions": 0,
+    "shortfallsNoted": 374,
+    "guildPetitionsQueued": 4,
+    "guildsGranted": 1,
+    "guildRefusalsAndLapses": 3,
+    "promotionMoments": 0
   },
   "checkpoints": {
     "1": {
@@ -171,7 +179,12 @@
           "dead": false,
           "trainingLevel": 0,
           "equipmentLevel": 0,
-          "warWeariness": 0
+          "warWeariness": 0,
+          "pendingGuild": {
+            "kind": "market",
+            "specialization": "iron",
+            "queuedYear": 0
+          }
         },
         "brigitta": {
           "id": "brigitta",
@@ -264,7 +277,7 @@
         "alfred": {
           "id": "alfred",
           "name": "Alfred",
-          "taler": 2842.242204456915,
+          "taler": 2092.2422044569144,
           "land": {
             "farmland": 10000,
             "buildingLand": 0
@@ -275,7 +288,7 @@
             "unrest": 0
           },
           "buildings": {
-            "markets": 4,
+            "markets": 1,
             "mills": 1,
             "palace": 0,
             "cathedral": 0,
@@ -289,12 +302,20 @@
           "guards": 10,
           "saboteurs": 0,
           "tradingHouses": 0,
-          "score": 26862.451369076454,
+          "score": 20937.451369076458,
           "reignYears": 10,
           "dead": false,
           "trainingLevel": 0,
           "equipmentLevel": 0,
-          "warWeariness": 0
+          "warWeariness": 0,
+          "guilds": [
+            {
+              "kind": "market",
+              "specialization": "iron",
+              "incomeMultiplier": 1.35
+            }
+          ],
+          "guildCooldowns": {}
         },
         "brigitta": {
           "id": "brigitta",
@@ -387,19 +408,19 @@
         "alfred": {
           "id": "alfred",
           "name": "Alfred",
-          "taler": 5075.047574443717,
+          "taler": 0,
           "land": {
             "farmland": 10000,
             "buildingLand": 0
           },
-          "grainStock": 38284.25156180472,
+          "grainStock": 38237.350539303116,
           "population": {
-            "peasants": 2031.1798946584345,
+            "peasants": 2027.809444891728,
             "unrest": 0
           },
           "buildings": {
-            "markets": 9,
-            "mills": 4,
+            "markets": 0,
+            "mills": 0,
             "palace": 0,
             "cathedral": 0,
             "hospital": 1,
@@ -409,7 +430,7 @@
             "dike": 0
           },
           "rank": 0,
-          "guards": 25,
+          "guards": 14,
           "saboteurs": 0,
           "tradingHouses": 0,
           "score": 0,
@@ -418,7 +439,11 @@
           "heir": "alfred",
           "trainingLevel": 0,
           "equipmentLevel": 0,
-          "warWeariness": 0
+          "warWeariness": 0,
+          "guilds": [],
+          "guildCooldowns": {
+            "iron": 24
+          }
         },
         "brigitta": {
           "id": "brigitta",
@@ -512,19 +537,19 @@
         "alfred": {
           "id": "alfred",
           "name": "Alfred",
-          "taler": 37646.975898300974,
+          "taler": 0,
           "land": {
             "farmland": 9175.675830755232,
             "buildingLand": 0
           },
-          "grainStock": 50341.367152346385,
+          "grainStock": 50415.81406060631,
           "population": {
-            "peasants": 2468.8125916666686,
+            "peasants": 2464.775566052511,
             "unrest": 0
           },
           "buildings": {
-            "markets": 9,
-            "mills": 9,
+            "markets": 0,
+            "mills": 0,
             "palace": 0,
             "cathedral": 0,
             "hospital": 1,
@@ -533,17 +558,21 @@
             "garrison": 0,
             "dike": 0
           },
-          "rank": 1,
-          "guards": 25,
+          "rank": 0,
+          "guards": 14,
           "saboteurs": 0,
           "tradingHouses": 0,
-          "score": 113458.7858284845,
+          "score": 13536.486930862775,
           "reignYears": 10,
           "dead": false,
           "heir": "alfred",
           "trainingLevel": 0,
           "equipmentLevel": 0,
-          "warWeariness": 0
+          "warWeariness": 0,
+          "guilds": [],
+          "guildCooldowns": {
+            "iron": 24
+          }
         },
         "brigitta": {
           "id": "brigitta",
