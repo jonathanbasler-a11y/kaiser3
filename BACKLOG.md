@@ -1034,13 +1034,12 @@ that pushes this above 40% has made the game easier, whatever else it improved.
 Three limits bound everything below. None of them is fatal to the finding; all of them stop it being
 a finished result.
 
-1. **The shipped human cannot answer a guild petition at all.** `grep -i guild src/ui` returns
-   nothing — the petition UI is 21.10's deliverable. In the current build every human petition
-   therefore *lapses*: full +8 unrest spike, three-year cooldown, no charter. The bench's human seat
-   answers petitions, so its win rate is an **upper bound on a build nobody can play**. Universal
-   lapsing is precisely what collapsed the AI field in 21.8 (mean rank 5.43 → 1.99), so the true
-   figure for today's build is lower and possibly far lower. **Re-run this measurement after 21.10
-   lands** — the headline may invert.
+1. **~~The shipped human cannot answer a guild petition at all.~~ ✅ CLEARED (UI, phase 21.10).**
+   Build-tab grant/refuse, tab badge, preview lapse warning, and year-report cards/lines now wire
+   the same `GuildDecision` the AI emits. Universal human lapsing is gone. **Re-run the
+   `guild-bench` human-seat measurement** (still open — the 58% figure was an upper bound on an
+   unplayable build; the new figure is what matters for S11 tuning). Remaining S11 work is rival
+   assignment + archetype rebalance, not petition UI.
 2. **A planner seat is not "a competent human".** CLAUDE.md's Decision-parity invariant guarantees
    the planner emits the same *action space* a human can, through the same reducer. It says nothing
    about skill. The seat's own archetype swings the result from 30% to 90% under identical rules, so
@@ -1105,7 +1104,8 @@ moves `npm run balance`. Neither belongs in a tranche scoped to guild AI parity.
 
 ### Suggested order when this is picked up
 
-**21.10 first** — until a human can answer a petition, no human-seat measurement means anything.
+**21.10 landed** — humans can answer petitions. Next for S11: re-run `guild-bench` human-seat
+measurement, then rival-assignment / archetype work. Do **not** fold that into 21.11's fixture regen.
 Then re-measure. Then rebalance archetypes, then choose the default pair, then re-measure again;
 doing the last two in the other order tunes the pair against archetypes that are about to move.
 Re-run `guild-bench` and `npm run balance` at the default 200 matches after each step.

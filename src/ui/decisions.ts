@@ -44,6 +44,9 @@ export interface DecisionDraft {
   // PlayerState) — the same relationship guardHire has to player.guards.
   trainingInvest: number
   equipmentInvest: number
+  // Phase 21.10 (D2, #49/#51): answer to player.pendingGuild. null = unanswered
+  // (engine lapses to refuse). Same GuildDecision shape the AI emits.
+  guildAction: 'grant' | 'refuse' | null
 }
 
 // Sensible defaults each year, re-derived from the fresh state rather than carried
@@ -80,7 +83,8 @@ export function defaultDraft(player: PlayerState): DecisionDraft {
     warTargetPlayerId: null,
     warAlliesRequested: [],
     trainingInvest: 0,
-    equipmentInvest: 0
+    equipmentInvest: 0,
+    guildAction: null
   }
 }
 
@@ -168,7 +172,7 @@ export function formatStandingOrderFire(fire: StandingOrderFire): string {
 }
 
 export function draftToDecisions(draft: DecisionDraft): Decision[] {
-  return [
+  const decisions: Decision[] = [
     {
       type: 'grain',
       feedLevel: draft.feedLevel,
@@ -222,6 +226,11 @@ export function draftToDecisions(draft: DecisionDraft): Decision[] {
       equipmentInvest: draft.equipmentInvest
     }
   ]
+  // Omit when unanswered — engine resolveGuildPetition treats absence as lapse.
+  if (draft.guildAction === 'grant' || draft.guildAction === 'refuse') {
+    decisions.push({ type: 'guild', action: draft.guildAction })
+  }
+  return decisions
 }
 
 /** Max sell units given stock left AFTER feeding (year.ts settles trade after feed). */

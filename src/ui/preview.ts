@@ -142,6 +142,10 @@ export interface YearPreview {
   tradingHouseIncome: number
   grainTradeIncome: number
   upkeepCost: number
+  /** Phase 21.10 — guild bonus on top of market/mill base income. */
+  guildBonusIncome: number
+  /** Phase 21.10 — how this year's pending petition resolves under the draft. */
+  guildResolution: PlayerChronicle['guildResolution']
   /** Chronicle fields so Grain tiles can share the same harvest oracle as the footer.
    *  These come from the EXPECTED forecast run, not the true roll — see previewYear. */
   harvestYield: number
@@ -303,6 +307,8 @@ export function previewYear(
     tradingHouseIncome: report.tradingHouseIncome,
     grainTradeIncome: report.grainTradeIncome,
     upkeepCost: report.upkeepCost,
+    guildBonusIncome: report.guildBonusIncome ?? 0,
+    guildResolution: report.guildResolution,
     harvestYield: report.harvestYield,
     spoilage: report.spoilage,
     grainOverflowLost: report.grainOverflowLost,

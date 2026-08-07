@@ -1156,14 +1156,10 @@ machinery), then D1 (requires new data file, RNG stream extension, 19A interacti
 
 ---
 
-**Last updated:** Phase 21.8 — reducer wiring, petitions now fire. 21.0-21.7 merged.
-#45, #48, #46, #47, #50a/#50b addressed; #49 (promotion moment) and #51 (specialization) now have
-working engine behaviour behind them. **The suite is deliberately RED on 5 tests**
-(`planner-golden` year20) from here until 21.11 — see the block comment in `tests/golden.test.ts`;
-do NOT regenerate to go green. Next: 21.9 AI parity + calibration against `ai-bench` (start from
-BACKLOG S10, which now carries three measured findings including that the mechanic can cost a poor
-builder his rank), then 21.10 Cursor UI against the types 21.8 froze, then 21.11 single deliberate
-regeneration of BOTH fixtures + balance gate. Deferred still: F2, F7; D1 trade routes.
+**Last updated:** Phase 21.10 — guild petition / promotion UI (Cursor lane). 21.0–21.9 merged.
+Engine + AI parity for D2 (#49/#51) are live; humans can now answer petitions on the Build tab.
+Next: **21.11** single deliberate regeneration of both golden fixtures + balance gate + docs close-out.
+Deferred still: F2, F7; D1 trade routes; S11 rival-assignment / archetype rebalance.
 
 ---
 
@@ -2190,3 +2186,41 @@ Three caveats that keep this from being a finished result:
 
 Not fixed here: the rival-assignment line is `src/ui/app.ts`, Cursor's lane for 21.10, and the
 underlying archetype rebalance is `data/personalities.json`, which is balance-critical.
+
+---
+
+## Phase 21.10: Guild Petition / Promotion UI (D2, #49/#51) ✓
+
+Cursor lane against the types and chronicle fields 21.8 froze. Pure UI — no engine math, no AI
+scoring, no golden regeneration. Humans emit the same `GuildDecision` shape `planGuildResponse`
+already appends.
+
+### What shipped
+- **Build tab:** petition card with grant/refuse (toggleable), affordability note, held-guild list
+  with bonus/surcharge breakdown, charter-slot count
+- **Tab badge:** Build tab shows `!` while a petition is pending and unanswered; clears when answered
+  without a full `renderGame` (scroll-preserving path from 21.1)
+- **Preview warning:** unanswered petition → lapse warning; grant that the oracle resolves as
+  unaffordable → refusal warning — both from `previewYear`'s real `advanceYear` run
+- **Year report:** full-bleed petition-queued card; full-bleed promotion card (rank name +
+  `ranks.json` description + charter slots); log lines for resolution / queue / promotion details
+- **Income:** `guildBonusIncome` on the income card and footer tooltip; `guildSurcharge` in the
+  upkeep tip; unrest tip includes `unrestFromGuild` / `unrestFromPromotion`
+- **Decision parity:** `DecisionDraft.guildAction` → optional `{ type: 'guild', action }` via
+  `draftToDecisions`; absence = lapse (engine contract)
+
+### Out of scope (handed on)
+- S11 rival-assignment / personality rebalance — still open; petition UI was the 21.10 prerequisite
+- Fixture regeneration and `npm run balance` — **21.11 only**
+- Closing GitHub #49/#51 fully — engine was 21.8, AI 21.9, UI here; 21.11 owns the issue close-out
+  with the deliberate regen
+
+### Acceptance Criteria
+- ✓ Pending petition is answerable on the Build tab before End Year
+- ✓ Human Decision sheet carries the same `GuildDecision` the AI emits (or omits to lapse)
+- ✓ Tab badge, preview warning, petition card, promotion card, report lines, guild income breakdown
+- ✓ `tests/guildUi.test.ts` covers draft→Decision wiring + chronicle copy helpers
+- ✓ No golden fixture regeneration; no AI/balance/guild engine math changes
+- ✓ Suite: 42 files, **469** tests (463 + 6), `tsc` + `vite build` green
+
+---
