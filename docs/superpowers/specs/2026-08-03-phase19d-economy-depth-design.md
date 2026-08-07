@@ -426,23 +426,80 @@ can be considered done. None are currently checked.
 - [ ] The Phase 19A war-brakes interaction is explicitly tested: a ruler with an
   active war has its war-risk route severed; a non-war-risk route is unaffected.
 
-### D2 — Guilds
+### D2 — Guilds ✅ IMPLEMENTED (phases 21.6–21.11, GitHub issues #49/#51)
 
-- [ ] `PlayerState` carries `guilds: SpecializedBuilding[]`; it survives
+Four of five criteria met outright; the fifth is met in substance by a different
+artifact than the one named here, recorded as a deviation rather than ticked.
+Full narrative in `PLAN.md` §§21.6–21.11.
+
+- [x] `PlayerState` carries `guilds: SpecializedBuilding[]`; it survives
   `clonePlayerState` and `persist.ts` round-trip.
-- [ ] A seeded test confirms: a guild petition fires when `markets >= petitionMinBuilding`
+  → 21.6, both halves. **persist round-trip:** `tests/guilds.test.ts:425` ("guilds,
+  pendingGuild, and guildCooldowns survive a save/load round trip"). **clone:**
+  `tests/guilds.test.ts:465-489`. No `SAVE_FORMAT_VERSION` bump — tolerate-and-default,
+  same precedent as `dike`. Note the enclosing `describe` at `:424` says
+  "byte-identically" while the body asserts `toEqual` on three fields; that title
+  predates this tranche and overstates what is checked.
+- [x] A seeded test confirms: a guild petition fires when `markets >= petitionMinBuilding`
   AND rank ≥ `petitionMinRank`; granting raises income by `incomeMultiplier`; refusing
   raises unrest by `guildRefusalUnrestSpike`; petition does NOT fire again for the
   same building the following year (refusal cooldown applies).
-- [ ] Guild income satisfies `(incomeMultiplier - 1.0) * incomePerYear > upkeepSurcharge`
+  → 21.6/21.8, in four places rather than one. **Gating** (both halves of the AND):
+  `tests/guilds.test.ts:236` starter state ineligible, `:243` cap full, `:261` a Baron
+  cannot be offered wine, plus the positive-direction firing case in
+  `tests/guildReducer.test.ts:33-42`. **Granting raises income by `incomeMultiplier`:**
+  `tests/guildEconomics.test.ts:51-61`, which asserts the exact bonus rather than merely
+  that it is positive. **Refusal unrest and cooldown:** `tests/guilds.test.ts:273,289`.
+  **End-to-end through the reducer** (grant / refuse / lapse / unaffordable / cap):
+  `tests/guildReducer.test.ts:52-133`.
+  **Deviation:** the criterion says a petition must not fire again *for the same
+  **building*** the following year. Cooldowns are keyed by guild **type**
+  (`guildCooldowns: Partial<Record<GuildType, number>>`), not by building, and
+  `PendingGuildPetition` carries `{kind, specialization, queuedYear}` with no building
+  identity — buildings are fungible counts in this codebase, so "the same building" is
+  not representable in the model at all. The anti-nag intent is served on a strictly
+  broader key: refusing iron blocks *every* iron petition for three years, not just one
+  building's.
+- [x] Guild income satisfies `(incomeMultiplier - 1.0) * incomePerYear > upkeepSurcharge`
   for every guild type — verified by a static data-integrity test (no specialization
   should ever make a building strictly worse on net).
-- [ ] `ai-bench` after D2: at least one guild active per Merchant/Builder ruler by
+  → 21.6. Enforced as `upkeepSurchargeFraction < incomeMultiplier - 1` in
+  `tests/guilds.test.ts`. **Deviation:** the doc's flat `upkeepSurcharge` was replaced
+  by a *fraction*, because the doc's own shipped numbers failed this criterion
+  (cloth netted exactly zero; iron on a market was strictly worse). A fraction reduces
+  the rule to a single-file static check that cannot rot when `incomePerYear` is retuned.
+- [x] `ai-bench` after D2: at least one guild active per Merchant/Builder ruler by
   year 30; Builder and Merchant show meaningfully different guild compositions (not
   all rulers specializing identically); balance gate re-passes all four criteria.
-- [ ] The existing `calculateBuildingIncome` test baseline is updated with a
+  → 21.9/21.11. **Adoption is a universal quantifier, so it is counted per ruler, not
+  averaged:** `scripts/guild-bench.ts`'s `adopt<=y30` column reports **10/10 (100%) for
+  every one of the five archetypes**, Builder and Merchant included. That column was
+  added in 21.11 precisely because the evidence first offered here — "first grant lands
+  at year 4–8" — is a mean over *matches that granted at all*, and would read identically
+  if only three rulers in ten had ever adopted. Mean first grant is year 4–8 and mean
+  charters held is Builder 3.3 / Merchant 3.8, but those are colour, not the proof.
+  Composition differs substantially — Builder 36/27/18/18 (cloth/iron/salt/wine) against
+  Merchant 29/50/18/3.
+  Balance gate re-passes at the default 200 matches (`docs/balance-report.md`).
+  **Two deviations:** measured with `scripts/guild-bench.ts` rather than `ai-bench`,
+  which reports win rates and end-state profiles and cannot see how often a petition
+  was offered or answered; and the gate is now **five** criteria, not four (Phase 13
+  added the death-spiral floor). **One caveat worth carrying forward:** composition
+  differs, but no archetype ever *prefers* a guild type — `nextGuildPetition` rotates
+  by year with no reference to personality, so the divergence is a second-order effect
+  of differing refusal rates and rank pacing. That satisfies this criterion as written
+  and is a thin basis for #51's "specialization is visible".
+- [~] The existing `calculateBuildingIncome` test baseline is updated with a
   golden fixture that includes guilds — so any future change to income math is
   forced to deliberately regenerate it, not accidentally shift it.
+  → **Met in substance, not in letter.** No `calculateBuildingIncome`-specific fixture
+  was added; `tests/buildings.test.ts` has no guild cases. The intent — income math
+  cannot shift accidentally — is carried by `tests/fixtures/advanceYear-golden.json`,
+  whose 35-year run records `guildsGranted: 1` and `guildRefusalsAndLapses: 3` as
+  asserted coverage counters, so building income *with a guild held* is pinned
+  cross-process and any drift forces a deliberate, reviewed regeneration. A dedicated
+  unit-level baseline would localise a break better; filed as a follow-up rather than
+  claimed as done.
 
 ### Combined
 

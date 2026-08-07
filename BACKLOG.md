@@ -1036,10 +1036,19 @@ a finished result.
 
 1. **~~The shipped human cannot answer a guild petition at all.~~ ✅ CLEARED (UI, phase 21.10).**
    Build-tab grant/refuse, tab badge, preview lapse warning, and year-report cards/lines now wire
-   the same `GuildDecision` the AI emits. Universal human lapsing is gone. **Re-run the
-   `guild-bench` human-seat measurement** (still open — the 58% figure was an upper bound on an
-   unplayable build; the new figure is what matters for S11 tuning). Remaining S11 work is rival
-   assignment + archetype rebalance, not petition UI.
+   the same `GuildDecision` the AI emits (`src/ui/decisions.ts:230`, asserted against the AI's own
+   shape in `tests/guildUi.test.ts`). Universal human lapsing is gone.
+
+   **Re-measured in 21.11 — and there is no new figure, which is the finding.** The 21.10 note here
+   expected the number to move. It cannot: `guild-bench` is a headless simulation that has always
+   played the human seat with the AI planner, and a UI-only tranche changes nothing a headless run
+   imports. Re-run post-21.10: **58.0% (29/50), byte-identical to the 21.9 run.**
+
+   What 21.10 changed is not the number but its **validity**. Before it, the bench modelled a seat
+   that answered petitions while no such seat could exist in the shipped build, so 58% was an upper
+   bound on something unplayable. Now the modelled seat is one a player can actually occupy, and the
+   figure means what it says. Remaining S11 work is rival assignment + archetype rebalance, not
+   petition UI.
 2. **A planner seat is not "a competent human".** CLAUDE.md's Decision-parity invariant guarantees
    the planner emits the same *action space* a human can, through the same reducer. It says nothing
    about skill. The seat's own archetype swings the result from 30% to 90% under identical rules, so
@@ -1049,7 +1058,7 @@ a finished result.
 3. **n=50 per pairing** (5 human-seat archetypes × 10 matches). The 58% headline survives its
    interval; finer distinctions below do not, and are marked where they matter.
 
-Configuration is the literal shipped default (`src/ui/app.ts:326-327`): you + 2 rivals, 60 years,
+Configuration is the literal shipped default (`src/ui/app.ts:339-340`): you + 2 rivals, 60 years,
 `standard` difficulty — which is neutral, so the bench measures it exactly (2 evaluation seeds, all
 starting multipliers 1.0). Command: `npx tsx scripts/guild-bench.ts 10 60`.
 
@@ -1064,7 +1073,7 @@ guilds-off control was not run.
 
 ### 2. The cause is which rivals the default fields
 
-`src/ui/app.ts:397` assigns rivals `personalities[i % personalities.length]`, so a 2-rival game
+`src/ui/app.ts:410` assigns rivals `personalities[i % personalities.length]`, so a 2-rival game
 *always* draws `personalities[0]` and `personalities[1]` — Builder and Expansionist. Those are the
 two weakest archetypes:
 
@@ -1153,3 +1162,35 @@ Plausible approaches, cheapest first:
 
 Do not attempt this in the same tranche as anything else — it regenerates the planner fixture, so it
 needs the deliberate-single-regeneration discipline PLAN.md applies to fixture changes.
+
+---
+
+## S13 — No unit-level golden baseline for building income with guilds
+
+Surfaced by phase 21.11 while marking D2 implemented. This is the one D2 acceptance criterion that
+is **not** met in letter, recorded here rather than ticked.
+
+D2 asks for: *"the existing `calculateBuildingIncome` test baseline is updated with a golden fixture
+that includes guilds — so any future change to income math is forced to deliberately regenerate it,
+not accidentally shift it."*
+
+**What exists.** `tests/buildings.test.ts` has no guild cases at all — zero references to `guilds`
+or `guildBonusIncome`. There is no `calculateBuildingIncome` fixture.
+
+**Why it is `[~]` and not `[ ]`.** The criterion's *intent* is carried by
+`tests/fixtures/advanceYear-golden.json`, whose 35-year cross-process run records
+`guildsGranted: 1` and `guildRefusalsAndLapses: 3` as asserted coverage counters
+(`tests/yearGolden.test.ts`). Building income flows through `year.ts` step 8, which reads
+`player.guilds`, so income *with a guild held* is genuinely pinned cross-process today, and any
+accidental shift in the income math forces a deliberate, reviewed regeneration. The protection the
+criterion wanted is real.
+
+**Why it is still worth doing.** A reducer-level fixture localises a break badly. If someone changes
+`guildGrossBonusIncome` and `advanceYear-golden` goes red, the failure names a 35-year state
+snapshot, not the function — and the same fixture also moves for a change to harvest, taxation,
+events, or upkeep. A unit-level baseline over `calculateBuildingIncome` across a small matrix
+(0 guilds / 1 guild on a market / 1 on a mill / several of mixed type) would fail with a one-line
+diff pointing at the arithmetic.
+
+Cheap: the function is pure and the matrix is small. Do it the next time building income is touched
+for any reason, since that is exactly when the missing localisation costs the most.

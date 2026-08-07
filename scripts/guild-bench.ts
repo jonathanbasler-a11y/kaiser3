@@ -38,11 +38,16 @@
 // it answers "did this change make the game easier?" — which is the question
 // 21.9 needed. It does not answer "how often will the owner win".
 //
-// One further limit, which matters more than either: as of 21.9 there is no
-// guild UI at all (`grep -i guild src/ui` returns nothing — it is 21.10's
-// deliverable), so in the shipped build every HUMAN petition lapses to a
-// refusal, spike and all. The seat measured below answers its petitions. Until
-// 21.10 lands, this number is an upper bound on a build nobody can play.
+// A limit that USED to matter more than either, now cleared: through 21.9 there
+// was no guild UI at all, so in the shipped build every HUMAN petition lapsed to
+// a refusal while the seat measured here answered its petitions — making the
+// figure an upper bound on a build nobody could play. 21.10 shipped the Build-tab
+// grant/refuse control, so the modelled seat is now one a player can occupy.
+//
+// Re-running after 21.10 returned the identical 58.0%, which is expected and not
+// a null result: this script is headless and nothing under src/ai or src/engine
+// imports src/ui, so a UI-only tranche cannot move it. What changed is the
+// measurement's validity, not its value. See BACKLOG S11.
 
 import { getPersonalities, getPersonality } from '../src/ai/personalities.ts'
 import { aiCompetitor, runMatch, Competitor } from '../src/ai/sim.ts'
@@ -65,6 +70,14 @@ interface GuildTally {
   refusedForUnaffordable: number
   feesPaid: number
   firstGrantYears: number[]
+  // D2's adoption criterion is a UNIVERSAL quantifier — "at least one guild
+  // active per Merchant/Builder ruler by year 30" — so a mean cannot answer it.
+  // firstGrantYears only records matches that granted AT ALL, which means the
+  // "1st grant" column reads identically whether 10 rulers of 10 adopted or 3
+  // did. These two count rulers, not years, so the criterion can be checked
+  // rather than inferred.
+  matches: number
+  matchesWithCharterByYear30: number
   guildsHeldAtEnd: number
   charterSlotsAtEnd: number
   bySpecialization: Record<GuildType, number>
@@ -74,6 +87,7 @@ function emptyTally(): GuildTally {
   return {
     petitionsQueued: 0, resolutions: 0, granted: 0, refusedExplicitly: 0,
     lapsed: 0, refusedForUnaffordable: 0, feesPaid: 0, firstGrantYears: [],
+    matches: 0, matchesWithCharterByYear30: 0,
     guildsHeldAtEnd: 0, charterSlotsAtEnd: 0,
     bySpecialization: { cloth: 0, iron: 0, salt: 0, wine: 0 }
   }
@@ -107,7 +121,11 @@ function observeInto(tally: GuildTally, playerId: string) {
       }
     },
     finish: (state: GameState) => {
-      if (firstGrantThisMatch !== undefined) tally.firstGrantYears.push(firstGrantThisMatch)
+      tally.matches++
+      if (firstGrantThisMatch !== undefined) {
+        tally.firstGrantYears.push(firstGrantThisMatch)
+        if (firstGrantThisMatch <= 30) tally.matchesWithCharterByYear30++
+      }
       const player = state.players[playerId]
       if (!player) return
       tally.guildsHeldAtEnd += player.guilds?.length ?? 0
@@ -153,8 +171,8 @@ console.log(
 //    does when a treasury also has rivals, war, and espionage competing for it.
 // ---------------------------------------------------------------------------
 console.log(`\n=== Guild behaviour by archetype (${RUNS} matches each, ${MAX_YEARS}y, vs 2 rivals) ===`)
-console.log('Archetype          | petitions | grant | refuse | lapse | unafford | held/slots | 1st grant | fees')
-console.log('-------------------|-----------|-------|--------|-------|----------|------------|-----------|------')
+console.log('Archetype          | petitions | grant | refuse | lapse | unafford | held/slots | 1st grant | adopt<=y30 | fees')
+console.log('-------------------|-----------|-------|--------|-------|----------|------------|-----------|------------|------')
 
 const personalities = getPersonalities()
 const fieldTally = emptyTally()
@@ -190,7 +208,9 @@ for (const personality of personalities) {
     `${pct(tally.granted, tally.resolutions)} | ${pct(tally.refusedExplicitly, tally.resolutions)} | ` +
     `${pct(tally.lapsed, tally.resolutions)} | ${pct(tally.refusedForUnaffordable, tally.resolutions)} | ` +
     `${mean(tally.guildsHeldAtEnd, RUNS).toFixed(1).padStart(4)}/${mean(tally.charterSlotsAtEnd, RUNS).toFixed(1).padEnd(5)} | ` +
-    `${firstGrant.padStart(9)} | ${mean(tally.feesPaid, RUNS).toFixed(0).padStart(5)}`
+    `${firstGrant.padStart(9)} | ` +
+    `${String(tally.matchesWithCharterByYear30).padStart(2)}/${String(tally.matches).padEnd(2)} ${pct(tally.matchesWithCharterByYear30, tally.matches)} | ` +
+    `${mean(tally.feesPaid, RUNS).toFixed(0).padStart(5)}`
   )
   for (const type of GUILD_TYPES) fieldTally.bySpecialization[type] += tally.bySpecialization[type]
 }
@@ -234,8 +254,8 @@ console.log(
 )
 
 // ---------------------------------------------------------------------------
-// 3. The shipped default game. app.ts:326 defaults to 2 rivals over 60 years,
-//    and app.ts:397 assigns them personalities[0] and personalities[1] — so
+// 3. The shipped default game. app.ts:339-340 defaults to 2 rivals over 60
+//    years, and app.ts:410 assigns them personalities[0] and personalities[1] — so
 //    this is the exact field a player who presses "Begin Your Reign" without
 //    touching the steppers actually faces.
 //

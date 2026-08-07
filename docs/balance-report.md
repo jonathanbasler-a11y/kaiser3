@@ -1,6 +1,94 @@
 # Balance Report — Anti-Snowball Gate
 
-## Current: Phase 7 (five archetypes, aggression enabled)
+## Current: Phase 21.11 (five archetypes, aggression + guild charters)
+
+`npx tsx scripts/balance.ts 200 60` — 200 seeded matches × 60 years, 5 AI rulers.
+**Result: BALANCE GATE PASSED** (74.3s)
+
+This is the run that closes out the guild work (D2, issues #49/#51). It is the
+**default** configuration, not a reduced one — see the runtime note below, which
+corrects what this document used to say.
+
+| Criterion | Result | Threshold |
+|---|---|---|
+| 1. Margin flatness | slope **−1.051e-2** (returns fall 4.86% → −0.29%) | ≤ 0.002 |
+| 2. Loss persistence | late rate **74.1%**, ratio **0.97** (early 76.5%) | ≥ 25%, ≥ 0.6 |
+| 3. Late lead volatility | **56.5%** | ≥ 20% |
+| 4. No early runaway | yr-20 leader wins **51.0%** | ≤ 85% |
+| 5. No death spiral | holdings growth **1.48**, population retention **2.23**, late non-leader return **−1.26%**, extinction **0.0%** | ≥ 1, ≥ 0.5, ≥ −3%, ≤ 15% |
+
+Leader return by decade: **4.86% → 3.08% → 0.61% → −0.23% → −0.32% → −0.29%**.
+Setback rate by decade: **75.5% → 77.5% → 88.0% → 57.1% → 48.1% → 100%**.
+
+A caveat this document should hold itself to, given the sampling argument it makes
+below: **the late-decade cells have small denominators and the report does not
+show them.** Neither 57.1% nor 48.1% is expressible over a 200-match denominator
+(they are 4/7 and 13/27), and a decade reading exactly 100.0% is the classic
+signature of a very small sample. Matches end early when a ruler reaches Kaiser,
+so few reach decade 6 at all. Criterion 2's headline 74.1% is the mean of decades
+5 and 6, so it leans on that thin cell. The criterion passes with wide margin
+either way — the floor is 25% — but the number should not be read as precise, and
+a future pass over this harness should make the per-decade denominators visible.
+
+Field health (mean per ruler, the D5 diagnostics that stop "PASS" being read too
+generously):
+
+| decade | population | holdings | mean rank |
+|---|---|---|---|
+| 1 | 1,147 | 372,482 | 0.02 |
+| 3 | 1,826 | 703,017 | 1.71 |
+| 6 | 3,281 | 614,985 | 5.43 |
+
+### Two corrections to what this document previously said
+
+**Criterion count.** This report listed **four** criteria. There are **five** —
+Phase 13 added "no death spiral" (BACKLOG D5), because the first four are
+one-sided: a game grinding every ruler into the dirt satisfies margin flatness
+*better* than a healthy one does. The table above carries all five.
+
+**Runtime.** The Phase 7 section below states that "a 200-match run exceeds
+practical runtime here. 60 matches is the honest figure". That has not been true
+since Phase 13 parallelised match generation across worker threads: 200 matches
+now completes in **74.3s**, faster than the 188.3s that Phase 7's *60*-match run
+took. **200 is the honest figure now, and it is the script's default.**
+
+That correction matters beyond tidiness. Phase 21.9 recorded a smoke run at 60
+matches failing criteria 2 and 5 — decade 6 comes back all zeros at that sample
+size, because too few matches reach it. Running the same 60-match configuration
+against the previous commit reproduced the same two failures, which is what
+identified it as sampling rather than regression. **Do not gate on a
+reduced-match run.** If you must use one for speed while iterating, it is only
+meaningful against a same-config control.
+
+### What the guild work did to the field
+
+Guild charters (D2) are a multiplicative income bonus on a growing building
+count — exactly the compounding shape criterion 1 polices — so they were the
+main risk to this gate. Measured across the tranches:
+
+| | mean rank @ decade 6 | population @ decade 6 |
+|---|---|---|
+| pre-guild baseline | 5.43 | 3,206 |
+| 21.8, petitions firing with **no** AI answer path | **1.99** | **952** |
+| 21.8 + AI answer path | 5.63 | 3,300 |
+| 21.11 (final, real-reducer scoring) | 5.43 | 3,281 |
+
+The middle row is the one worth remembering: with every petition lapsing to a
+refusal, the field collapsed to a third of its rank progression — and **the gate
+still returned PASS on all five criteria**, because a uniform tax on every ruler
+is perfectly fair, and the criteria measure fairness and anti-snowball rather
+than whether the game is any good. The leader-wins rate actually *improved*
+(12.5% under universal lapsing, against 51% here) because nobody can hold a lead while everyone is sinking.
+
+That is the standing caveat on this whole document: a PASS here means the game
+is not unfair and does not snowball. It does not mean the game is fun, that a
+mechanic is tuned, or that the field is healthy — read the D5 diagnostics above
+for the last of those, and `npx tsx scripts/guild-bench.ts` for mechanic-level
+behaviour the gate cannot see.
+
+---
+
+## Phase 7 (five archetypes, aggression enabled) — superseded by 21.11 above
 
 `npx tsx scripts/balance.ts 60 60` — 60 seeded matches × 60 years, 5 AI rulers.
 **Result: BALANCE GATE PASSED** (188.3s)
